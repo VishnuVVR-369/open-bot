@@ -172,7 +172,8 @@ Signing out stops the phone connection first: the service stops and the phone fo
 Then the app unpairs the phone while the session still works; if it can't reach the server, it remembers to, for that pairing only, and does it once you're signed in again.
 The same goes for Turn off for this phone while offline.
 A phone removed from the web or another phone forgets its pairing the next time its Phone connection screen loads the list, or when it next tries to connect.
-A session that ends elsewhere (a password change on the web, for example) signs the phone out the same way.
+A session that ends elsewhere (a password change on the web, for example), or expires, signs the phone out the same way, once the server says there is no session; while the phone is offline or the server fails, nothing is cleared.
+Until then, the worker already sends nothing to a phone whose session has expired or ended.
 
 ## Sharing to a teammate
 

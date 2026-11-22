@@ -161,10 +161,13 @@ Each of these queries gives up after 2 seconds waiting on a row and 5 seconds ru
 Once every phone got the end, the row is marked `ended_at`; a failed end is tried again after 30 seconds, 2 and 10 minutes.
 A run that already showed gets its end at once, even while the write for its last update is still going: a write that lands on an ended row changes nothing, so it can't make the end owed again.
 A run that ends before any push went sends no end, and its row is marked ended too.
-Only FCM's own error codes say it refused a phone for good: `UNREGISTERED` and `SENDER_ID_MISMATCH` (the token is forgotten), `INVALID_ARGUMENT` and `THIRD_PARTY_PERMISSION_DENIED` (that message to that token); those don't count as failed and aren't tried again.
+Only FCM's own error codes say it refused a phone for good, read from the error's details of type `type.googleapis.com/google.firebase.fcm.v1.FcmError` only (the body is validated, and a malformed one has no code): `UNREGISTERED` and `SENDER_ID_MISMATCH` (the token is forgotten), `INVALID_ARGUMENT` and `THIRD_PARTY_PERMISSION_DENIED` (that message to that token); those don't count as failed and aren't tried again.
 Any other answer, such as a 403 `PERMISSION_DENIED` from a service account that lost its role, a 401 or a 404 without one of those codes, is the project's state, so the end stays owed and is tried again.
+A 401 also drops the cached access token before the answer is read, so the next send gets a new one.
 A row is forgotten 45 minutes after the run's last live push, or after its end: the push's TTL is 10 minutes, and a phone removes a notification nothing refreshed for 30, so by then no phone shows the run and its end is no use.
-When the worker starts, it sends the ends still owed by runs that are over: one stopped between storing a run's last status and sending its end, for example while waiting for the run's model logs.
+When the worker starts, and every 15 minutes after, it sends the ends still owed by runs that are over: one stopped between storing a run's last status and sending its end, for example while waiting for the run's model logs, or one whose every try failed.
+A run the worker still follows, or whose end waits for a retry, is left to that.
+The same sweep forgets old rows: a row whose end is still owed 45 minutes after its last live push (`shown_at`), and an ended row 45 minutes after its end (`ended_at`), however long ago it last showed, so a late write for its run still finds it ended.
 A run the restart interrupted gets its end when `executor.recover()` marks it interrupted, if it had shown progress.
 
 ## A tool call

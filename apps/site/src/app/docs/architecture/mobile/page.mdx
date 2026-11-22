@@ -135,18 +135,30 @@ JavaScript never draws it: these messages are normal priority, and Android may r
   The end has no collapse key while updates do, so either can arrive first; an end that arrives first is kept, and the later update is ignored.
   Every write to the ledger, a result's included, forgets runs older than 2 days and all but the newest 200.
 - Android sends the delete intent when the notification times out as well as when you swipe it, and says nothing more, so each card's delete intent carries when that card times out.
-  A delete at or after that time (less a minute for the clock) is the timeout and records nothing, so the run's next update shows it again; any earlier one is your swipe.
+  The time is on `SystemClock.elapsedRealtime()`, the clock Android times `timeoutAfter` with, so setting the phone's clock moves neither.
+  A delete at or after that time (less a second) is the timeout and records nothing, so the run's next update shows it again; any earlier one is your swipe.
+- Each card gets its own delete intent (a new `Intent` identifier for every post, without `FLAG_UPDATE_CURRENT`).
+  With one per run, posting the next card would rewrite the earlier card's expiry, and that card's timeout, racing the repost, would be taken for a swipe.
 - The receiver records the swipe and removes the run's notification in the same lock, so an update drawn between Android removing the card and the receiver running doesn't stay.
 - `usePushNotifications()` tells the module which chat is on screen (`visibleChat`); that chat's runs are hidden until you leave it.
   The ledger keeps each live run's latest update, so when the chat leaves the screen (you open another, or press Home) the module draws it again at once, for the time it had left before timing out, without waiting for another push.
   Ended, swiped-away and timed-out runs are not drawn again.
 - Only pushes for this sign-in are drawn.
-  When you sign in, `usePushNotifications()` takes `RunProgress.registration()`, a random id the module makes and keeps in the ledger, and sends it with the FCM token (`push.registerDevice`); the worker stores it on the phone's `native_push_devices` row and adds it to each push it sends that phone.
+  When you sign in, `usePushNotifications()` takes `RunProgress.registration(sessionId)`, a random id the module makes for your Better Auth session and keeps in the ledger, and sends it with the FCM token (`push.registerDevice`); the worker stores it on the phone's `native_push_devices` row, with the session, and adds it to each push it sends that phone.
+  The module keeps a hash of the session the id is for: a call for another session (a new sign-in the phone never saw the last one end) first clears the ledger and every card, as sign-out does, and makes a new id.
   The module drops a `run-progress` push whose `registration` isn't the one it keeps; pushes the app hands it itself (development builds' test pushes) need only that you're signed in.
   The id is taken before the token is registered, so no push can carry it before the phone has it.
-- Signing out (`unregisterPushNotifications()`) first calls `RunProgress.reset()`, which removes every run's notification and clears the ledger, the registration with it, in one write in its lock.
+- `PushRegistrar` (`src/push/registrar.ts`) keeps the token on the server.
+  The server answers with the registration it stored, and the phone counts it as stored only when that is its own, so a failed request, or a web app or worker too old to store it, counts as failed.
+  A failed registration is tried again after 5 seconds, 30 seconds and 2 minutes, and with a fresh set of tries when the app comes back to the screen, comes back online or gets a new token; signing out stops it, a retry that was waiting included.
+  The FCM service's own `onNewToken` only updates the phone connection when JavaScript isn't running; the next start or resume registers the new token.
+- Signing out (`signOut()` in `src/lib/session.ts`) first calls `RunProgress.reset()`, before anything waits, which removes every run's notification and clears the ledger, the registration with it, in one write in its lock.
   A push for the account you left, even one FCM already handed the app, draws nothing then, and nothing after you sign in again, which makes a new registration.
   Then it stops pushes to the phone (server unregister, token delete).
+  A sign-in that comes while a sign-out is still running waits for it (`signOutsSettled()`) before it takes its registration, so the old sign-in's teardown can't undo the new one's.
+- A session that ends without the phone signing out (it expired, or you signed out elsewhere) signs the phone out the same way, once the server says so (`useSignOutWhenSessionEnds()`): it answered with no session, or a 401.
+  While Better Auth is still loading, or gets no answer (offline, a server error), nothing changes: the session may still be good.
+  The worker sends nothing to a phone whose session has expired, and a session's row in `session`, when Better Auth deletes it, takes the phone's `native_push_devices` row with it, so an expired phone that is offline gets nothing either.
 - It is ongoing on Android 14 and newer, where you can still swipe an ongoing notification away; on Android 10 to 13 it isn't, so a swipe works there too.
 - A notification not refreshed for 30 minutes removes itself; the worker sends an unchanged one again every 10 minutes, so only a lost end leaves one behind, and not for long.
 - Tapping it opens `openbot://chats/<chat>?run=<run>` in the app.

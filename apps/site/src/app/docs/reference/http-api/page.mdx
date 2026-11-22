@@ -185,28 +185,28 @@ A path or input field is removed only once no deployed web app calls it.
 
 ### Integrations and settings
 
-| Route                                                                                                        | Purpose                                                          |
-| ------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------- |
-| `POST /internal/codex/device-login` ☀                                                                        | Start a device-code ChatGPT login on the computer                |
-| `POST /internal/codex/auth-source` ☀                                                                         | Switch between borrowing the host's login and the computer's own |
-| `POST /internal/codex/logout` ☀                                                                              | Sign the computer out                                            |
-| `GET /internal/codex/rate-limits`                                                                            | The plan's usage windows, as last read                           |
-| `POST /internal/egress/mode`, `/internal/egress/phone-mode`                                                  | Set the egress mode, and when phones carry traffic               |
-| `POST /internal/egress/devices/changed`, `/devices/:id/unavailable`, `/devices/:id/revoked`                  | Paired phones changed, can't carry traffic now, or were unpaired |
-| `POST /internal/egress/devices/:id/pair`, `/unpair`, `/push-token`, `/used`                                  | Pair or unpair a phone, its new push token, a tunnel it opened   |
-| `POST /internal/connections/:id/test` ☀                                                                      | Test an MCP connection or an account                             |
-| `POST /internal/connections`, `/connections/:id/enabled`, `/connections/:id/delete`                          | Save an MCP server, turn a connection on or off, remove one      |
-| `POST /internal/connections/:id/account`, `/internal/accounts/:id/linked`                                    | Change an account connection, or make one after a sign-in        |
-| `POST /internal/email/inbound/:token`                                                                        | Receive an email (called by the web app)                         |
-| `GET /internal/email`, `POST /internal/email`, `/internal/email/token/delete`                                | Email setup, its Postmark token, and forgetting the token        |
-| `POST /internal/settings/timezone`, `/monthly-cap`, `/api-key`, `/api-key/delete`                            | Your time zone, the API key's monthly cap, and the API key       |
-| `POST /internal/settings/model-log-retention`                                                                | How long model logs keep their bodies; starts a sweep            |
-| `POST /internal/vault`, `/internal/vault/:id/delete`                                                         | Save a login or card, or remove one                              |
-| `POST /internal/pages/:id/pin`, `/internal/pages/:id/delete`                                                 | Pin or delete a page                                             |
-| `POST /internal/notifications/read`                                                                          | Mark notifications read                                          |
-| `GET /internal/telegram`, `POST /internal/telegram/connect`, `/link-code`, `/test`, `/unlink`, `/disconnect` | Telegram                                                         |
-| `GET /internal/push`, `POST /internal/push/subscribe`, `/unsubscribe`, `/test`                               | Browser push notifications                                       |
-| `POST /internal/push/native/register`, `/internal/push/native/unregister`                                    | Phone notifications through Firebase Cloud Messaging             |
+| Route                                                                                                        | Purpose                                                                                     |
+| ------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------- |
+| `POST /internal/codex/device-login` ☀                                                                        | Start a device-code ChatGPT login on the computer                                           |
+| `POST /internal/codex/auth-source` ☀                                                                         | Switch between borrowing the host's login and the computer's own                            |
+| `POST /internal/codex/logout` ☀                                                                              | Sign the computer out                                                                       |
+| `GET /internal/codex/rate-limits`                                                                            | The plan's usage windows, as last read                                                      |
+| `POST /internal/egress/mode`, `/internal/egress/phone-mode`                                                  | Set the egress mode, and when phones carry traffic                                          |
+| `POST /internal/egress/devices/changed`, `/devices/:id/unavailable`, `/devices/:id/revoked`                  | Paired phones changed, can't carry traffic now, or were unpaired                            |
+| `POST /internal/egress/devices/:id/pair`, `/unpair`, `/push-token`, `/used`                                  | Pair or unpair a phone, its new push token, a tunnel it opened                              |
+| `POST /internal/connections/:id/test` ☀                                                                      | Test an MCP connection or an account                                                        |
+| `POST /internal/connections`, `/connections/:id/enabled`, `/connections/:id/delete`                          | Save an MCP server, turn a connection on or off, remove one                                 |
+| `POST /internal/connections/:id/account`, `/internal/accounts/:id/linked`                                    | Change an account connection, or make one after a sign-in                                   |
+| `POST /internal/email/inbound/:token`                                                                        | Receive an email (called by the web app)                                                    |
+| `GET /internal/email`, `POST /internal/email`, `/internal/email/token/delete`                                | Email setup, its Postmark token, and forgetting the token                                   |
+| `POST /internal/settings/timezone`, `/monthly-cap`, `/api-key`, `/api-key/delete`                            | Your time zone, the API key's monthly cap, and the API key                                  |
+| `POST /internal/settings/model-log-retention`                                                                | How long model logs keep their bodies; starts a sweep                                       |
+| `POST /internal/vault`, `/internal/vault/:id/delete`                                                         | Save a login or card, or remove one                                                         |
+| `POST /internal/pages/:id/pin`, `/internal/pages/:id/delete`                                                 | Pin or delete a page                                                                        |
+| `POST /internal/notifications/read`                                                                          | Mark notifications read                                                                     |
+| `GET /internal/telegram`, `POST /internal/telegram/connect`, `/link-code`, `/test`, `/unlink`, `/disconnect` | Telegram                                                                                    |
+| `GET /internal/push`, `POST /internal/push/subscribe`, `/unsubscribe`, `/test`                               | Browser push notifications                                                                  |
+| `POST /internal/push/native/register`, `/internal/push/native/unregister`                                    | Phone notifications through FCM; register answers with the sign-in's registration it stored |
 
 ### Websockets
 
