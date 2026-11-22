@@ -31,6 +31,19 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     expect(await ownerOf()).toBe(owner!.id);
   });
 
+  it("tasks: gives tasks added or moved at once their own places", async () => {
+    const added = await Promise.all(
+      Array.from({ length: 8 }, (_, index) => worker.tasks.create({ title: `Parallel ${index}` })),
+    );
+    const places = async (status: "todo" | "doing") =>
+      (await db.select().from(tasks).where(eq(tasks.status, status))).map((row) => row.position);
+    const todo = await places("todo");
+    expect(new Set(todo).size).toBe(todo.length);
+    await Promise.all(added.map(({ id }) => worker.tasks.update({ taskId: id, status: "doing" })));
+    const doing = await places("doing");
+    expect(new Set(doing).size).toBe(doing.length);
+  });
+
   it("answers a failed query with the database's error, never its SQL or parameters", async () => {
     const logged = vi.mocked(ctx.log.error);
     logged.mockClear();

@@ -81,6 +81,7 @@ A task has a title, notes, a status (`todo`, `doing`, `done`), an owner, a due d
 
 The web app shows it as three columns with drag and drop; the Android app stacks the same columns (see [The Android app](/docs/flows/android-app#tasks)).
 Both lay it out with the shared rules in `packages/domain/src/tasks/board.ts`: what waits on you first in each column, then board order, and finished tasks newest first.
+A task added, or moved to another column without a position, goes to the end of that column; the worker takes the `task_ends` lock while it reads the last place, so two tasks added at once never share one.
 
 **Ask to start** (in the app, or `add_task` with `start`) queues a run for the owner in its main chat, with trigger `task`, and moves the task to Doing:
 

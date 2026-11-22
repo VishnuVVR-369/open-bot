@@ -1,10 +1,15 @@
 import type { TaskView } from "@open-bot/api";
 import {
   daysUntil,
+  dueLabel,
+  dueState,
+  endPosition,
   formatDay,
   isOverdue,
   parseDay,
+  TASK_BLOCKER_TEXT,
   TASK_NOTES_MAX,
+  TASK_STATUS_LABELS,
   TASK_TITLE_MAX,
   waitsOnYou,
   type TaskBlocker,
@@ -88,6 +93,59 @@ export function newTask(form: TaskForm) {
     ownerTeammateId: form.ownerTeammateId,
     dueOn: form.dueOn,
   };
+}
+
+/**
+ * The board with a task the worker just added, as the worker placed it (at the end of To do), so
+ * it shows at once: the task screen opens on it before the board comes back from the server.
+ */
+export function withAddedTask(
+  board: readonly TaskView[],
+  id: string,
+  form: TaskForm,
+  now = new Date(),
+): TaskView[] {
+  if (board.some((task) => task.id === id)) return [...board];
+  const added: TaskView = {
+    id,
+    ...newTask(form),
+    status: "todo",
+    position: endPosition(board.filter((task) => task.status === "todo")),
+    createdBy: "user",
+    createdByTeammateId: null,
+    chatId: null,
+    completedAt: null,
+    createdAt: now.toISOString(),
+  };
+  return [...board, added];
+}
+
+/** Who owns a task, by name: you, a teammate, or one who has left the team. */
+export const ownerName = (owner: { name: string } | undefined, ownerTeammateId: string | null) =>
+  owner?.name ?? (ownerTeammateId ? "Former teammate" : "You");
+
+/**
+ * What TalkBack reads for a task in a list: everything the row shows, since the row is read as
+ * one control and the owner and due chips inside it aren't read on their own.
+ */
+export function taskRowLabel(
+  task: Pick<TaskView, "title" | "status" | "dueOn">,
+  owner: string,
+  blocker: TaskBlocker | null,
+  now = new Date(),
+): string {
+  const due = task.dueOn
+    ? `${dueState(task, now) === "overdue" ? "Overdue, due" : "Due"} ${dueLabel(task.dueOn, now)}`
+    : null;
+  return [
+    task.title,
+    TASK_STATUS_LABELS[task.status],
+    blocker ? TASK_BLOCKER_TEXT[blocker] : null,
+    owner,
+    due,
+  ]
+    .filter(Boolean)
+    .join(", ");
 }
 
 /** The words on the button that hands a task to its teammate. */

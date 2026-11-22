@@ -1,12 +1,12 @@
 import type { TaskView, TeammateSummary } from "@open-bot/api";
-import { TASK_BLOCKER_TEXT, TASK_STATUS_LABELS, type TaskBlocker } from "@open-bot/domain";
+import type { TaskBlocker } from "@open-bot/domain";
 import { router } from "expo-router";
 import { EllipsisVertical } from "lucide-react-native";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { space, useColors } from "@/theme";
-import { taskHref } from "../tasks";
+import { ownerName, taskHref, taskRowLabel } from "../tasks";
 import { BlockerLine, DueChip, OwnerMark, StatusGlyph } from "./task-parts";
 
 /**
@@ -49,13 +49,7 @@ export function TaskRow({
           : undefined
       }
       accessibilityRole="button"
-      accessibilityLabel={[
-        task.title,
-        TASK_STATUS_LABELS[task.status],
-        blocker ? TASK_BLOCKER_TEXT[blocker] : null,
-      ]
-        .filter(Boolean)
-        .join(", ")}
+      accessibilityLabel={taskRowLabel(task, ownerName(owner, task.ownerTeammateId), blocker)}
       accessibilityHint={onMenu ? "Hold for more" : undefined}
       android_ripple={{ color: colors.muted }}
       style={[

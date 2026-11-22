@@ -1,5 +1,5 @@
 import type { TaskView } from "@open-bot/api";
-import type { TaskStatus } from "@open-bot/domain";
+import type { PositionChange, TaskStatus } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { Alert } from "react-native";
 import { api } from "@/lib/api";
@@ -13,35 +13,50 @@ const refresh = () => queryClient.invalidateQueries({ queryKey: queryKeys.tasks 
 
 /**
  * Moves a task to another column, or to another place in its own, showing it there right away.
- * When the worker turns it down, the board goes back to how it was and says why.
+ * `places` are the new positions: the task's own, and any others a move numbered again. When the
+ * worker turns it down, the board goes back to how it was and says why.
  */
-export async function moveTask(task: TaskView, status: TaskStatus, position?: number) {
+export async function moveTask(
+  task: TaskView,
+  status: TaskStatus,
+  places: readonly PositionChange[],
+) {
   const before = queryClient.getQueryData<TaskView[]>(queryKeys.tasks);
+  const placeOf = new Map(places.map((place) => [place.id, place.position]));
   animateLayout();
   queryClient.setQueryData<TaskView[]>(queryKeys.tasks, (current) =>
-    current?.map((entry) =>
-      entry.id === task.id
-        ? {
-            ...entry,
-            status,
-            position: position ?? entry.position,
-            completedAt:
-              status === entry.status
-                ? entry.completedAt
-                : status === "done"
-                  ? new Date().toISOString()
-                  : null,
-          }
-        : entry,
+    current?.map((entry) => {
+      const position = placeOf.get(entry.id) ?? entry.position;
+      if (entry.id !== task.id) return { ...entry, position };
+      const moved = status !== entry.status;
+      return {
+        ...entry,
+        status,
+        position,
+        completedAt: !moved
+          ? entry.completedAt
+          : status === "done"
+            ? new Date().toISOString()
+            : null,
+      };
+    }),
+  );
+  const results = await Promise.all(
+    places.map((place) =>
+      safe(
+        api.tasks.update({
+          taskId: place.id,
+          position: place.position,
+          ...(place.id === task.id ? { status } : {}),
+        }),
+      ),
     ),
   );
-  const result = await safe(
-    api.tasks.update({ taskId: task.id, status, ...(position !== undefined ? { position } : {}) }),
-  );
-  if (result.error) {
+  const failed = results.find((result) => result.error)?.error;
+  if (failed) {
     if (before) queryClient.setQueryData(queryKeys.tasks, before);
     haptics.error();
-    Alert.alert("Couldn't move it", errorMessage(result.error));
+    Alert.alert("Couldn't move it", errorMessage(failed));
   } else haptics.tap();
   void refresh();
 }

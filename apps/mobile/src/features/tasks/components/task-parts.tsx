@@ -12,6 +12,7 @@ import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar"
 import { Text } from "@/components/text";
 import { fonts, radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
+import { ownerName } from "../tasks";
 
 /** Your own mark, as the web's board shows it: your initial on a round ink tile. */
 export function YouAvatar({ name, size = 24 }: { name: string; size?: number }) {
@@ -61,7 +62,7 @@ export function OwnerMark({
         <YouAvatar name={yourName} />
       )}
       <Text variant="caption" muted numberOfLines={1} style={styles.ownerName}>
-        {owner?.name ?? (ownerTeammateId ? "Former teammate" : "You")}
+        {ownerName(owner, ownerTeammateId)}
       </Text>
     </View>
   );

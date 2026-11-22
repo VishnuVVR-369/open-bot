@@ -26,12 +26,14 @@ import { useYourName } from "../hooks";
 import {
   emptyTaskForm,
   newTask,
+  ownerName,
   startLabel,
   taskChanges,
   taskForm,
   taskFormChanged,
   taskFormProblem,
   taskHref,
+  withAddedTask,
   type TaskForm,
 } from "../tasks";
 import { DueSheet } from "./due-sheet";
@@ -113,7 +115,12 @@ export function TaskEditor({
     } else {
       const result = await safe(api.tasks.create(newTask(form)));
       if (result.error) return failed(result.error);
-      id = result.data.id;
+      const created = result.data.id;
+      id = created;
+      // On the board at once, so the task screen can open on it before the board comes back.
+      queryClient.setQueryData<TaskView[]>(queryKeys.tasks, (board) =>
+        board ? withAddedTask(board, created, form) : board,
+      );
     }
     setStart(form);
     void queryClient.invalidateQueries({ queryKey: queryKeys.tasks });
@@ -197,7 +204,7 @@ export function TaskEditor({
                   <YouAvatar name={yourName} size={22} />
                 )}
                 <Text variant="label" numberOfLines={1} style={{ flexShrink: 1 }}>
-                  {owner?.name ?? (form.ownerTeammateId ? "Former teammate" : "You")}
+                  {ownerName(owner, form.ownerTeammateId)}
                 </Text>
               </View>
             }

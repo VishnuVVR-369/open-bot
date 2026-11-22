@@ -55,9 +55,10 @@ export default function TasksScreen() {
   const all = useMemo(() => tasks.data ?? [], [tasks.data]);
   const allTeammates = teammates.data ?? [];
   const counts = useMemo(() => filterCounts(all, blockerOf), [all, blockerOf]);
+  const columns = useMemo(() => boardColumns(all, blockerOf, filter), [all, blockerOf, filter]);
   const sections = useMemo(
     () =>
-      boardColumns(all, blockerOf, filter).map((column) => ({
+      columns.map((column) => ({
         status: column.status,
         total: column.tasks.length,
         data:
@@ -65,7 +66,7 @@ export default function TasksScreen() {
             ? column.tasks.slice(0, DONE_SHOWN)
             : column.tasks,
       })),
-    [all, blockerOf, filter, showAllDone],
+    [columns, showAllDone],
   );
 
   const header = (
@@ -226,6 +227,8 @@ export default function TasksScreen() {
       <TaskMenu
         task={menuFor}
         tasks={all}
+        columns={columns}
+        blockerOf={blockerOf}
         teammates={allTeammates}
         onClose={() => setMenuFor(null)}
       />

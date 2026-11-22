@@ -14,9 +14,11 @@ import {
   taskForm,
   taskFormChanged,
   taskFormProblem,
+  taskRowLabel,
   teammateTasks,
   weekdayNames,
   weekStartFrom,
+  withAddedTask,
 } from "./tasks";
 
 const task = (overrides: Partial<TaskView> & { id: string }): TaskView => ({
@@ -184,5 +186,43 @@ describe("the due date picker", () => {
   it("opens on the due day's month, or this one", () => {
     expect(monthOf("2030-01-15", now)).toEqual({ year: 2030, month: 0 });
     expect(monthOf(null, now)).toEqual({ year: 2026, month: 10 });
+  });
+});
+
+describe("a task just added", () => {
+  const form = { ...emptyTaskForm("ivy"), title: "  Book flights  ", dueOn: "2026-12-01" };
+
+  it("joins the board at the end of To do, as the worker puts it", () => {
+    const board = [task({ id: "a", position: 3 }), task({ id: "b", position: 9, status: "doing" })];
+    const added = withAddedTask(board, "new", form, now).at(-1);
+    expect(added).toMatchObject({
+      id: "new",
+      title: "Book flights",
+      ownerTeammateId: "ivy",
+      dueOn: "2026-12-01",
+      status: "todo",
+      position: 4,
+      createdBy: "user",
+    });
+  });
+
+  it("isn't added twice once the board has it", () => {
+    const board = [task({ id: "new", title: "From the server" })];
+    expect(withAddedTask(board, "new", form, now)).toEqual(board);
+  });
+});
+
+describe("a task row for TalkBack", () => {
+  it("reads the owner and the due day with the rest", () => {
+    expect(taskRowLabel(task({ id: "a", dueOn: "2026-11-20" }), "Ivy", "approval", now)).toBe(
+      "Book flights, To do, Waiting for approval, Ivy, Overdue, due Nov 20",
+    );
+    expect(taskRowLabel(task({ id: "a", dueOn: "2026-11-22" }), "You", null, now)).toBe(
+      "Book flights, To do, You, Due Today",
+    );
+    expect(
+      taskRowLabel(task({ id: "a", dueOn: "2026-11-20", status: "done" }), "Ivy", null, now),
+    ).toBe("Book flights, Done, Ivy, Due Nov 20");
+    expect(taskRowLabel(task({ id: "a" }), "You", null, now)).toBe("Book flights, To do, You");
   });
 });

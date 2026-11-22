@@ -1,4 +1,4 @@
-import { teammates, tasks } from "@open-bot/db";
+import { LOCKS, lockUntilCommit, teammates, tasks, type Queryable } from "@open-bot/db";
 import { TASK_NOTES_MAX, TASK_TITLE_MAX, type Creator, type TaskStatus } from "@open-bot/domain";
 import { and, asc, desc, eq, isNull, max, ne } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
@@ -51,12 +51,20 @@ function checkDue(dueOn: string | null): string | null {
 export class TaskService {
   constructor(private readonly ctx: Context) {}
 
-  private async endOf(status: TaskStatus): Promise<number> {
-    const [row] = await this.ctx.db
-      .select({ value: max(tasks.position) })
-      .from(tasks)
-      .where(eq(tasks.status, status));
-    return (row?.value ?? 0) + 1;
+  /**
+   * Writes a task that goes at the end of a column, one such write at a time: two tasks added or
+   * moved at once would otherwise read the same last place and share it, and then no move could
+   * come between them.
+   */
+  private atEnd<T>(status: TaskStatus, write: (db: Queryable, end: number) => Promise<T>) {
+    return this.ctx.db.transaction(async (tx) => {
+      await lockUntilCommit(tx, LOCKS.taskEnds);
+      const [row] = await tx
+        .select({ value: max(tasks.position) })
+        .from(tasks)
+        .where(eq(tasks.status, status));
+      return write(tx, (row?.value ?? 0) + 1);
+    });
   }
 
   private async checkOwner(ownerTeammateId: string | null): Promise<string | null> {
@@ -77,18 +85,20 @@ export class TaskService {
     createdBy: Creator;
     createdByTeammateId?: string | null;
   }): Promise<Task> {
-    const [row] = await this.ctx.db
-      .insert(tasks)
-      .values({
-        title: checkTitle(input.title),
-        notes: checkNotes(input.notes ?? ""),
-        ownerTeammateId: await this.checkOwner(input.ownerTeammateId ?? null),
-        dueOn: checkDue(input.dueOn ?? null),
-        position: await this.endOf("todo"),
-        createdBy: input.createdBy,
-        createdByTeammateId: input.createdByTeammateId ?? null,
-      })
-      .returning();
+    const values = {
+      title: checkTitle(input.title),
+      notes: checkNotes(input.notes ?? ""),
+      ownerTeammateId: await this.checkOwner(input.ownerTeammateId ?? null),
+      dueOn: checkDue(input.dueOn ?? null),
+      createdBy: input.createdBy,
+      createdByTeammateId: input.createdByTeammateId ?? null,
+    };
+    const [row] = await this.atEnd("todo", (db, position) =>
+      db
+        .insert(tasks)
+        .values({ ...values, position })
+        .returning(),
+    );
     await publishApp(this.ctx, { type: "tasks" });
     return row!;
   }
@@ -104,21 +114,27 @@ export class TaskService {
     if (!existing) throw new TaskError("That task no longer exists.");
     const status = patch.status ?? existing.status;
     const moved = status !== existing.status;
-    const [row] = await this.ctx.db
-      .update(tasks)
-      .set({
-        ...(patch.title !== undefined ? { title: checkTitle(patch.title) } : {}),
-        ...(patch.notes !== undefined ? { notes: checkNotes(patch.notes) } : {}),
-        ...(patch.ownerTeammateId !== undefined
-          ? { ownerTeammateId: await this.checkOwner(patch.ownerTeammateId) }
-          : {}),
-        ...(patch.dueOn !== undefined ? { dueOn: checkDue(patch.dueOn) } : {}),
-        status,
-        position: patch.position ?? (moved ? await this.endOf(status) : existing.position),
-        ...(moved ? { completedAt: status === "done" ? new Date() : null } : {}),
-      })
-      .where(eq(tasks.id, id))
-      .returning();
+    const changes = {
+      ...(patch.title !== undefined ? { title: checkTitle(patch.title) } : {}),
+      ...(patch.notes !== undefined ? { notes: checkNotes(patch.notes) } : {}),
+      ...(patch.ownerTeammateId !== undefined
+        ? { ownerTeammateId: await this.checkOwner(patch.ownerTeammateId) }
+        : {}),
+      ...(patch.dueOn !== undefined ? { dueOn: checkDue(patch.dueOn) } : {}),
+      status,
+      ...(moved ? { completedAt: status === "done" ? new Date() : null } : {}),
+    };
+    // A position is only written when it changes, so a move made meanwhile isn't undone.
+    const write = (db: Queryable, position?: number) =>
+      db
+        .update(tasks)
+        .set({ ...changes, ...(position !== undefined ? { position } : {}) })
+        .where(eq(tasks.id, id))
+        .returning();
+    const [row] =
+      patch.position === undefined && moved
+        ? await this.atEnd(status, write)
+        : await write(this.ctx.db, patch.position);
     await publishApp(this.ctx, { type: "tasks" });
     return row!;
   }
@@ -153,15 +169,14 @@ export class TaskService {
         .join("\n"),
       parentRunId: by?.runId ?? null,
     });
-    const [row] = await this.ctx.db
-      .update(tasks)
-      .set({
-        status: "doing",
-        chatId,
-        ...(task.status !== "doing" ? { position: await this.endOf("doing") } : {}),
-      })
-      .where(eq(tasks.id, task.id))
-      .returning();
+    const write = (db: Queryable, position?: number) =>
+      db
+        .update(tasks)
+        .set({ status: "doing", chatId, ...(position !== undefined ? { position } : {}) })
+        .where(eq(tasks.id, task.id))
+        .returning();
+    const [row] =
+      task.status !== "doing" ? await this.atEnd("doing", write) : await write(this.ctx.db);
     await publishApp(this.ctx, { type: "tasks" });
     return row!;
   }

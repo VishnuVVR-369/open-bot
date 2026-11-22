@@ -41,6 +41,8 @@ export const LOCKS = {
   modelLogRetention: "model_log_retention",
   /** Which of a teammate's chats is its main chat: choosing, handing on or making one. */
   mainChat: (teammateId: string) => `main_chat:${teammateId}`,
+  /** Putting a task at the end of a column, so two added at once don't share a place. */
+  taskEnds: "task_ends",
 } as const;
 
 /** A key hashed with `hashtext`, as a lock that shipped before `hashtextextended` was the rule. */

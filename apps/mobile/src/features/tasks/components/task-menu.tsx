@@ -1,5 +1,13 @@
 import type { TaskView, TeammateSummary } from "@open-bot/api";
-import { stepPosition, TASK_STATUS_LABELS, TASK_STATUSES, type TaskStatus } from "@open-bot/domain";
+import {
+  endPosition,
+  stepTask,
+  TASK_STATUS_LABELS,
+  TASK_STATUSES,
+  type BoardColumn,
+  type TaskBlocker,
+  type TaskStatus,
+} from "@open-bot/domain";
 import { router } from "expo-router";
 import {
   ArrowDown,
@@ -30,12 +38,17 @@ const STATUS_ICONS = { todo: Circle, doing: CircleDot, done: CircleCheck } as co
 export function TaskMenu({
   task: open,
   tasks,
+  columns,
+  blockerOf,
   teammates,
   onClose,
 }: {
   task: TaskView | null;
-  /** The whole board, for where the task can move. */
+  /** The whole board, for the end of the column it moves to. */
   tasks: readonly TaskView[];
+  /** The columns as drawn, with the filter in use, for what's above and below it. */
+  columns: readonly BoardColumn<TaskView>[];
+  blockerOf: (task: TaskView) => TaskBlocker | null;
   teammates: readonly TeammateSummary[];
   onClose: () => void;
 }) {
@@ -46,9 +59,16 @@ export function TaskMenu({
   if (open) last.current = open;
   const task = open ?? last.current;
   const owner = teammates.find((teammate) => teammate.id === task?.ownerTeammateId);
-  const column = task ? tasks.filter((entry) => entry.status === task.status) : [];
-  const up = task && task.status !== "done" ? stepPosition(column, task.id, "up") : null;
-  const down = task && task.status !== "done" ? stepPosition(column, task.id, "down") : null;
+  const drawn = columns.find((column) => column.status === task?.status)?.tasks ?? [];
+  const up = task ? stepTask(drawn, task.id, "up", blockerOf) : null;
+  const down = task ? stepTask(drawn, task.id, "down", blockerOf) : null;
+  // To the end of the other column, where the worker would put it, so it doesn't jump after.
+  const toEnd = (status: TaskStatus) => [
+    {
+      id: task!.id,
+      position: endPosition(tasks.filter((entry) => entry.status === status)),
+    },
+  ];
   const icon = (Icon: typeof Circle, color = colors.foreground) => <Icon size={20} color={color} />;
   const act = (run: () => void) => () => {
     onClose();
@@ -92,7 +112,7 @@ export function TaskMenu({
             icon={icon(STATUS_ICONS[status])}
             label={`Move to ${TASK_STATUS_LABELS[status]}`}
             disabled={!online}
-            onPress={act(() => void moveTask(task, status))}
+            onPress={act(() => void moveTask(task, status, toEnd(status)))}
             testID={`task-menu-move-${status}`}
           />
         ))}
