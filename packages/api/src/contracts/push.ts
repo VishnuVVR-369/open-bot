@@ -20,7 +20,16 @@ export const pushContract = {
         registration: z.string().min(1).max(100).optional(),
       }),
     )
-    .output(z.object({ ok: z.literal(true) })),
+    .output(
+      z.object({
+        ok: z.literal(true),
+        /**
+         * The registration the server stored for this token. The phone counts its registration as
+         * stored only when this matches it, so a server that dropped it (an older one) is retried.
+         */
+        registration: z.string().optional(),
+      }),
+    ),
   unregisterDevice: base
     .input(z.object({ token: z.string().min(1).max(4096) }))
     .output(z.object({ ok: z.literal(true) })),

@@ -65,7 +65,9 @@ export function settingsRoutes() {
     },
     push: {
       status: os.push.status.handler(() => worker.push.status()),
-      registerDevice: os.push.registerDevice.handler(({ input }) => registerPushDevice(input)),
+      registerDevice: os.push.registerDevice.handler(({ input, context }) =>
+        registerPushDevice(input, context.sessionId),
+      ),
       unregisterDevice: os.push.unregisterDevice.handler(({ input }) =>
         unregisterPushDevice(input),
       ),

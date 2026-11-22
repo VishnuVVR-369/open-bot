@@ -21,7 +21,7 @@ import { loadPreferences } from "@/lib/preferences";
 import { useTrackPresence } from "@/lib/presence";
 import { queryClient, setUnauthorizedHandler } from "@/lib/query";
 import { RealtimeProvider } from "@/lib/realtime";
-import { signOut } from "@/lib/session";
+import { signOut, useSignOutWhenSessionEnds } from "@/lib/session";
 import { useIncomingShares } from "@/features/chat/share-inbox";
 import { usePushNotifications } from "@/push/register";
 import { fonts, useColors } from "@/theme";
@@ -48,10 +48,11 @@ export default function RootLayout() {
 function App() {
   const colors = useColors();
   const scheme = useColorScheme();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, isPending, error } = authClient.useSession();
   const signedIn = Boolean(session);
   const lock = useAppLock(isPending ? "pending" : signedIn ? "signedIn" : "signedOut");
-  usePushNotifications(signedIn);
+  usePushNotifications(session?.session.id ?? null);
+  useSignOutWhenSessionEnds({ data: session, isPending, error });
   useTrackPresence(signedIn);
   // A phone connection that an offline sign-out couldn't revoke is revoked once back.
   usePendingRevokes(signedIn);

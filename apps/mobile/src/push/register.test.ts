@@ -12,6 +12,11 @@ const native = vi.hoisted(() => ({
   calls: [] as string[],
   /** Firebase messaging, when the build has it. */
   fcm: null as null | Record<string, unknown>,
+  network: null as null | ((state: { isConnected: boolean; isInternetReachable: boolean }) => void),
+  /** What the server answers a registration with: the registration it stored, or an error. */
+  stored: (registration: string): Promise<string | undefined> => Promise.resolve(registration),
+  /** The sign-outs running, for `signOutsSettled`. */
+  signOut: Promise.resolve() as Promise<void>,
 }));
 vi.mock("react", () => ({
   useEffect: (effect: () => () => void) => {
@@ -36,6 +41,13 @@ vi.mock("@notifee/react-native", () => ({
   EventType: { PRESS: 1, ACTION_PRESS: 2 },
 }));
 vi.mock("expo-device", () => ({ modelName: "Pixel 9" }));
+vi.mock("expo-network", () => ({
+  addNetworkStateListener: (listener: typeof native.network) => {
+    native.network = listener;
+    return { remove: () => (native.network = null) };
+  },
+}));
+vi.mock("@/lib/phone-egress", () => ({ signOutsSettled: () => native.signOut }));
 vi.mock("expo-router", () => ({ router: { push: native.push } }));
 vi.mock("./firebase", () => ({ messaging: () => native.fcm }));
 vi.mock("./notifications", () => ({
@@ -48,8 +60,10 @@ vi.mock("@/lib/api", () => ({
     push: {
       unregisterDevice: async ({ token }: { token: string }) =>
         void native.calls.push(`unregister ${token}`),
-      registerDevice: async (input: { token: string; registration: string }) =>
-        void native.calls.push(`register ${input.token} ${input.registration}`),
+      registerDevice: async (input: { token: string; registration: string }) => {
+        native.calls.push(`register ${input.token} ${input.registration}`);
+        return { ok: true, registration: await native.stored(input.registration) };
+      },
     },
   },
 }));
@@ -66,9 +80,9 @@ vi.mock("@/lib/realtime", () => ({
 vi.mock("../../modules/run-progress", () => ({
   default: {
     setVisibleChat: native.visibleChat,
-    registration: () => {
-      native.calls.push("registration");
-      return "reg-1";
+    registration: (sessionId: string) => {
+      native.calls.push(`registration ${sessionId}`);
+      return `reg-${sessionId}`;
     },
     reset: () => void native.calls.push("reset run progress"),
   },
@@ -80,13 +94,16 @@ afterEach(() => {
   native.cleanup?.();
   native.calls.length = 0;
   native.fcm = null;
+  native.stored = (registration) => Promise.resolve(registration);
+  native.signOut = Promise.resolve();
   vi.clearAllMocks();
+  vi.useRealTimers();
 });
 
 describe("run progress", () => {
   it("tells the native module which chat is on screen while signed in", () => {
     native.initial.mockResolvedValue(null);
-    usePushNotifications(true);
+    usePushNotifications("s1");
     expect(native.visibleChat).toHaveBeenCalledWith("open-chat");
     native.chatListener!(null);
     native.chatListener!("other");
@@ -117,27 +134,112 @@ describe("sign-out", () => {
     await unregisterPushNotifications();
     expect(native.calls).toEqual(["reset run progress", "cancel notifications"]);
   });
+});
 
-  it("registers the token with the sign-in it took when it started, before any push for it", async () => {
-    native.initial.mockResolvedValue(null);
-    let refresh!: (token: string) => void;
+describe("registration", () => {
+  let token = "token-1";
+  let refresh!: () => void;
+  const firebase = () => {
+    token = "token-1";
     native.fcm = {
       getMessaging: () => "messaging",
-      getToken: async () => "token-1",
-      onTokenRefresh: (_instance: unknown, listener: (token: string) => void) => {
+      getToken: async () => token,
+      onTokenRefresh: (_instance: unknown, listener: () => void) => {
         refresh = listener;
         return () => {};
       },
       onMessage: () => () => {},
     };
-    usePushNotifications(true);
-    await vi.waitFor(() => expect(native.calls).toContain("register token-1 reg-1"));
-    expect(native.calls[0]).toBe("registration");
-    // A token that comes after sign-out still carries the registration the phone has forgotten.
-    await unregisterPushNotifications().catch(() => {});
-    native.calls.length = 0;
-    refresh("token-2");
-    await vi.waitFor(() => expect(native.calls).toEqual(["register token-2 reg-1"]));
+  };
+  const registrations = () => native.calls.filter((call) => call.startsWith("register "));
+
+  it("registers the token with this session's registration, taken before any push can carry it", async () => {
+    native.initial.mockResolvedValue(null);
+    firebase();
+    usePushNotifications("s1");
+    await vi.waitFor(() => expect(registrations()).toEqual(["register token-1 reg-s1"]));
+    expect(native.calls[0]).toBe("registration s1");
+    // A new token: registered again, with the same sign-in.
+    token = "token-2";
+    refresh();
+    await vi.waitFor(() =>
+      expect(registrations()).toEqual(["register token-1 reg-s1", "register token-2 reg-s1"]),
+    );
+  });
+
+  it("waits for a sign-out still tearing down the sign-in before", async () => {
+    native.initial.mockResolvedValue(null);
+    firebase();
+    let finish!: () => void;
+    native.signOut = new Promise((done) => (finish = done));
+    usePushNotifications("s2");
+    await new Promise((done) => setTimeout(done, 10));
+    // Nothing of the new sign-in yet: the old one's reset can't undo it.
+    expect(native.calls).toEqual([]);
+    finish();
+    await vi.waitFor(() =>
+      expect(native.calls).toEqual(["registration s2", "register token-1 reg-s2"]),
+    );
+  });
+
+  it("tries a failed registration again, and again on resume and when back online", async () => {
+    vi.useFakeTimers();
+    native.initial.mockResolvedValue(null);
+    firebase();
+    // The server is down after an upgrade.
+    native.stored = () => Promise.reject(new Error("503"));
+    usePushNotifications("s1");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(registrations()).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(registrations()).toHaveLength(2);
+    // Offline, then back: tried at once, with a fresh set of tries.
+    native.network!({ isConnected: false, isInternetReachable: false });
+    native.network!({ isConnected: true, isInternetReachable: true });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(registrations()).toHaveLength(3);
+    // A server that answers without storing it (one older than this app) counts as failed too.
+    native.stored = () => Promise.resolve(undefined);
+    native.state!("active");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(registrations()).toHaveLength(4);
+    native.stored = (registration) => Promise.resolve(registration);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(registrations()).toHaveLength(5);
+    // Stored: back on screen, nothing to send.
+    native.state!("active");
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    expect(registrations()).toHaveLength(5);
+  });
+
+  it("registers nothing after sign-out, not even a retry that was waiting or a new token", async () => {
+    vi.useFakeTimers();
+    native.initial.mockResolvedValue(null);
+    firebase();
+    native.stored = () => Promise.reject(new Error("offline"));
+    usePushNotifications("s1");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(registrations()).toHaveLength(1);
+    native.cleanup!();
+    native.cleanup = null;
+    token = "token-2";
+    refresh();
+    native.state?.("active");
+    await vi.advanceTimersByTimeAsync(60 * 60_000);
+    expect(registrations()).toHaveLength(1);
+  });
+
+  it("takes no registration for a sign-in that ended while a sign-out ran", async () => {
+    native.initial.mockResolvedValue(null);
+    firebase();
+    let finish!: () => void;
+    native.signOut = new Promise((done) => (finish = done));
+    usePushNotifications("s1");
+    native.cleanup!();
+    native.cleanup = null;
+    finish();
+    await new Promise((done) => setTimeout(done, 10));
+    expect(native.calls).toEqual([]);
   });
 });
 
@@ -147,14 +249,14 @@ describe("notification navigation", () => {
       notification: { id: "takeover-cold", data: { url: "/screens/b1?takeover=t1" } },
       pressAction: { id: "type-code" },
     });
-    usePushNotifications(true);
+    usePushNotifications("s1");
     await vi.waitFor(() =>
       expect(native.push).toHaveBeenCalledWith("/screens/b1?takeover=t1&code=1"),
     );
   });
   it("opens a Review received after sign-in when an already mounted app resumes", async () => {
     native.initial.mockResolvedValue(null);
-    usePushNotifications(true);
+    usePushNotifications("s1");
     await vi.waitFor(() => expect(native.initial).toHaveBeenCalledOnce());
     expect(native.push).not.toHaveBeenCalled();
 
