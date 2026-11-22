@@ -203,8 +203,9 @@ describe.skipIf(!server)("migration 0043: the database in the glossary's words",
     for (const statement of SEED) await pool.query(statement);
     before = await dump();
 
-    // The deploy: the real migrator applies what is left.
-    await database.migrate();
+    // The deploy: the real migrator applies this migration. Only through it, so a later
+    // migration's new table isn't counted as one this migration made.
+    await database.migrate({ through: RENAME_TAG });
     after = await dump();
   });
 
