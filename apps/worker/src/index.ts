@@ -10,7 +10,9 @@ import {
   FcmService,
   nativeEgressPush,
   notificationsFeature,
+  RunProgressService,
   PushService,
+  runProgressStore,
 } from "./features/notifications";
 import { addComputerRow, databaseStore } from "./egress/store";
 import { EgressDevices } from "./egress/devices";
@@ -147,7 +149,13 @@ const triggers = new TriggerService(ctx);
 const tasks = new TaskService(ctx);
 const push = new PushService(ctx);
 const fcm = new FcmService(ctx);
-const notifications = notificationsFeature({ push, fcm });
+const runProgress = new RunProgressService(
+  ctx,
+  fcm,
+  (runId) => sessions.get(runId)?.progress() ?? null,
+  runProgressStore(ctx.db),
+);
+const notifications = notificationsFeature({ push, fcm, runProgress });
 const vault = new VaultService(ctx, approvals);
 const swarms = new SwarmService(ctx, sessions);
 // Files you attach, and files that arrive by email or Telegram.
@@ -366,6 +374,11 @@ if (lifecycle.enabled) egress.pauseComputer();
 const telegram = new TelegramService(ctx, executor, approvals, uploads);
 const telegramPolling = telegramFeature(telegram, log);
 
+// What tells you about decisions starts before what makes them, so it still hears the last ones
+// at shutdown (account actions expire approvals while they drain), and before recovery, so runs a
+// restart interrupted take their progress notifications off your phones (the progress service
+// also sends the ends still owed by runs that were over before the restart).
+await notifications.start(runtime);
 await executor.recover();
 await executor.recoverSteers();
 
@@ -402,9 +415,6 @@ const reconcileTakeovers = () =>
 reconcileTakeovers();
 runtime.every("takeover reconciliation", 30_000, reconcileTakeovers);
 await runtime.start("egress relay", egress);
-// What tells you about decisions starts before what makes them, so it still hears the last ones
-// at shutdown: account actions expire approvals while they drain.
-await notifications.start(runtime);
 await telegramPolling.start(runtime);
 // Account actions drain at shutdown, after everything that adds to them has stopped: the lifecycle
 // (no run starts once it pauses Codex), schedules and triggers.

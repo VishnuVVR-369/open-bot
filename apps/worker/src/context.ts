@@ -41,6 +41,11 @@ export type WorkerEvents = {
   approvalDecided: [approvalId: string];
   /** A run started executing. */
   runStarted: [run: { id: string; trigger: string }];
+  /**
+   * An executing run changed what it shows: its `status` (running, or waiting on you), or a
+   * `step` of its timeline. Read the run's state from its session.
+   */
+  runProgress: [runId: string, change: "status" | "step"];
   /** A run ended, with its final reply. */
   runFinished: [
     run: { id: string; trigger: string },

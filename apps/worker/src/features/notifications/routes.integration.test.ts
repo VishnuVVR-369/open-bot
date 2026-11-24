@@ -15,11 +15,32 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
         }),
       ),
     ).toEqual({ status: 400, message: "Push services use https." });
-    await worker.push.registerNative({ token: "fcm-token", platform: "android" });
+    expect(await worker.push.registerNative({ token: "fcm-token", platform: "android" })).toEqual({
+      ok: true,
+      registration: null,
+    });
     expect(services.fcm.register).toHaveBeenLastCalledWith({
       token: "fcm-token",
       platform: "android",
       device: "",
+    });
+    // The phone's sign-in and the session it registered with reach the service, and the
+    // registration stored comes back for the phone to check.
+    expect(
+      await worker.push.registerNative({
+        token: "fcm-token",
+        platform: "android",
+        device: "Pixel 9",
+        registration: "reg-1",
+        sessionId: "session-1",
+      }),
+    ).toEqual({ ok: true, registration: "reg-1" });
+    expect(services.fcm.register).toHaveBeenLastCalledWith({
+      token: "fcm-token",
+      platform: "android",
+      device: "Pixel 9",
+      registration: "reg-1",
+      sessionId: "session-1",
     });
     expect((await worker.push.status()).devices).toEqual([]);
   });

@@ -1,5 +1,6 @@
 // Notifications, and the phones and browsers they are pushed to.
 import { index, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import { session } from "./auth";
 import { chats } from "./chats";
 import { createdAt } from "./columns";
 import { pages } from "./pages";
@@ -36,13 +37,24 @@ export const notifications = pgTable(
   (table) => [index("notifications_created_idx").on(table.createdAt)],
 );
 
-/** Browsers and phones that get push notifications. */
 /** Phones that get notifications through Firebase Cloud Messaging, by their FCM token. */
 export const nativePushDevices = pgTable("native_push_devices", {
   token: text("token").primaryKey(),
   platform: text("platform").$type<"android">().notNull(),
   /** Which device, in words, like "Pixel 9". */
   device: text("device").notNull().default(""),
+  /**
+   * The phone's sign-in its pushes are for: a random id the app makes when you sign in and forgets
+   * when you sign out. Pushes carry it, so the phone drops any sent for a sign-in it has left.
+   * Null for an app from before it had one.
+   */
+  registration: text("registration"),
+  /**
+   * The sign-in session the phone registered with. The phone gets nothing once that session has
+   * expired, and its row goes with the session when it ends (signed out anywhere, or revoked).
+   * Null for an app or web app from before it was kept.
+   */
+  sessionId: text("session_id").references(() => session.id, { onDelete: "cascade" }),
   lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   createdAt: createdAt(),
 });
@@ -55,4 +67,25 @@ export const pushSubscriptions = pgTable("push_subscriptions", {
   device: text("device").notNull().default(""),
   lastSentAt: timestamp("last_sent_at", { withTimezone: true }),
   createdAt: createdAt(),
+});
+
+/**
+ * Runs whose progress notification phones may be showing (`run-progress` pushes). The row is
+ * written (and its `shown_at` moved on) before each live push, and marked `ended_at` once the end
+ * has been sent, so a run that is over with an unended row owes phones that end: the worker sends
+ * it when it starts, and every 15 minutes, unless the phones' copy has timed out by then (`shown_at`).
+ * An ended row stays for a while after its end (`ended_at`) so a save that lands late can't make
+ * the end owed again; then it is deleted.
+ */
+export const runProgressNotifications = pgTable("run_progress_notifications", {
+  runId: uuid("run_id")
+    .primaryKey()
+    .references(() => runs.id, { onDelete: "cascade" }),
+  /**
+   * When the run's last live update was sent. Phones show it until it times out, so the end is
+   * owed only for a while after (`END_OWED_FOR_MS` in the worker).
+   */
+  shownAt: timestamp("shown_at", { withTimezone: true }).notNull().defaultNow(),
+  /** When the end was sent (or the run ended before any push went): no later save moves it on. */
+  endedAt: timestamp("ended_at", { withTimezone: true }),
 });

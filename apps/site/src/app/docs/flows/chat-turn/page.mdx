@@ -145,6 +145,31 @@ After each insert, a `NOTIFY openbot_chat, '<chatId>'` follows within 30 ms.
 In the web app, the realtime listener receives the notification, and the SSE route for your tab reads every row after its cursor and sends them as `run` events.
 Your browser applies them with the same reducer the server used to render the page, and Milo's reply appears word by word.
 
+Your phone follows along too, without the app open.
+Once the turn has been going for 20 seconds, `RunProgressService` in the worker (`apps/worker/src/features/notifications/run-progress.ts`) sends each phone a normal-priority `run-progress` push titled "Milo is working", with the kind of step Milo is on ("Running a command", never the command), as `runProgressNotice()` in `packages/domain` words it.
+Every word in it is fixed but Milo's name: the push goes through Google, so neither Milo's plan nor the chat's title, both written by the model, is in it.
+A status change (waiting on you, or running again) is asked for within 2 seconds, new steps at most every 15 seconds, and an unchanged notification is sent again every 10 minutes.
+The 2 seconds is a scheduling target: a run has one send at a time, so an update asked for meanwhile waits until FCM answers the one before it.
+What waits is that an update is wanted, not its content: it is built from the run as it is when its turn comes, so a wait never goes out behind an older step.
+When the run ends, any update still waiting is dropped, and one last message with `runState: ended` removes the notification; nothing for the run is asked for after it, and the phone orders a run's messages by their `sentAt`.
+
+That end is durable.
+Before each live progress push, the worker writes the run's row in `run_progress_notifications` (or moves its `shown_at` on), saying its end is owed, and sends the push only once that write succeeded.
+The push is built after the write, from the run as it is then, so a wait that began during the write goes out as the wait.
+A push whose write failed isn't sent: the run's next change tries again, or a timer 15 seconds later.
+Each of these queries gives up after 2 seconds waiting on a row and 5 seconds running, so a slow database holds no run's pushes for long.
+Once every phone got the end, the row is marked `ended_at`; a failed end is tried again after 30 seconds, 2 and 10 minutes.
+A run that already showed gets its end at once, even while the write for its last update is still going: a write that lands on an ended row changes nothing, so it can't make the end owed again.
+A run that ends before any push went sends no end, and its row is marked ended too.
+Only FCM's own error codes say it refused a phone for good, read from the error's details of type `type.googleapis.com/google.firebase.fcm.v1.FcmError` only (the body is validated, and a malformed one has no code): `UNREGISTERED` and `SENDER_ID_MISMATCH` (the token is forgotten), `INVALID_ARGUMENT` and `THIRD_PARTY_PERMISSION_DENIED` (that message to that token); those don't count as failed and aren't tried again.
+Any other answer, such as a 403 `PERMISSION_DENIED` from a service account that lost its role, a 401 or a 404 without one of those codes, is the project's state, so the end stays owed and is tried again.
+A 401 also drops the cached access token before the answer is read, so the next send gets a new one.
+A row is forgotten 45 minutes after the run's last live push, or after its end: the push's TTL is 10 minutes, and a phone removes a notification nothing refreshed for 30, so by then no phone shows the run and its end is no use.
+When the worker starts, and every 15 minutes after, it sends the ends still owed by runs that are over: one stopped between storing a run's last status and sending its end, for example while waiting for the run's model logs, or one whose every try failed.
+A run the worker still follows, or whose end waits for a retry, is left to that.
+The same sweep forgets old rows: a row whose end is still owed 45 minutes after its last live push (`shown_at`), and an ended row 45 minutes after its end (`ended_at`), however long ago it last showed, so a late write for its run still finds it ended.
+A run the restart interrupted gets its end when `executor.recover()` marks it interrupted, if it had shown progress.
+
 ## A tool call
 
 Milo decides to open Google Flights.

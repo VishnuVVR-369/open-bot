@@ -1,0 +1,25 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'dev.openbot'
+version = '0.1.0'
+android {
+  namespace "dev.openbot.runprogress"
+  // Robolectric draws the notifications in RunProgressTest with the module's own manifest.
+  testOptions { unitTests { includeAndroidResources = true } }
+  // Expo's plugin turns abortOnError off. This module draws from the FCM service on every API
+  // level from minSdk, so a call too new for it (NewApi) or any other warning fails the build:
+  // `./gradlew :run-progress:lintRelease`, which CI runs.
+  lint {
+    abortOnError = true
+    warningsAsErrors = true
+  }
+}
+dependencies {
+  // JVM tests: `./gradlew :run-progress:testDebugUnitTest`. RunProgressLogicTest checks the rules
+  // in RunProgressLogic.kt; RunProgressTest draws and removes notifications under Robolectric.
+  testImplementation "junit:junit:4.13.2"
+  testImplementation "org.robolectric:robolectric:4.18.1"
+  testImplementation "androidx.test:core:1.7.0"
+}

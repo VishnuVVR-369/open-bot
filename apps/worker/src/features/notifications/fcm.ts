@@ -1,7 +1,7 @@
 import { createSign } from "node:crypto";
-import { nativePushDevices } from "@open-bot/db";
+import { nativePushDevices, session } from "@open-bot/db";
 import type { CarryingPhoneMode, EgressPushStage, NativePushData } from "@open-bot/domain";
-import { eq } from "drizzle-orm";
+import { eq, gt, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Context, NotificationEvent } from "../../context";
 import { errorMessage } from "../../logger";
@@ -22,8 +22,13 @@ export interface NativePush {
   ttlSeconds?: number;
 }
 
-/** How a send to one token went. `gone` tokens have been forgotten everywhere. */
-export type PushResult = "sent" | "gone" | "failed";
+/**
+ * How a send to one token went. `gone` tokens have been forgotten everywhere. `rejected` means
+ * FCM refused this message to this token for good (a malformed token or message): sending it
+ * again wouldn't work. `failed` could work if tried again, including a project that can't send
+ * right now (a lost permission, a bad credential, a quota).
+ */
+export type PushResult = "sent" | "gone" | "rejected" | "failed";
 
 /**
  * Ask a paired phone to carry the computer's traffic. A wake is silent and only useful for a
@@ -104,8 +109,52 @@ const serviceAccountSchema = z.object({
 });
 type ServiceAccount = z.infer<typeof serviceAccountSchema>;
 
-/** FCM's error codes that mean the token will never work again. */
+/**
+ * FCM's error codes (`FcmError.errorCode` in an answer's `error.details`) that mean the token will
+ * never work again: https://firebase.google.com/docs/reference/fcm/rest/v1/ErrorCode
+ */
 const GONE_CODES = new Set(["UNREGISTERED", "SENDER_ID_MISMATCH"]);
+/**
+ * Codes that won't change if the same message goes to the same token again: an invalid token or
+ * message, or a registration this sender may never send to. Only these codes count, never the
+ * HTTP status alone: a 403 without one (PERMISSION_DENIED, a service account that lost its role),
+ * a 404 (a project not found), a 401, THIRD_PARTY_AUTH_ERROR, QUOTA_EXCEEDED and a 5xx are the
+ * project's state, and can work once it's fixed.
+ */
+const REJECTED_CODES = new Set(["INVALID_ARGUMENT", "THIRD_PARTY_PERMISSION_DENIED"]);
+
+/** The detail FCM puts its own error code in; Google's other details may carry other codes. */
+const FCM_ERROR = "type.googleapis.com/google.firebase.fcm.v1.FcmError";
+const fcmErrorSchema = z.object({ "@type": z.literal(FCM_ERROR), errorCode: z.string() });
+/**
+ * An error answer (https://cloud.google.com/apis/design/errors), read field by field: whatever
+ * shape it has, a field that isn't as expected is left out rather than failing the read.
+ */
+const errorAnswerSchema = z.object({
+  error: z.object({
+    status: z.string().optional().catch(undefined),
+    message: z.string().optional().catch(undefined),
+    details: z.array(z.unknown()).catch([]),
+  }),
+});
+
+/** FCM's answer to a failed send: its error codes, and words for the log. */
+export function readFcmError(body: unknown): { codes: string[]; summary: string | undefined } {
+  const answer = errorAnswerSchema.safeParse(body);
+  if (!answer.success) return { codes: [], summary: undefined };
+  const { status, message, details } = answer.data.error;
+  const codes = details.flatMap((detail) => {
+    const parsed = fcmErrorSchema.safeParse(detail);
+    return parsed.success ? [parsed.data.errorCode] : [];
+  });
+  return { codes, summary: message ?? status };
+}
+
+/** A phone to send to, and its sign-in's registration when it has one (`nativePushDevices`). */
+interface Target {
+  token: string;
+  registration?: string | null;
+}
 
 /**
  * Push notifications to the Android app through Firebase Cloud Messaging (HTTP v1), with a
@@ -156,14 +205,29 @@ export class FcmService {
     );
   };
 
-  async register(input: { token: string; platform: "android"; device: string }): Promise<void> {
-    await this.ctx.db
+  /**
+   * Keeps the phone's token, with the sign-in its pushes are for (`registration`) and the session
+   * it registered with. Returns the registration stored, which the phone checks against its own.
+   */
+  async register(input: {
+    token: string;
+    platform: "android";
+    device: string;
+    registration?: string;
+    sessionId?: string;
+  }): Promise<string | null> {
+    const row = {
+      platform: input.platform,
+      device: input.device.slice(0, 80),
+      registration: input.registration ?? null,
+      sessionId: input.sessionId ?? null,
+    };
+    const [stored] = await this.ctx.db
       .insert(nativePushDevices)
-      .values({ token: input.token, platform: input.platform, device: input.device.slice(0, 80) })
-      .onConflictDoUpdate({
-        target: nativePushDevices.token,
-        set: { platform: input.platform, device: input.device.slice(0, 80) },
-      });
+      .values({ token: input.token, ...row })
+      .onConflictDoUpdate({ target: nativePushDevices.token, set: row })
+      .returning({ registration: nativePushDevices.registration });
+    return stored?.registration ?? null;
   }
 
   async unregister(token: string): Promise<void> {
@@ -172,13 +236,28 @@ export class FcmService {
 
   /** Sends to every phone signed in for notifications; returns how many got it. */
   async sendAll(push: NativePush): Promise<number> {
-    if (!this.account) return 0;
-    const rows = await this.ctx.db.select().from(nativePushDevices);
-    const results = await this.sendToTokens(
-      rows.map((row) => row.token),
-      push,
-    );
-    return [...results.values()].filter((result) => result === "sent").length;
+    return (await this.deliver(push)).sent;
+  }
+
+  /**
+   * Sends to every phone signed in for notifications: how many got it, and how many sends failed
+   * and could work if tried again (a phone FCM says is gone, or one it refused for good, is
+   * neither). Each push carries the phone's `registration`, so the phone can drop a push sent for
+   * a sign-in it has left. A phone whose session has expired gets nothing: it is signed out, even
+   * if it hasn't noticed yet (an ended session takes its phone's row with it).
+   */
+  async deliver(push: NativePush): Promise<{ sent: number; failed: number }> {
+    if (!this.account) return { sent: 0, failed: 0 };
+    const rows = await this.ctx.db
+      .select({ token: nativePushDevices.token, registration: nativePushDevices.registration })
+      .from(nativePushDevices)
+      .leftJoin(session, eq(session.id, nativePushDevices.sessionId))
+      .where(or(isNull(nativePushDevices.sessionId), gt(session.expiresAt, sql`now()`)));
+    const results = [...(await this.sendTo(rows, push)).values()];
+    return {
+      sent: results.filter((result) => result === "sent").length,
+      failed: results.filter((result) => result === "failed").length,
+    };
   }
 
   /**
@@ -186,18 +265,30 @@ export class FcmService {
    * everywhere it's kept: as a notification device and as a paired phone's wake token.
    */
   async sendToTokens(tokens: string[], push: NativePush): Promise<Map<string, PushResult>> {
+    return this.sendTo(
+      tokens.map((token) => ({ token })),
+      push,
+    );
+  }
+
+  private async sendTo(targets: Target[], push: NativePush): Promise<Map<string, PushResult>> {
     const results = new Map<string, PushResult>();
-    if (!this.account || tokens.length === 0) return results;
+    if (!this.account || targets.length === 0) return results;
     const accessToken = await this.accessToken();
+    const unique = new Map(targets.map((target) => [target.token, target]));
     await Promise.all(
-      [...new Set(tokens)].map(async (token) => {
+      [...unique.values()].map(async ({ token, registration }) => {
         try {
-          const result = await this.send(accessToken, token, push);
+          const result = await this.send(accessToken, token, {
+            ...push,
+            data: { ...push.data, ...(registration ? { registration } : {}) },
+          });
           results.set(token, result);
           if (result === "gone") {
             await this.forget(token);
             return;
           }
+          if (result === "rejected") return;
           await this.ctx.db
             .update(nativePushDevices)
             .set({ lastSentAt: new Date() })
@@ -220,7 +311,7 @@ export class FcmService {
     accessToken: string,
     token: string,
     push: NativePush,
-  ): Promise<"sent" | "gone"> {
+  ): Promise<"sent" | "gone" | "rejected"> {
     const account = this.account!;
     const data = Object.fromEntries(
       Object.entries(push.data).filter((entry): entry is [string, string] => Boolean(entry[1])),
@@ -245,15 +336,16 @@ export class FcmService {
       },
     );
     if (response.ok) return "sent";
-    const body = (await response.json().catch(() => ({}))) as {
-      error?: { status?: string; message?: string; details?: { errorCode?: string }[] };
-    };
-    const codes = (body.error?.details ?? []).map((detail) => detail.errorCode);
-    if (codes.some((code) => code && GONE_CODES.has(code))) return "gone";
+    // Before reading the answer: a bad bearer token is never used again, whatever the body says.
     if (response.status === 401) this.token = null;
-    throw new Error(
-      `FCM answered ${response.status}: ${body.error?.message ?? body.error?.status ?? "no details"}`,
-    );
+    const { codes, summary } = readFcmError(await response.json().catch(() => null));
+    if (codes.some((code) => GONE_CODES.has(code))) return "gone";
+    const refused = codes.find((code) => REJECTED_CODES.has(code));
+    if (refused) {
+      this.ctx.log.warn("FCM refused a push for good", { status: response.status, code: refused });
+      return "rejected";
+    }
+    throw new Error(`FCM answered ${response.status}: ${summary ?? "no details"}`);
   }
 
   /** An OAuth access token for FCM, from the service account (a signed JWT, exchanged once an hour). */

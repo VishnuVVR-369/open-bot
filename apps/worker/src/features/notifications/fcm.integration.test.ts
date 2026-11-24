@@ -4,9 +4,11 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { testDatabase, testDatabaseServer } from "@open-bot/db/testing";
-import { egressDevices, nativePushDevices } from "@open-bot/db";
+import { egressDevices, nativePushDevices, session, user } from "@open-bot/db";
+import { eq, sql } from "drizzle-orm";
 import type { Context, NotificationEvent } from "../../context";
 import { FcmService, nativeEgressPush } from "./fcm";
+import { RunProgressService, type RunProgressSnapshot } from "./run-progress";
 
 const url = testDatabaseServer();
 
@@ -24,6 +26,14 @@ describe.skipIf(!url)("FCM fan-out", () => {
   const sent: Sent[] = [];
   /** Tokens the stand-in says were unregistered. */
   const gone = new Set<string>();
+  /** Tokens the stand-in can't deliver to right now. */
+  const unavailable = new Set<string>();
+  /** Tokens the stand-in refuses as invalid, which no retry changes. */
+  const invalid = new Set<string>();
+  /** Tokens the stand-in answers with exactly this error, as FCM v1 would. */
+  const errors = new Map<string, { status: number; error: Record<string, unknown> }>();
+  /** Tokens the stand-in answers with exactly this status and body, however malformed. */
+  const answers = new Map<string, { status: number; body: string }>();
   let tokenRequests = 0;
 
   const server = http.createServer((request, response) => {
@@ -51,6 +61,36 @@ describe.skipIf(!url)("FCM fan-out", () => {
           return;
         }
         const { message } = JSON.parse(body) as { message: Sent };
+        const answer = answers.get(message.token);
+        if (answer) {
+          response.writeHead(answer.status).end(answer.body);
+          return;
+        }
+        const error = errors.get(message.token);
+        if (error) {
+          response.writeHead(error.status).end(JSON.stringify({ error: error.error }));
+          return;
+        }
+        if (unavailable.has(message.token)) {
+          response.writeHead(503).end(JSON.stringify({ error: { status: "UNAVAILABLE" } }));
+          return;
+        }
+        if (invalid.has(message.token)) {
+          response.writeHead(400).end(
+            JSON.stringify({
+              error: {
+                status: "INVALID_ARGUMENT",
+                details: [
+                  {
+                    "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError",
+                    errorCode: "INVALID_ARGUMENT",
+                  },
+                ],
+              },
+            }),
+          );
+          return;
+        }
         if (gone.has(message.token)) {
           response.writeHead(404).end(
             JSON.stringify({
@@ -105,6 +145,10 @@ describe.skipIf(!url)("FCM fan-out", () => {
     await db.delete(egressDevices);
     sent.length = 0;
     gone.clear();
+    unavailable.clear();
+    invalid.clear();
+    errors.clear();
+    answers.clear();
   });
   afterAll(async () => {
     server.close();
@@ -265,5 +309,280 @@ describe.skipIf(!url)("FCM fan-out", () => {
     expect(await db.select().from(nativePushDevices)).toEqual([]);
     const [phone] = await db.select().from(egressDevices);
     expect(phone!.pushToken).toBeNull();
+  });
+
+  it("counts the sends that failed and could work if tried again, apart from gone or refused phones", async () => {
+    for (const token of ["phone-1", "phone-2", "phone-3", "phone-4"])
+      await fcm.register({ token, platform: "android", device: "Pixel" });
+    unavailable.add("phone-2");
+    gone.add("phone-3");
+    invalid.add("phone-4");
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    expect(await fcm.deliver(push)).toEqual({ sent: 1, failed: 1 });
+    expect(await fcm.deliver(push)).toEqual({ sent: 1, failed: 1 });
+    unavailable.clear();
+    expect(await fcm.deliver(push)).toEqual({ sent: 2, failed: 0 });
+    // Refused for good, but not gone: it stays signed in, and sending again changes nothing.
+    expect((await fcm.sendToTokens(["phone-4"], push)).get("phone-4")).toBe("rejected");
+    expect((await db.select().from(nativePushDevices)).map((row) => row.token).sort()).toEqual([
+      "phone-1",
+      "phone-2",
+      "phone-4",
+    ]);
+  });
+
+  it("sends a long run's progress at normal priority, collapsed per run, then its end uncollapsed", async () => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" });
+    const snapshot: RunProgressSnapshot = {
+      teammateId: "b1",
+      teammateName: "Rex",
+      chatId: "c1",
+      status: "running",
+      waitingFor: null,
+      items: [
+        {
+          id: "s1",
+          kind: "web_search",
+          query: "flights to Lisbon",
+          status: "running",
+          startedAt: new Date().toISOString(),
+        },
+      ],
+    };
+    const progress = new RunProgressService(
+      { events, log: { warn: vi.fn() } } as unknown as Context,
+      fcm,
+      (runId) => (runId === "r9" ? snapshot : null),
+      // The store's own suite is `runs/progress-restart.integration.test.ts`.
+      {
+        shown: async () => true,
+        owed: async () => true,
+        ended: async () => {},
+        overdue: async () => [],
+      },
+      {
+        showAfterMs: 30,
+        stepEveryMs: 30,
+        statusEveryMs: 10,
+        keepAliveMs: 60_000,
+        endRetryMs: [],
+        sweepEveryMs: 60_000,
+      },
+    );
+    progress.start();
+    try {
+      events.emit("runStarted", { id: "r9", trigger: "user" });
+      await until(() => sent.length === 1);
+      events.emit("runFinished", { id: "r9", trigger: "user" }, "completed", "Booked");
+      await progress.idle();
+    } finally {
+      progress.stop();
+    }
+    expect(sent.map((message) => message.android)).toEqual([
+      { priority: "NORMAL", ttl: "600s", collapse_key: "run-progress-r9" },
+      { priority: "NORMAL", ttl: "86400s" },
+    ]);
+    expect(sent[0]!.data).toEqual({
+      type: "run-progress",
+      tag: "run-progress:r9",
+      runId: "r9",
+      runState: "working",
+      sentAt: expect.any(String),
+      startedAt: expect.any(String),
+      chatId: "c1",
+      teammateId: "b1",
+      url: "/chats/c1?run=r9",
+      title: "Rex is working",
+      body: "Searching the web",
+    });
+    expect(sent[1]!.data).toEqual({
+      type: "run-progress",
+      tag: "run-progress:r9",
+      runId: "r9",
+      runState: "ended",
+      sentAt: expect.any(String),
+    });
+    expect(sent[1]!.data.sentAt! > sent[0]!.data.sentAt!).toBe(true);
+  });
+
+  const fcmError = (errorCode: string) => ({
+    "@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError",
+    errorCode,
+  });
+  it.each([
+    // The project's state: fixed by a person or by time, so the end stays owed.
+    ["a 403 PERMISSION_DENIED without a code", 403, { status: "PERMISSION_DENIED" }, "failed"],
+    ["a 404 NOT_FOUND without a code", 404, { status: "NOT_FOUND" }, "failed"],
+    [
+      "THIRD_PARTY_AUTH_ERROR",
+      401,
+      { status: "UNAUTHENTICATED", details: [fcmError("THIRD_PARTY_AUTH_ERROR")] },
+      "failed",
+    ],
+    [
+      "QUOTA_EXCEEDED",
+      429,
+      { status: "RESOURCE_EXHAUSTED", details: [fcmError("QUOTA_EXCEEDED")] },
+      "failed",
+    ],
+    ["INTERNAL", 500, { status: "INTERNAL", details: [fcmError("INTERNAL")] }, "failed"],
+    ["a 400 without a code", 400, { status: "FAILED_PRECONDITION" }, "failed"],
+    // This message to this token, for good.
+    [
+      "INVALID_ARGUMENT",
+      400,
+      { status: "INVALID_ARGUMENT", details: [fcmError("INVALID_ARGUMENT")] },
+      "rejected",
+    ],
+    [
+      "THIRD_PARTY_PERMISSION_DENIED",
+      403,
+      { status: "PERMISSION_DENIED", details: [fcmError("THIRD_PARTY_PERMISSION_DENIED")] },
+      "rejected",
+    ],
+    // The token, for good.
+    [
+      "SENDER_ID_MISMATCH",
+      403,
+      { status: "PERMISSION_DENIED", details: [fcmError("SENDER_ID_MISMATCH")] },
+      "gone",
+    ],
+    ["UNREGISTERED", 404, { status: "NOT_FOUND", details: [fcmError("UNREGISTERED")] }, "gone"],
+  ] as const)("counts %s (HTTP %i, %j) as %s", async (_name, status, error, expected) => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel" });
+    errors.set("phone-1", { status, error });
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe(expected);
+    const tokens = (await db.select().from(nativePushDevices)).map((row) => row.token);
+    expect(tokens).toEqual(expected === "gone" ? [] : ["phone-1"]);
+  });
+
+  it.each([
+    ["a JSON null", "null"],
+    ["no JSON at all", "<html>Unauthorized</html>"],
+    ["details that aren't a list", JSON.stringify({ error: { details: "UNREGISTERED" } })],
+    ["a null detail", JSON.stringify({ error: { status: "UNAUTHENTICATED", details: [null] } })],
+  ])("asks for a new access token after a 401 with %s, and keeps the phone", async (_, body) => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel" });
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    // A working token is cached first.
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("sent");
+    const before = tokenRequests;
+    answers.set("phone-1", { status: 401, body });
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("failed");
+    answers.clear();
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("sent");
+    expect(tokenRequests).toBe(before + 1);
+    expect((await db.select().from(nativePushDevices)).map((row) => row.token)).toEqual([
+      "phone-1",
+    ]);
+  });
+
+  it("reads FCM's error codes only from its own detail, never from another that has one", async () => {
+    await fcm.register({ token: "phone-1", platform: "android", device: "Pixel" });
+    const push = { data: { type: "dismiss" as const, tag: "x" }, priority: "normal" as const };
+    errors.set("phone-1", {
+      status: 400,
+      error: {
+        status: "INVALID_ARGUMENT",
+        details: [
+          { "@type": "type.googleapis.com/google.rpc.BadRequest", errorCode: "UNREGISTERED" },
+          { "@type": "type.googleapis.com/google.rpc.ErrorInfo", errorCode: "INVALID_ARGUMENT" },
+          { errorCode: "SENDER_ID_MISMATCH" },
+        ],
+      },
+    });
+    expect((await fcm.sendToTokens(["phone-1"], push)).get("phone-1")).toBe("failed");
+    expect((await db.select().from(nativePushDevices)).map((row) => row.token)).toEqual([
+      "phone-1",
+    ]);
+  });
+
+  it("says which registration it stored, so the phone knows its sign-in is on the server", async () => {
+    expect(
+      await fcm.register({
+        token: "phone-1",
+        platform: "android",
+        device: "Pixel 9",
+        registration: "reg-1",
+      }),
+    ).toBe("reg-1");
+    expect(await fcm.register({ token: "phone-1", platform: "android", device: "Pixel 9" })).toBe(
+      null,
+    );
+  });
+
+  it("gives a phone nothing once its session has expired, and forgets it when its session ends", async () => {
+    await db.insert(user).values({ id: "owner", name: "Owner", email: "owner@example.com" });
+    try {
+      const signIn = async (id: string, expiresAt: Date) =>
+        db.insert(session).values({ id, token: `token-${id}`, userId: "owner", expiresAt });
+      await signIn("live", new Date(Date.now() + 60_000));
+      await signIn("expired", new Date(Date.now() - 1_000));
+      await signIn("revoked", new Date(Date.now() + 60_000));
+      for (const [token, sessionId] of [
+        ["phone-live", "live"],
+        ["phone-expired", "expired"],
+        ["phone-revoked", "revoked"],
+      ] as const)
+        await fcm.register({ token, platform: "android", device: "Pixel", sessionId });
+      // An app or web app from before sessions were kept.
+      await fcm.register({ token: "phone-old", platform: "android", device: "Pixel" });
+      // Signed out on the web, or revoked: Better Auth deletes the session.
+      await db.delete(session).where(eq(session.id, "revoked"));
+      expect(await fcm.sendAll({ data: { type: "dismiss", tag: "x" }, priority: "normal" })).toBe(
+        2,
+      );
+      expect(sent.map((message) => message.token).sort()).toEqual(["phone-live", "phone-old"]);
+      expect((await db.select().from(nativePushDevices)).map((row) => row.token).sort()).toEqual([
+        "phone-expired",
+        "phone-live",
+        "phone-old",
+      ]);
+      // The session is refreshed (Better Auth moves its expiry on): the phone gets pushes again.
+      await db
+        .update(session)
+        .set({ expiresAt: sql`now() + interval '1 day'` })
+        .where(eq(session.id, "expired"));
+      sent.length = 0;
+      expect(await fcm.sendAll({ data: { type: "dismiss", tag: "x" }, priority: "normal" })).toBe(
+        3,
+      );
+    } finally {
+      await db.delete(user);
+    }
+  });
+
+  it("stamps each phone's push with its sign-in's registration", async () => {
+    await fcm.register({
+      token: "phone-1",
+      platform: "android",
+      device: "Pixel 9",
+      registration: "reg-1",
+    });
+    await fcm.register({ token: "phone-2", platform: "android", device: "Old app" });
+    // Signing in again on the same phone moves its registration on.
+    await fcm.register({
+      token: "phone-3",
+      platform: "android",
+      device: "Pixel 8",
+      registration: "reg-old",
+    });
+    await fcm.register({
+      token: "phone-3",
+      platform: "android",
+      device: "Pixel 8",
+      registration: "reg-new",
+    });
+    await fcm.deliver({ data: { type: "dismiss", tag: "x" }, priority: "normal" });
+    const byToken = Object.fromEntries(sent.map((message) => [message.token, message.data]));
+    expect(byToken).toEqual({
+      "phone-1": { type: "dismiss", tag: "x", registration: "reg-1" },
+      "phone-2": { type: "dismiss", tag: "x" },
+      "phone-3": { type: "dismiss", tag: "x", registration: "reg-new" },
+    });
+    // A wake goes to a paired phone's wake token, which has no registration.
+    await fcm.sendToTokens(["phone-1"], nativeEgressPush("wake", new Date(), "always"));
+    expect(sent.at(-1)!.data).not.toHaveProperty("registration");
   });
 });

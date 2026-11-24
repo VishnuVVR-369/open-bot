@@ -58,9 +58,27 @@ Notification approvals can be decided without opening the app; purchases use Rev
 Reply on a message notification sends directly to its teammate, including in a group chat.
 A reply that isn't sent stays in the notification in full, says it wasn't sent, and opens its chat; opening the chat doesn't clear it, so you dismiss it once you've sent it again.
 
-Visible notifications, including automation results and replies, use high-priority FCM data messages so Android can start the background handler that displays them while the app is closed.
+When a teammate's work takes longer than 20 seconds, a quiet notification shows it: "Rex is working", with the kind of step it is on, such as "Searching the web" or "Running a command", and how long it has been going.
+The text goes through Google's push service, so every word is fixed but the teammate's name.
+It never quotes the teammate's plan, the chat's title, a command, a file, a link, a search or what a tool was given: only the kind of step.
+The chat shows the rest.
+When the teammate made a plan, a progress bar shows how many of its steps are done; on Android 16 and newer this is Android's progress-style notification, with one segment per step.
+While the teammate waits for you, the notification says so ("Rex is waiting for you", "Waiting for your approval") and turns amber; the approval or takeover request still arrives as its own notification, with its buttons.
+It updates in place, at most every 15 seconds for new steps, without sound or vibration, and goes away when the work ends, replaced by the reply or failure notification when there is one.
+Tapping it opens the run in its chat, and while that chat is on screen it stays hidden; it comes back, as it last was, when you leave the chat or press Home.
+Swiping it away hides that run's progress until the run ends.
+If it goes because nothing refreshed it for 30 minutes, that is no swipe: the run's next update shows it again.
+Signing out removes every run's progress notification, with what the phone kept to draw them again, and the phone then draws no progress sent for the account you left, even after you sign in again.
+On Android 14 and newer it is an ongoing notification, which you can still swipe away; on older versions, where an ongoing notification can't be swiped, it is a normal one.
+It has its own channel, Running work, so you can turn it off or tune it in Android's settings without changing approvals, replies or the phone connection.
+It puts no dot on the app's icon: a run in progress is nothing to read, and its result, which does, comes when it ends.
+
+Which messages are urgent follows one rule.
+Approvals, takeover requests, `egress-needed` and visible results (replies, automation results and failures) use high-priority FCM data messages, so Android starts the app's handler even while the app is closed.
+`dismiss` and `run-progress` messages use normal priority.
+A run's live progress updates collapse into the latest one at FCM (one collapse key per run), and each is best effort; its end has no collapse key, since FCM keeps only a few collapse keys per phone while it can't deliver, and may drop any of them.
+Android deprioritizes apps whose high-priority messages show nothing, so a message that only updates or removes a notification never uses high priority.
 Android's notification channels still control sound and alert prominence; delivery priority does not change those settings.
-Silent dismissal messages use normal priority.
 
 ## Settings
 
@@ -154,7 +172,8 @@ Signing out stops the phone connection first: the service stops and the phone fo
 Then the app unpairs the phone while the session still works; if it can't reach the server, it remembers to, for that pairing only, and does it once you're signed in again.
 The same goes for Turn off for this phone while offline.
 A phone removed from the web or another phone forgets its pairing the next time its Phone connection screen loads the list, or when it next tries to connect.
-A session that ends elsewhere (a password change on the web, for example) signs the phone out the same way.
+A session that ends elsewhere (a password change on the web, for example), or expires, signs the phone out the same way, once the server says there is no session; while the phone is offline or the server fails, nothing is cleared.
+Until then, the worker already sends nothing to a phone whose session has expired or ended.
 
 ## Sharing to a teammate
 

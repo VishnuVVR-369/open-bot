@@ -36,16 +36,36 @@ export function sameSession(token: number | null): boolean {
   return token !== null && signingOut === 0 && signOutEdges === token;
 }
 
+/** The sign-outs running now, for `signOutsSettled()`. */
+const signOuts = new Set<Promise<void>>();
+
 /** Brackets a sign-out (`lib/session.ts`). */
-export async function signingOutDuring(work: () => Promise<void>): Promise<void> {
+export function signingOutDuring(work: () => Promise<void>): Promise<void> {
   signingOut += 1;
   signOutEdges += 1;
-  try {
-    await work();
-  } finally {
-    signOutEdges += 1;
-    signingOut -= 1;
-  }
+  const run = (async () => {
+    try {
+      await work();
+    } finally {
+      signOutEdges += 1;
+      signingOut -= 1;
+    }
+  })();
+  signOuts.add(run);
+  void run.then(
+    () => signOuts.delete(run),
+    () => signOuts.delete(run),
+  );
+  return run;
+}
+
+/**
+ * Resolves once no sign-out is running, failed or not. A sign-in that comes while the one before
+ * is still being torn down (its session expired, and you signed in at once) waits for it, so the
+ * old sign-in's teardown never undoes what the new one set up.
+ */
+export async function signOutsSettled(): Promise<void> {
+  while (signOuts.size) await Promise.allSettled([...signOuts]);
 }
 
 /** Reads the remembered revokes; anything malformed is dropped. */

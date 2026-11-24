@@ -115,8 +115,9 @@ jobs:
           - variant: normal
             env: GOOGLE_SERVICES_JSON=$GITHUB_WORKSPACE/apps/mobile/scripts/ci-google-services.json
             checks: --firebase
-            # Release lint vets the manifest the signed app ships; debug builds skip it.
-            tasks: :app:lintVitalRelease
+            # Release lint vets the manifest the signed app ships; debug builds skip it. The run
+            # progress module's own lint fails on any warning, such as a call too new for minSdk.
+            tasks: :app:lintVitalRelease :run-progress:lintRelease
     defaults:
       run:
         working-directory: apps/mobile
@@ -167,7 +168,7 @@ jobs:
         if: ${{ env.ANDROID_REQUIRED == 'true' }}
       - run: env ${{ matrix.env }} npx expo prebuild --platform android --no-install
         if: ${{ env.ANDROID_REQUIRED == 'true' }}
-      - run: env ${{ matrix.env }} ./gradlew :app:assembleDebug ${{ matrix.tasks }} -PreactNativeArchitectures=x86_64 --build-cache --init-script ../../../scripts/ci/android-ccache.gradle
+      - run: env ${{ matrix.env }} ./gradlew :app:assembleDebug :run-progress:testDebugUnitTest ${{ matrix.tasks }} -PreactNativeArchitectures=x86_64 --build-cache --init-script ../../../scripts/ci/android-ccache.gradle
         if: ${{ env.ANDROID_REQUIRED == 'true' }}
         working-directory: apps/mobile/android
       - run: node scripts/check-egress-manifest.mjs android/app/build/intermediates/merged_manifests/debug/processDebugManifest/AndroidManifest.xml ${{ matrix.checks }}

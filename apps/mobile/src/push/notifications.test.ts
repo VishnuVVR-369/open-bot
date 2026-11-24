@@ -1,17 +1,30 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { displayed, cancel, cancelById, display, send, getApproval, decideApproval, tray } =
-  vi.hoisted(() => ({
-    /** What's shown, by notification id, as Notifee keeps it: showing an id again replaces it. */
-    tray: new Map<string, { id: string; title?: string; body?: string }>(),
-    displayed: vi.fn(),
-    cancel: vi.fn(),
-    cancelById: vi.fn(),
-    display: vi.fn(),
-    send: vi.fn(),
-    getApproval: vi.fn(),
-    decideApproval: vi.fn(),
-  }));
+const {
+  displayed,
+  cancel,
+  cancelById,
+  display,
+  send,
+  getApproval,
+  decideApproval,
+  tray,
+  progress,
+  createChannels,
+} = vi.hoisted(() => ({
+  /** What's shown, by notification id, as Notifee keeps it: showing an id again replaces it. */
+  tray: new Map<string, { id: string; title?: string; body?: string }>(),
+  displayed: vi.fn(),
+  cancel: vi.fn(),
+  cancelById: vi.fn(),
+  display: vi.fn(),
+  send: vi.fn(),
+  getApproval: vi.fn(),
+  decideApproval: vi.fn(),
+  progress: { handle: vi.fn(), endRun: vi.fn() },
+  createChannels: vi.fn(async (_channels: { id: string; badge?: boolean }[]) => {}),
+}));
+vi.mock("../../modules/run-progress", () => ({ default: progress }));
 
 vi.mock("@notifee/react-native", () => ({
   default: {
@@ -19,7 +32,7 @@ vi.mock("@notifee/react-native", () => ({
     cancelDisplayedNotification: cancel,
     cancelNotification: cancelById,
     displayNotification: display,
-    createChannels: vi.fn(async () => {}),
+    createChannels,
   },
   AndroidImportance: { HIGH: 4, DEFAULT: 3, LOW: 2 },
   AndroidCategory: { MESSAGE: "msg" },
@@ -36,7 +49,12 @@ vi.mock("@/theme/colors", () => ({ palette: { light: { foreground: "#14161B" } }
 
 import type { Event } from "@notifee/react-native";
 import { ORPCError } from "@orpc/client";
-import { clearChatNotifications, handleNotificationEvent, handlePushData } from "./notifications";
+import {
+  clearChatNotifications,
+  ensureChannels,
+  handleNotificationEvent,
+  handlePushData,
+} from "./notifications";
 import { unsentReplyId } from "./payload";
 
 const shown = [
@@ -127,6 +145,50 @@ describe("native notification rendering and decisions", () => {
     expect(display.mock.calls[0]![0].android.timeoutAfter).toBeUndefined();
   });
 
+  it("hands run progress to the native module, and ends it with the run's result", async () => {
+    await handlePushData({
+      type: "run-progress",
+      tag: "run-progress:r1",
+      runId: "r1",
+      runState: "waiting",
+      sentAt: "2026-11-22T10:00:20.000Z",
+      title: "Rex is waiting for you",
+      body: "Waiting for your approval",
+      chatId: "chat",
+    });
+    expect(progress.handle).toHaveBeenCalledWith({
+      type: "run-progress",
+      tag: "run-progress:r1",
+      runId: "r1",
+      runState: "waiting",
+      sentAt: "2026-11-22T10:00:20.000Z",
+      title: "Rex is waiting for you",
+      body: "Waiting for your approval",
+      chatId: "chat",
+    });
+    expect(display).not.toHaveBeenCalled();
+    // An approval along the way leaves the progress; the result removes it.
+    await handlePushData({
+      type: "notification",
+      tag: "a1",
+      kind: "approval",
+      title: "Approve?",
+      approvalId: "a1",
+      runId: "r1",
+    });
+    expect(progress.endRun).not.toHaveBeenCalled();
+    await handlePushData({
+      type: "notification",
+      tag: "r1",
+      kind: "run_finished",
+      title: "Rex replied",
+      body: "Booked",
+      runId: "r1",
+    });
+    expect(progress.endRun).toHaveBeenCalledWith("r1");
+    expect(tray.get("r1")?.title).toBe("Rex replied");
+  });
+
   it("does not display an approval push that arrived after its decision", async () => {
     getApproval.mockResolvedValue({ status: "denied" });
     await handlePushData({
@@ -137,6 +199,17 @@ describe("native notification rendering and decisions", () => {
       approvalId: "a1",
     });
     expect(display).not.toHaveBeenCalled();
+  });
+});
+
+describe("notification channels", () => {
+  it("keeps running work silent and off the app's icon, where the other channels badge", async () => {
+    await ensureChannels();
+    const channels = createChannels.mock.calls[0]![0];
+    const running = channels.find((channel) => channel.id === "running");
+    expect(running).toMatchObject({ name: "Running work", importance: 2, vibration: false });
+    expect(running?.badge).toBe(false);
+    expect(channels.find((channel) => channel.id === "messages")).not.toHaveProperty("badge");
   });
 });
 

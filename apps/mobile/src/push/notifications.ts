@@ -13,6 +13,7 @@ import { AppState } from "react-native";
 import { api } from "@/lib/api";
 import { visibleChat } from "@/lib/realtime";
 import { palette } from "@/theme/colors";
+import RunProgress from "../../modules/run-progress";
 import {
   CHANNELS,
   isOnScreen,
@@ -21,6 +22,8 @@ import {
   isUnsentReplyId,
   replyChatUrl,
   replyText,
+  resultRunId,
+  runProgressData,
   unsentReplyId,
   type ActionId,
   type DecideOutcome,
@@ -41,6 +44,7 @@ export async function ensureChannels(): Promise<void> {
       name: channel.name,
       importance: IMPORTANCE[channel.importance],
       ...(channel.importance === "low" ? { vibration: false, sound: undefined } : {}),
+      ...(channel.badge === false ? { badge: false } : {}),
     })),
   );
 }
@@ -53,6 +57,16 @@ export async function handlePushData(data: PushData): Promise<void> {
     await notifee.cancelNotification(data.tag);
     return;
   }
+  // Drawn natively. FCM hands these to the native module directly; this path is for pushes the app
+  // gets itself, like the development build's test pushes.
+  const progress = runProgressData(data);
+  if (progress) {
+    RunProgress.handle(progress);
+    return;
+  }
+  // The run's result replaces its progress notification, even while you're looking at its chat.
+  const finished = resultRunId(data);
+  if (finished) RunProgress.endRun(finished);
   const plan = planNotification(data);
   if (!plan) return;
   if (isOnScreen(data, visibleChat.get(), AppState.currentState === "active")) return;

@@ -13,6 +13,7 @@ import {
   sameSession,
   sessionToken,
   signingOutDuring,
+  signOutsSettled,
   type PendingRevoke,
   type RevokeStore,
   type SignOutEgressDeps,
@@ -90,6 +91,26 @@ describe("a pairing across a sign-out", () => {
     releaseFirst();
     await first;
     expect(sessionToken()).not.toBeNull();
+  });
+
+  it("settles once every sign-out running has ended, failed ones too", async () => {
+    await signOutsSettled();
+    let releaseFirst = () => {};
+    let failSecond = (_error: Error) => {};
+    const first = signingOutDuring(() => new Promise<void>((done) => (releaseFirst = done)));
+    const second = signingOutDuring(
+      () => new Promise<void>((_done, fail) => (failSecond = fail)),
+    ).catch(() => {});
+    let settled = false;
+    const waiting = signOutsSettled().then(() => (settled = true));
+    releaseFirst();
+    await first;
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    failSecond(new Error("offline"));
+    await second;
+    await waiting;
+    expect(settled).toBe(true);
   });
 });
 

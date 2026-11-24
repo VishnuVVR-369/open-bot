@@ -13,9 +13,23 @@ export const pushContract = {
         platform: z.literal("android"),
         /** The device, in words, like "Pixel 9". */
         device: z.string().max(200),
+        /**
+         * This sign-in on the phone: a random id it makes when you sign in. Pushes carry it, so
+         * the phone drops the ones sent for a sign-in it has left.
+         */
+        registration: z.string().min(1).max(100).optional(),
       }),
     )
-    .output(z.object({ ok: z.literal(true) })),
+    .output(
+      z.object({
+        ok: z.literal(true),
+        /**
+         * The registration the server stored for this token. The phone counts its registration as
+         * stored only when this matches it, so a server that dropped it (an older one) is retried.
+         */
+        registration: z.string().optional(),
+      }),
+    ),
   unregisterDevice: base
     .input(z.object({ token: z.string().min(1).max(4096) }))
     .output(z.object({ ok: z.literal(true) })),

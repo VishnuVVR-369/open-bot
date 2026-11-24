@@ -32,9 +32,22 @@ export const pushContract = {
         token: z.string().min(1).max(4096),
         platform: z.literal("android"),
         device: z.string().max(200).default(""),
+        /** The phone's sign-in, which its pushes carry (`pushContract.registerDevice`). */
+        registration: z.string().min(1).max(100).optional(),
+        /** The session the phone registered with: it gets nothing once that has ended. */
+        sessionId: z.string().min(1).max(200).optional(),
       }),
     )
-    .output(ok),
+    .output(
+      z.object({
+        ok: z.literal(true),
+        /**
+         * The registration now stored for the token, which the phone checks against its own.
+         * Missing from a worker older than it: the phone takes that as not stored.
+         */
+        registration: z.string().nullable().optional(),
+      }),
+    ),
   unregisterNative: base
     .route({ method: "POST", path: "/internal/push/native/unregister" })
     .input(z.object({ token: z.string().min(1).max(4096) }))

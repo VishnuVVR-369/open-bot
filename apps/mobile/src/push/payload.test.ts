@@ -7,6 +7,8 @@ import {
   isUnsentReplyId,
   replyChatUrl,
   replyText,
+  resultRunId,
+  runProgressData,
   unsentReplyId,
 } from "./payload";
 
@@ -254,5 +256,43 @@ describe("phone notifications", () => {
       title: "Couldn't reach open-bot",
       body: "Open to decide.",
     });
+  });
+
+  it("hands a run's progress to the native module exactly as FCM would deliver it", () => {
+    const raw = {
+      type: "run-progress",
+      tag: "run-progress:r1",
+      runId: "r1",
+      runState: "working",
+      sentAt: "2026-11-22T10:00:20.000Z",
+      startedAt: "2026-11-22T10:00:00.000Z",
+      title: "Rex: Book the flight",
+      body: "Searching for “flights”",
+      url: "/chats/c1?run=r1",
+      chatId: "c1",
+      teammateId: "t1",
+      stepsDone: "1",
+      stepsTotal: "3",
+    };
+    const data = parsePushData(raw)!;
+    expect(planNotification(data)).toBeNull();
+    expect(runProgressData(data)).toEqual(raw);
+    // The end carries only what removes the notification.
+    const ended = { type: "run-progress", tag: "run-progress:r1", runId: "r1", runState: "ended" };
+    expect(runProgressData(parsePushData({ ...ended, sentAt: raw.sentAt })!)).toEqual({
+      ...ended,
+      sentAt: raw.sentAt,
+    });
+    expect(parsePushData({ ...raw, runState: "paused" })!.runState).toBeUndefined();
+    expect(runProgressData(parsePushData(approval)!)).toBeNull();
+  });
+
+  it("ends a run's progress with its result, but not with what it asks along the way", () => {
+    const result = (kind: string) =>
+      parsePushData({ type: "notification", kind, title: "x", tag: "r1", runId: "r1" })!;
+    expect(resultRunId(result("run_finished"))).toBe("r1");
+    expect(resultRunId(result("run_failed"))).toBe("r1");
+    expect(resultRunId(result("teammate_message"))).toBeNull();
+    expect(resultRunId(parsePushData({ ...approval, runId: "r1" })!)).toBeNull();
   });
 });

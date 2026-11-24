@@ -3,15 +3,27 @@
  * how the app shows it. Platform-free, so it's tested in Node.
  */
 
-import { NATIVE_PUSH_TYPES, type NativePushType } from "@open-bot/domain";
+import {
+  NATIVE_PUSH_TYPES,
+  RUN_PROGRESS_STATES,
+  type NativePushType,
+  type RunProgressState,
+} from "@open-bot/domain";
 
 export type ChannelId = "approvals" | "asking" | "messages" | "running" | "connection";
 
-export const CHANNELS: { id: ChannelId; name: string; importance: "high" | "default" | "low" }[] = [
+export const CHANNELS: {
+  id: ChannelId;
+  name: string;
+  importance: "high" | "default" | "low";
+  /** False: its notifications put no dot on the app's icon. */
+  badge?: false;
+}[] = [
   { id: "approvals", name: "Approvals", importance: "high" },
   { id: "asking", name: "Teammates asking for you", importance: "high" },
   { id: "messages", name: "Messages and results", importance: "default" },
-  { id: "running", name: "Running work", importance: "low" },
+  // A run in progress is nothing to read: its result, which badges, comes when it ends.
+  { id: "running", name: "Running work", importance: "low", badge: false },
   { id: "connection", name: "Phone connection", importance: "low" },
 ];
 
@@ -30,6 +42,12 @@ export interface PushData {
   takeoverId?: string;
   /** The page a teammate published; the notification opens it. */
   pageId?: string;
+  /** `run-progress` only: where the run is, and the rest its notification shows. */
+  runState?: RunProgressState;
+  sentAt?: string;
+  startedAt?: string;
+  stepsDone?: string;
+  stepsTotal?: string;
 }
 
 /** Reads a data message; anything malformed is null and ignored. */
@@ -54,7 +72,55 @@ export function parsePushData(raw: Record<string, unknown> | undefined): PushDat
     approvalNeedsBiometric: raw.approvalNeedsBiometric === "true",
     takeoverId: text("takeoverId"),
     pageId: text("pageId"),
+    ...(type === "run-progress"
+      ? {
+          runState: RUN_PROGRESS_STATES.find((state) => state === raw.runState),
+          sentAt: text("sentAt"),
+          startedAt: text("startedAt"),
+          stepsDone: text("stepsDone"),
+          stepsTotal: text("stepsTotal"),
+        }
+      : {}),
   };
+}
+
+/**
+ * A `run-progress` push as the native module reads it (`RunProgress.kt`): every value a string,
+ * as FCM delivers it. Null for any other push.
+ */
+export function runProgressData(data: PushData): Record<string, string> | null {
+  if (data.type !== "run-progress") return null;
+  const fields = {
+    type: data.type,
+    tag: data.tag,
+    runId: data.runId,
+    runState: data.runState,
+    sentAt: data.sentAt,
+    startedAt: data.startedAt,
+    title: data.title,
+    body: data.body,
+    url: data.url,
+    chatId: data.chatId,
+    teammateId: data.teammateId,
+    stepsDone: data.stepsDone,
+    stepsTotal: data.stepsTotal,
+  };
+  return Object.fromEntries(
+    Object.entries(fields).filter((entry): entry is [string, string] => Boolean(entry[1])),
+  );
+}
+
+/**
+ * Kinds of notification that are a run's result. Its progress notification goes when one
+ * arrives, even before the run's last progress message (`RESULT_KINDS` in the egress module).
+ */
+const RESULT_KINDS = new Set(["run_finished", "run_failed"]);
+
+/** The run this notification is the result of, or null. */
+export function resultRunId(data: PushData): string | null {
+  return data.type === "notification" && data.kind && RESULT_KINDS.has(data.kind) && data.runId
+    ? data.runId
+    : null;
 }
 
 export type ActionId = "approve" | "deny" | "review" | "reply" | "take-over" | "type-code";

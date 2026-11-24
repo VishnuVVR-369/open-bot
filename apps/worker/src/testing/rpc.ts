@@ -178,7 +178,9 @@ export function rpcHarness() {
     uploads: { status: vi.fn(async () => null) },
     schedules,
     push: new PushService(ctx),
-    fcm: { register: vi.fn(async () => {}) },
+    fcm: {
+      register: vi.fn(async (input: { registration?: string }) => input.registration ?? null),
+    },
     tasks: new TaskService(ctx),
     email,
     connections: connectionService,

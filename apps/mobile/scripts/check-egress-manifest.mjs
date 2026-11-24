@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Checks the merged Android manifest for what the phone connection needs (modules/egress).
+// Checks the merged Android manifest for what the phone connection needs (modules/egress), and
+// run progress's receiver (modules/run-progress).
 // CI runs it after building each variant:
 //
 //   node scripts/check-egress-manifest.mjs <merged AndroidManifest.xml> [--firebase] [--development]
@@ -93,6 +94,15 @@ if (firebase) {
     "egress messaging components in a build without Firebase",
   );
 }
+
+// Run progress (modules/run-progress): only the app's own delete intents may reach it.
+check(
+  has(
+    component("receiver", "dev.openbot.runprogress.RunProgressDismissReceiver"),
+    'android:exported="false"',
+  ),
+  "the run progress dismiss receiver is missing or exported",
+);
 
 const debug = component("receiver", "dev.openbot.egress.DebugWakeReceiver");
 if (development)

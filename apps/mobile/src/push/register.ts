@@ -1,20 +1,18 @@
 import notifee, { EventType } from "@notifee/react-native";
 import * as Device from "expo-device";
+import * as Network from "expo-network";
 import { router, type Href } from "expo-router";
 import { useEffect } from "react";
 import { AppState } from "react-native";
 import { api } from "@/lib/api";
+import { signOutsSettled } from "@/lib/phone-egress";
 import { keysForPush, queryClient, queryKeys } from "@/lib/query";
-import { hasFirebase } from "./firebase";
+import { visibleChat } from "@/lib/realtime";
+import RunProgress from "../../modules/run-progress";
+import { messaging } from "./firebase";
 import { ensureChannels, handleNotificationEvent, handlePushData } from "./notifications";
 import { parsePushData } from "./payload";
-
-type MessagingModule = typeof import("@react-native-firebase/messaging");
-
-function messaging(): MessagingModule | null {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  return hasFirebase ? (require("@react-native-firebase/messaging") as MessagingModule) : null;
-}
+import { PushRegistrar } from "./registrar";
 
 /**
  * The notification that opened the app stays the "initial" one for as long as the app runs, so
@@ -44,22 +42,59 @@ async function openInitialNotification() {
   }
 }
 
-async function register(token: string) {
-  await api.push.registerDevice({
+/** Registers the token with this sign-in's registration; returns the registration the server stored. */
+async function register(token: string, registration: string): Promise<string | undefined> {
+  const stored = await api.push.registerDevice({
     token,
     platform: "android",
     device: Device.modelName ?? "Android phone",
+    registration,
   });
+  return stored.registration;
 }
 
 /**
- * While you're signed in: notification channels and permission, this phone's FCM token on the
- * server, pushes that arrive while the app is open, and taps that open the right screen.
+ * While you're signed in (`sessionId`, your session's id; null when signed out): notification
+ * channels and permission, this phone's FCM token on the server with this sign-in's registration,
+ * pushes that arrive while the app is open, and taps that open the right screen.
+ *
+ * The token is registered when you sign in or the app starts, and checked again whenever the app
+ * comes back to the screen or back online, or Firebase gives it a new one (`PushRegistrar`): a
+ * registration that failed is tried again with backoff, and stops when you sign out.
  */
-export function usePushNotifications(signedIn: boolean) {
+export function usePushNotifications(sessionId: string | null) {
   useEffect(() => {
-    if (!signedIn) return;
+    if (!sessionId) return;
     const cleanups: (() => void)[] = [];
+    let registrar: PushRegistrar | null = null;
+    let ended = false;
+    // First: after sign-out nothing registers this sign-in again, and a reply that comes later
+    // changes nothing.
+    cleanups.push(() => {
+      ended = true;
+      registrar?.stop();
+    });
+    const fcm = messaging();
+    // A sign-out still tearing down the sign-in before (its session ended, and you signed in
+    // again at once) finishes first: it forgets the registration and deletes the token.
+    void signOutsSettled().then(() => {
+      if (ended) return;
+      // This sign-in, which every push to this phone carries: one per session, so a new sign-in
+      // never uses the registration of one before it, even one this phone never saw end. Taken
+      // before the token is registered, so no push can carry it before the phone has it.
+      const registration = RunProgress.registration(sessionId);
+      if (!fcm) return;
+      registrar = new PushRegistrar({
+        registration,
+        token: () => fcm.getToken(fcm.getMessaging()),
+        register,
+        onError: (error) => console.warn("couldn't register for notifications", error),
+      });
+      registrar.sync();
+    });
+    // A run's progress notification goes while its chat is on screen, where the run shows anyway.
+    RunProgress.setVisibleChat(visibleChat.get());
+    cleanups.push(visibleChat.subscribe((chatId) => RunProgress.setVisibleChat(chatId)));
     void (async () => {
       await ensureChannels();
       await notifee.requestPermission();
@@ -68,10 +103,30 @@ export function usePushNotifications(signedIn: boolean) {
 
     // A Review/body press can launch an already mounted app. Its background event does not
     // reach onForegroundEvent, so consume the Android launch intent on resume as well.
+    // Back on screen, the token is checked too: it may have changed while the app wasn't running.
     const appState = AppState.addEventListener("change", (state) => {
-      if (state === "active") void openInitialNotification();
+      if (state !== "active") return;
+      void openInitialNotification();
+      registrar?.sync();
     });
     cleanups.push(() => appState.remove());
+    // Back online: a registration that failed offline goes now, with a fresh set of tries. The
+    // listener reports only changes, so an app started offline learns that from the state now,
+    // unless a change came first.
+    let online: boolean | null = null;
+    const reachable = ({ isConnected, isInternetReachable }: Network.NetworkState) =>
+      isConnected !== false && isInternetReachable !== false;
+    const network = Network.addNetworkStateListener((state) => {
+      const now = reachable(state);
+      if (now && online === false) registrar?.sync();
+      online = now;
+    });
+    cleanups.push(() => network.remove());
+    void Network.getNetworkStateAsync()
+      .then((state) => {
+        if (online === null) online = reachable(state);
+      })
+      .catch(() => {});
 
     cleanups.push(
       notifee.onForegroundEvent(async (event) => {
@@ -96,14 +151,9 @@ export function usePushNotifications(signedIn: boolean) {
       }),
     );
 
-    const fcm = messaging();
     if (fcm) {
       const instance = fcm.getMessaging();
-      void fcm
-        .getToken(instance)
-        .then(register)
-        .catch((error: unknown) => console.warn("couldn't register for notifications", error));
-      cleanups.push(fcm.onTokenRefresh(instance, (token) => void register(token).catch(() => {})));
+      cleanups.push(fcm.onTokenRefresh(instance, () => registrar?.sync()));
       cleanups.push(
         fcm.onMessage(instance, async (message) => {
           const data = parsePushData(message.data);
@@ -116,7 +166,7 @@ export function usePushNotifications(signedIn: boolean) {
       );
     }
     return () => cleanups.forEach((cleanup) => cleanup());
-  }, [signedIn]);
+  }, [sessionId]);
 }
 
 /** This phone's FCM token, for waking its phone connection; null without Firebase. */
@@ -126,13 +176,33 @@ export async function currentPushToken(): Promise<string | null> {
   return fcm.getToken(fcm.getMessaging()).catch(() => null);
 }
 
-/** On sign-out: stop notifications to this phone, on the server and in Firebase. */
+/** Whether this phone holds a sign-in: it registered for pushes, and hasn't signed out since. */
+export function holdsSignIn(): boolean {
+  return RunProgress.signedIn();
+}
+
+/**
+ * The first step of a sign-out: every progress notification goes, with the registration their
+ * pushes must carry, so nothing for the account you left draws again, even a push on its way.
+ */
+export function forgetRunProgress(): void {
+  RunProgress.reset();
+}
+
+/**
+ * On sign-out: run progress goes first (`forgetRunProgress`). Then notifications to this phone
+ * stop, on the server and in Firebase, and the ones it shows are removed. A session that already
+ * ended can't ask the server, which is best effort: the worker sends nothing to a phone whose
+ * session has expired or ended (`FcmService.deliver`).
+ */
 export async function unregisterPushNotifications(): Promise<void> {
+  forgetRunProgress();
   const fcm = messaging();
-  if (!fcm) return;
-  const instance = fcm.getMessaging();
-  const token = await fcm.getToken(instance).catch(() => null);
-  if (token) await api.push.unregisterDevice({ token }).catch(() => {});
-  await fcm.deleteToken(instance).catch(() => {});
-  await notifee.cancelAllNotifications();
+  if (fcm) {
+    const instance = fcm.getMessaging();
+    const token = await fcm.getToken(instance).catch(() => null);
+    if (token) await api.push.unregisterDevice({ token }).catch(() => {});
+    await fcm.deleteToken(instance).catch(() => {});
+  }
+  await notifee.cancelAllNotifications().catch(() => {});
 }
