@@ -51,6 +51,11 @@ export const runs = pgTable(
     /** The watch or webhook that started this run. */
     triggerId: uuid("trigger_id"),
     parentRunId: uuid("parent_run_id"),
+    /**
+     * The board task this run was asked to work on. A start's run takes the id the client chose for
+     * that start, so a retried start finds it instead of asking twice.
+     */
+    taskId: uuid("task_id"),
     /** The screen it works on when it isn't its teammate's own, like a swarm helper's. */
     screenId: uuid("screen_id"),
     status: text("status").$type<RunStatus>().notNull().default("queued"),

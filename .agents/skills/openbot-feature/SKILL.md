@@ -23,12 +23,12 @@ Read its files in this order before you write yours:
 | Contracts         | `packages/api/src/contracts/tasks.ts` (app), `packages/api/src/worker/contracts/tasks.ts` (internal), `packages/api/src/tasks.ts` (views)          |
 | Web feature       | `apps/web/src/features/tasks/` (`components/`, `hooks.ts`, `index.ts`, `server.ts`, `server/queries.ts`, `server/routes.ts`)                       |
 | Web wiring        | `apps/web/src/app/(app)/tasks/page.tsx`, `apps/web/src/lib/server/api/router.ts`                                                                   |
+| Mobile            | `apps/mobile/src/features/tasks/` (`components/`, `hooks.ts`, `actions.ts`), routes in `apps/mobile/src/app/tasks/`                                |
 | Realtime event    | `tasks` in `APP_EVENT_TYPES` and `APP_EVENT_REFRESHES`                                                                                             |
 | Tests             | `apps/worker/src/features/tasks/routes.integration.test.ts`, `apps/web/src/features/tasks/server/queries.integration.test.ts`, `e2e/tasks.spec.ts` |
 | Docs              | `apps/site/src/app/docs/reference/tools/page.mdx`, `apps/site/src/app/docs/flows/teamwork/page.mdx`                                                |
 
-Tasks has no phone screen.
-For the mobile layer copy `pages`: `apps/mobile/src/features/pages/` (`components/`, `hooks.ts`) and its route `apps/mobile/src/app/pages/[pageId].tsx`.
+Layout rules both apps share (the board's columns and order) live in `packages/domain/src/tasks/board.ts`, so web and mobile can't drift apart.
 For background work or a signal from the web app, copy a small `feature.ts`, such as `apps/worker/src/features/notifications/feature.ts`.
 
 ## Steps

@@ -13,12 +13,16 @@ export function taskRoutes(tasks: TaskService) {
       await tasks.update(taskId, patch);
       return ok;
     }),
+    move: os.tasks.move.handler(async ({ input }) => {
+      await tasks.move(input.taskId, input.status, input.placement);
+      return ok;
+    }),
     remove: os.tasks.remove.handler(async ({ input }) => {
       await tasks.remove(input.taskId);
       return ok;
     }),
-    start: os.tasks.start.handler(async ({ input }) => ({
-      chatId: (await tasks.start(input.taskId, null)).chatId,
+    start: os.tasks.start.handler(async ({ input: { taskId, startId, expectedOwnerId } }) => ({
+      chatId: (await tasks.start(taskId, { startId, expectedOwnerId })).chatId,
     })),
   };
 }

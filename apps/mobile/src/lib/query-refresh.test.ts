@@ -62,6 +62,7 @@ const queries = [
   [["pages", "b"], queryKeys.page("b")],
   [["page-link", "a", "dark"], queryKeys.pageLink("a", "dark")],
   [["page-link", "b", "light"], queryKeys.pageLink("b", "light")],
+  [["tasks"], queryKeys.tasks],
 ] as const;
 
 async function invalidated(keys: readonly (readonly unknown[])[], side: 0 | 1) {
@@ -96,12 +97,14 @@ describe("shared event refresh migration", () => {
             ]
           : type === "chats"
             ? [["approval-rules"]]
-            : type === teammateEvent
-              ? [
-                  ["chat", "a"],
-                  ["chat", "b"],
-                ]
-              : [];
+            : type === "tasks"
+              ? [["tasks"]]
+              : type === teammateEvent
+                ? [
+                    ["chat", "a"],
+                    ["chat", "b"],
+                  ]
+                : [];
       expect(added).toEqual(expected.map((key) => JSON.stringify(key)));
     },
   );

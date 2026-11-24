@@ -1,5 +1,5 @@
 // Task tools: the team's board.
-import { TASK_STATUSES } from "@open-bot/domain";
+import { TASK_NOTES_MAX, TASK_STATUSES, TASK_TITLE_MAX } from "@open-bot/domain";
 import { z } from "zod";
 import type { Context } from "../../context";
 import {
@@ -20,10 +20,10 @@ interface TaskToolDeps {
 }
 
 const addTaskInput = z.object({
-  title: z.string().min(1).max(200),
+  title: z.string().min(1).max(TASK_TITLE_MAX),
   notes: z
     .string()
-    .max(8000)
+    .max(TASK_NOTES_MAX)
     .describe("What done looks like, and any context the owner needs.")
     .optional(),
   owner: z
@@ -40,8 +40,8 @@ const addTaskInput = z.object({
 const updateTaskInput = z.object({
   id: z.string(),
   status: z.enum(TASK_STATUSES, "Status is todo, doing or done.").optional(),
-  title: z.string().min(1).max(200).optional(),
-  notes: z.string().max(8000).optional(),
+  title: z.string().min(1).max(TASK_TITLE_MAX).optional(),
+  notes: z.string().max(TASK_NOTES_MAX).optional(),
   owner: z.string().describe("A teammate's name, 'me', or an empty string for nobody.").optional(),
   due: z.string().describe("YYYY-MM-DD, or an empty string for no due date.").optional(),
 });
@@ -110,12 +110,14 @@ async function addTask(
       createdBy: "teammate",
       createdByTeammateId: session.teammate.id,
     });
-    const start = args.start && owner?.id && owner.id !== session.teammate.id;
-    if (start)
-      task = await deps.tasks.start(task.id, {
-        teammateName: session.teammate.name,
-        runId: session.run.id,
-      });
+    // Who's asked to start: another teammate it was given to.
+    const startFor = args.start && owner?.id && owner.id !== session.teammate.id ? owner.id : null;
+    const start = startFor !== null;
+    if (startFor)
+      ({ task } = await deps.tasks.start(task.id, {
+        by: { teammateName: session.teammate.name, runId: session.run.id },
+        expectedOwnerId: startFor,
+      }));
     session.putItem({
       ...toolItem(callId, "add_task", `Added “${task.title}” to the board`, raw, startedAt),
       status: "completed",

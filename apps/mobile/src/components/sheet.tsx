@@ -15,6 +15,7 @@ export function Sheet({
   open,
   onClose,
   title,
+  titleLines,
   description,
   children,
   focusOnShow,
@@ -23,6 +24,8 @@ export function Sheet({
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** How many lines a long title may take before it's cut short. */
+  titleLines?: number;
   description?: string;
   children: ReactNode;
   focusOnShow?: RefObject<{ focus: () => void } | null>;
@@ -100,7 +103,11 @@ export function Sheet({
           <View style={[styles.grabber, { backgroundColor: colors.input }]} />
           {(title || description) && (
             <View style={styles.head}>
-              {title && <Text variant="heading">{title}</Text>}
+              {title && (
+                <Text variant="heading" numberOfLines={titleLines}>
+                  {title}
+                </Text>
+              )}
               {description && (
                 <Text variant="small" muted>
                   {description}

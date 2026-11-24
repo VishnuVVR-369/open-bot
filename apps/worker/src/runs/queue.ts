@@ -1,5 +1,12 @@
 import { NOTIFY_CHANNELS, type RunTrigger, type RunLane } from "@open-bot/domain";
-import { notify, runEvents, runs, type Attachment, type Queryable } from "@open-bot/db";
+import {
+  errorMessage,
+  notify,
+  runEvents,
+  runs,
+  type Attachment,
+  type Queryable,
+} from "@open-bot/db";
 import { sql } from "drizzle-orm";
 import { signalWorker, type Context } from "../context";
 
@@ -17,6 +24,8 @@ export interface RunInput {
   scheduleId?: string | null;
   triggerId?: string | null;
   parentRunId?: string | null;
+  /** The board task it was asked to work on. */
+  taskId?: string | null;
   /** A screen of its own, for a swarm helper. */
   screenId?: string | null;
   /**
@@ -52,6 +61,7 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
       scheduleId: input.scheduleId ?? null,
       triggerId: input.triggerId ?? null,
       parentRunId: input.parentRunId ?? null,
+      taskId: input.taskId ?? null,
       screenId: input.screenId ?? null,
       // What a run read from your accounts travels with everything it starts.
       readOutsideData: input.readOutsideData
@@ -71,15 +81,30 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
   return row!.id;
 }
 
-/** Tell open chats about a saved run, and wake the executor. */
-export async function announceRun(ctx: Pick<Context, "pool">, chatId: string): Promise<void> {
-  await notify(ctx.pool, NOTIFY_CHANNELS.chat, chatId);
-  await signalWorker(ctx, "runs");
+/**
+ * Tell open chats about a saved run, and wake the executor. It never fails: the run is saved, which
+ * is what counts, so a lost announcement only delays it until the executor's safety sweep (every
+ * 15 seconds) finds it queued. A caller that failed here after saving would make its caller try
+ * again and queue the run twice.
+ */
+export async function announceRun(
+  ctx: Pick<Context, "pool" | "log">,
+  chatId: string,
+): Promise<void> {
+  try {
+    await notify(ctx.pool, NOTIFY_CHANNELS.chat, chatId);
+    await signalWorker(ctx, "runs");
+  } catch (error) {
+    ctx.log.warn("run announcement failed; the safety sweep starts it", {
+      chatId,
+      error: errorMessage(error),
+    });
+  }
 }
 
 /** Queue a run and wake the executor. */
 export async function enqueueRun(
-  ctx: Pick<Context, "db" | "pool">,
+  ctx: Pick<Context, "db" | "pool" | "log">,
   input: RunInput,
 ): Promise<string> {
   const id = await insertRun(ctx.db, input);

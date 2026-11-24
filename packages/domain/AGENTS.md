@@ -17,7 +17,7 @@ One folder per feature under `packages/domain/src`, each with an `index.ts` barr
 - `automations`: schedules and triggers.
 - `integrations`: MCP connections and the OAuth account definitions (`integrations/accounts`).
 - `chats`: chat kinds, message roles, reply ratings and upload statuses.
-- `tasks`: the task board's statuses.
+- `tasks`: the task board's statuses, how the board is laid out (`board.ts`: columns, order, blockers, due days, placements), and the moves and starts a client has on their way (`pending.ts`), shared by web and mobile.
 - `pages`, `skills`, `memory`, `vault`, `models`, `channels` (Telegram, email, phone pushes), `auth` (password, recovery) and `text`.
 - `server`: Node-only helpers, see below.
 

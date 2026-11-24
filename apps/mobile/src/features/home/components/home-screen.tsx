@@ -8,6 +8,7 @@ import { Elsewhere } from "@/features/home/components/elsewhere";
 import { NeedsYou } from "@/features/home/components/needs-you";
 import { Pages } from "@/features/home/components/pages";
 import { Teammates } from "@/features/home/components/teammates";
+import { HomeTasks } from "@/features/home/components/tasks";
 import {
   ComputerOfflineNotice,
   ConnectionNotice,
@@ -20,6 +21,7 @@ import { useApprovals } from "@/features/approvals/hooks";
 import { useComputerOffline } from "@/features/computer/hooks";
 import { useHome } from "@/features/home/hooks";
 import { usePages } from "@/features/pages/hooks";
+import { useTasks } from "@/features/tasks/hooks";
 import { useTeammates } from "@/features/teammates/hooks";
 import { useChats } from "@/features/chat/hooks";
 import { takePasswordResetRequest } from "@/lib/password";
@@ -32,6 +34,7 @@ export default function HomeScreen() {
   const teammates = useTeammates();
   const chats = useChats();
   const pages = usePages();
+  const tasks = useTasks();
   const computerOffline = useComputerOffline();
   const approvals = useApprovals();
   const pending = useMemo(
@@ -49,6 +52,7 @@ export default function HomeScreen() {
       teammates.refetch(),
       chats.refetch(),
       pages.refetch(),
+      tasks.refetch(),
       approvals.refetch(),
     ]),
   );
@@ -113,6 +117,7 @@ export default function HomeScreen() {
             chats={chats.data ?? []}
             computerOffline={computerOffline}
           />
+          {tasks.data && <HomeTasks tasks={tasks.data} teammates={allTeammates} />}
           <Pages pages={pages.data ?? []} teammates={allTeammates} />
           <Elsewhere
             activity={data.activity}

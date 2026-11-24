@@ -110,6 +110,9 @@ function App() {
               <Stack.Screen name="approval-rules" options={{ title: "Always allowed" }} />
               <Stack.Screen name="phone-connection" options={{ title: "Phone connection" }} />
               <Stack.Screen name="pages/[pageId]" options={{ title: "" }} />
+              <Stack.Screen name="tasks/index" options={{ title: "Tasks" }} />
+              <Stack.Screen name="tasks/new" options={{ title: "New task" }} />
+              <Stack.Screen name="tasks/[taskId]" options={{ title: "Task" }} />
               <Stack.Screen name="share" options={{ title: "Share with a teammate" }} />
             </Stack.Protected>
             <Stack.Protected guard={!signedIn}>
