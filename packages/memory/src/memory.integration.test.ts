@@ -100,6 +100,42 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
     expect(items.filter((i) => i.saveOutcome === "unchanged")).toHaveLength(4);
     expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(1);
   });
+  it("answers a retried save under its client id with that memory, never a second one", async () => {
+    const id = randomUUID();
+    const first = await memory.save(input("Prefers remote roles"), user, { id });
+    expect(first).toMatchObject({ id, saveOutcome: "created" });
+    // The answer was lost, and the memory was edited elsewhere before the retry came.
+    await memory.update({ ...first, content: "Prefers hybrid roles", expectedRevision: 1 }, user);
+    const retried = await memory.save(input("Prefers remote roles"), user, { id });
+    expect(retried).toMatchObject({
+      id,
+      saveOutcome: "created",
+      content: "Prefers hybrid roles",
+      revision: 2,
+    });
+    expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(1);
+    // Two retries at once still add one.
+    const twin = randomUUID();
+    const twins = await Promise.all(
+      [1, 2].map(() => memory.save(input("Lives in Berlin"), user, { id: twin })),
+    );
+    expect(twins.map((i) => i.id)).toEqual([twin, twin]);
+    expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(2);
+    // Forgotten before the retry: it says so instead of adding the old words again.
+    await memory.forget({ id: twin, expectedRevision: 1 }, user);
+    await expect(memory.save(input("Lives in Berlin"), user, { id: twin })).rejects.toMatchObject({
+      status: 409,
+      message: expect.stringContaining("saved, then forgotten"),
+    });
+    expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(1);
+    // An id already naming another memory isn't a retry of this save.
+    for (const reused of [input("Something else"), input("Prefers remote roles", null)])
+      await expect(memory.save(reused, user, { id })).rejects.toMatchObject({
+        status: 409,
+        reason: "reused-id",
+      });
+    expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(1);
+  });
   it("rejects one of two competing edits and preserves the winning revision", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
     const results = await Promise.allSettled(

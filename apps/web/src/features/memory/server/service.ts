@@ -116,8 +116,12 @@ const you = { kind: "user" } as const;
 /** What the contract hands on, with its defaults filled in. */
 type Edit = MemoryInput & { id: string; expectedRevision: number };
 
-export async function createMemory(input: MemoryInput): Promise<Outputs["create"]> {
-  return memory.save(input, you);
+/** Saves a memory you wrote, under the client's `id` when it sent one (see `contract.memory.create`). */
+export async function createMemory({
+  id,
+  ...input
+}: MemoryInput & { id?: string }): Promise<Outputs["create"]> {
+  return memory.save(input, you, id ? { id } : {});
 }
 
 export async function updateMemory(input: Edit): Promise<Outputs["update"]> {

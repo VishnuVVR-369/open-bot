@@ -23,10 +23,14 @@ export const memoryContract = {
   forRun: base.input(z.object({ runId: id })).output(z.array(memoryRunRefSchema)),
   /**
    * Save a memory you wrote. Saying what's already saved confirms it instead of adding another;
-   * `saveOutcome` says which happened.
+   * `saveOutcome` says which happened. `id` is a fresh id for this save, kept for retries: the
+   * memory is saved under it, so sending again after an answer that never came answers with that
+   * memory as it is now (`created`) instead of adding another, or with `STATE_CONFLICT` if it was
+   * forgotten since. An id already naming a different memory fails with `CONFLICT`. It's optional
+   * for clients from before it.
    */
   create: base
-    .input(memoryInputSchema)
+    .input(memoryInputSchema.extend({ id: id.optional() }))
     .output(memoryItemSchema.extend({ saveOutcome: memorySaveOutcomeSchema })),
   /**
    * Change a memory. `expectedRevision` is the one you saw: a change made since fails with

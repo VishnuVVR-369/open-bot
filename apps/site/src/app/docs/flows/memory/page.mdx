@@ -38,6 +38,8 @@ On the computer, teammates are the same Linux user, so it is not a security boun
 You manage memory on a teammate's Memory tab, and shared memory under Settings → About you.
 The phone has the same: a Memory screen, and Memory and Lessons on a teammate's profile (see [the Android app](/docs/flows/android-app#memory)).
 Both use the `memory` procedures in `packages/api/src/contracts/memory.ts`; `memory.get` reads one memory, for a screen opened by its id.
+`memory.create` takes an optional client `id`, and the memory is saved under it, so a retry after a lost answer answers with that memory as it is now instead of adding another (`savedAs` in `packages/memory/src/retries.ts`).
+A retry of one forgotten since is refused with `STATE_CONFLICT`, and an id that names another memory with `CONFLICT`.
 Teammates use four tools:
 
 | Tool              | Does                                                                        |

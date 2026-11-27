@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { ApiClient } from "@open-bot/api";
 import { beforeAll, describe, expect, it } from "vitest";
 import { apiHarness, apiTestUrl } from "@/test/api/harness";
@@ -37,6 +38,34 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     expect(restored).toMatchObject({ content: "Lives in Berlin", revision: 3 });
     await api.memory.forget({ id: saved.id, expectedRevision: 3 });
     expect(await api.memory.list({ ...owned(null), query: "Berlin" })).toEqual([]);
+  });
+
+  it("saves a memory under the client's id, so a retry after a lost answer adds nothing", async () => {
+    const id = randomUUID();
+    const saved = await api.memory.create({ ...owned(null), content: "Lives in Lisbon", id });
+    expect(saved).toMatchObject({ id, saveOutcome: "created" });
+    await api.memory.update({
+      id,
+      expectedRevision: 1,
+      ...owned(null),
+      content: "Lives in Porto",
+    });
+    expect(
+      await api.memory.create({ ...owned(null), content: "Lives in Lisbon", id }),
+    ).toMatchObject({ id, saveOutcome: "created", content: "Lives in Porto" });
+    expect(await api.memory.list({ ...owned(null), query: "Lisbon" })).toEqual([]);
+    // The id already names that memory, so other words under it aren't a retry.
+    await expect(
+      api.memory.create({ ...owned(null), content: "Lives in Faro", id }),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+    await api.memory.forget({ id, expectedRevision: 2 });
+    await expect(
+      api.memory.create({ ...owned(null), content: "Lives in Lisbon", id }),
+    ).rejects.toMatchObject({
+      code: "STATE_CONFLICT",
+      message: expect.stringMatching(/forgotten/),
+    });
+    expect(await api.memory.list({ ...owned(null), query: "Lisbon" })).toEqual([]);
   });
 
   it("reads one memory by id, with the chat that saved it, and none once it's forgotten", async () => {
