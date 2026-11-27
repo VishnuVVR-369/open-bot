@@ -322,11 +322,6 @@ export function RunActions({
             onPress={() => close(() => setMemoryOpen(true))}
             testID="run-memory-open"
           />
-          {usage && (
-            <Text variant="caption" muted style={styles.usage} testID="run-usage">
-              {usage}
-            </Text>
-          )}
         </Sheet>
         <RunMemorySheet runId={run.id} open={memoryOpen} onClose={() => setMemoryOpen(false)} />
         <FeedbackSheet
@@ -461,7 +456,6 @@ const styles = StyleSheet.create({
   sheets: { position: "absolute", width: 0, height: 0 },
   row: { flexDirection: "row", alignItems: "center", marginLeft: -space(3), minHeight: 44 },
   icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  usage: { paddingHorizontal: space(5), paddingTop: space(2), fontVariant: ["tabular-nums"] },
   retry: {
     flexDirection: "row",
     alignItems: "center",
