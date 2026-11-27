@@ -1,9 +1,10 @@
 "use client";
 
-import { comingUp, nextRunLabel } from "@open-bot/domain";
+import { comingUp, nextRunLabel, otherZoneLabel } from "@open-bot/domain";
 import { TeammateAvatar } from "@/components/teammate-avatar";
 import { useSchedules } from "@/features/automations";
 import { useAppState } from "@/features/app-shell";
+import { useViewerTimeZone } from "@/lib/client/time-zone";
 import { isComputerOnline, runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
 import { SideHeading } from "./side-heading";
 
@@ -12,6 +13,7 @@ export function ComingUp({ now }: { now: number | null }) {
   const { data: state } = useAppState();
   const { data: schedules } = useSchedules();
   const online = isComputerOnline(state);
+  const viewerZone = useViewerTimeZone();
   const next = comingUp(schedules ?? []);
   if (!state || next.length === 0) return null;
   return (
@@ -20,6 +22,8 @@ export function ComingUp({ now }: { now: number | null }) {
       <ol className="divide-y divide-border/70 overflow-hidden rounded-xl bg-card shadow-raised">
         {next.map((schedule) => {
           const teammate = state.teammates.find((entry) => entry.id === schedule.teammateId);
+          // Its time is on the schedule's clock, named when it isn't yours.
+          const zone = otherZoneLabel(schedule.timezone, viewerZone);
           return (
             <li key={schedule.id} className="flex items-center gap-3 px-3.5 py-2.5">
               {teammate ? (
@@ -36,12 +40,13 @@ export function ComingUp({ now }: { now: number | null }) {
                 <span className="truncate text-[13.5px] font-medium">{schedule.title}</span>
                 <span className="truncate text-[12.5px] text-muted-foreground">
                   {teammate?.name ?? "Former teammate"}
+                  {zone && ` · ${zone}`}
                 </span>
               </span>
               <span className="shrink-0 text-[12.5px] text-muted-foreground tabular-nums">
                 {now !== null && runIsHeldBack(schedule.nextRunAt!, now, online)
                   ? WAITING_FOR_COMPUTER
-                  : nextRunLabel(schedule.nextRunAt!)}
+                  : nextRunLabel(schedule.nextRunAt!, schedule.timezone)}
               </span>
             </li>
           );

@@ -8,6 +8,7 @@ import {
   patchSchedule,
   patchTrigger,
   removeSchedule,
+  runScheduleNow,
   setCheckIn,
   testWebhook,
 } from "./service";
@@ -30,7 +31,7 @@ export function automationRoutes() {
         worker.schedules.setEnabled(input),
       ),
       remove: os.schedules.remove.handler(({ input }) => removeSchedule(input)),
-      runNow: os.schedules.runNow.handler(({ input }) => worker.schedules.runNow(input)),
+      runNow: os.schedules.runNow.handler(({ input }) => runScheduleNow(input)),
       setCheckIn: os.schedules.setCheckIn.handler(({ input }) => setCheckIn(input)),
     },
     triggers: {

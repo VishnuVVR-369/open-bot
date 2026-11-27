@@ -163,11 +163,9 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
     const { id } = await worker.schedules.create(schedule);
     const other = await worker.schedules.create({ ...schedule, title: "Another" });
     const runId = randomUUID();
-    // Sent twice at once, then again after an answer that was lost.
-    await Promise.all([
-      worker.schedules.runNow({ scheduleId: id, runId }),
-      worker.schedules.runNow({ scheduleId: id, runId }),
-    ]);
+    // Asked again after an answer that was lost (a race between two asks is in
+    // schedule-writes.integration.test.ts).
+    await worker.schedules.runNow({ scheduleId: id, runId });
     await worker.schedules.runNow({ scheduleId: id, runId });
     const started = await h.db.select().from(runs).where(eq(runs.scheduleId, id));
     expect(started.map((run) => run.id)).toEqual([runId]);

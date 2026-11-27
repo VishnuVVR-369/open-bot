@@ -1,4 +1,4 @@
-import { CADENCES, parseDay, WEEKDAYS, type ScheduleTimingForm } from "@open-bot/domain";
+import { CADENCES, parseDay, todayIn, WEEKDAYS, type ScheduleTimingForm } from "@open-bot/domain";
 import { ChevronRight } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -19,17 +19,24 @@ const dayLabel = (day: string) =>
 /**
  * When a schedule runs, as the web's dialog sets it: it repeats (every day, weekdays, a day of the
  * week, every hour, or a cron expression) at a time, or runs once on a day at a time. Times are
- * on the schedule's own clock, which the summary under it names.
+ * on the schedule's own clock, which the summary under it names, and so is "today" in the day
+ * picker. The daily check-in always repeats, so it has no "Once".
  */
 export function TimingFields({
   value,
   onChange,
   disabled,
+  timeZone,
+  repeatsOnly = false,
   summary,
 }: {
   value: ScheduleTimingForm;
   onChange: (patch: Partial<ScheduleTimingForm>) => void;
   disabled: boolean;
+  /** The schedule's own zone. */
+  timeZone: string;
+  /** Offers only repeating timings (the daily check-in). */
+  repeatsOnly?: boolean;
   /** How it reads, and in which zone, under the fields. */
   summary: ReactNode;
 }) {
@@ -45,16 +52,18 @@ export function TimingFields({
 
   return (
     <View style={styles.fields}>
-      <Choices
-        options={[
-          { key: "cron", label: "Repeats" },
-          { key: "once", label: "Once" },
-        ]}
-        value={value.kind}
-        onChange={(kind) => onChange({ kind })}
-        disabled={disabled}
-        testID="timing-kind"
-      />
+      {!repeatsOnly && (
+        <Choices
+          options={[
+            { key: "cron", label: "Repeats" },
+            { key: "once", label: "Once" },
+          ]}
+          value={value.kind}
+          onChange={(kind) => onChange({ kind })}
+          disabled={disabled}
+          testID="timing-kind"
+        />
+      )}
       {value.kind === "cron" && (
         <Choices
           options={CADENCES.map((option) => ({ key: option.value, label: option.label }))}
@@ -118,6 +127,7 @@ export function TimingFields({
           value={reminderDay(value.at)}
           title="Day"
           clearable={false}
+          today={todayIn(timeZone)}
           onPick={(day) => day && onChange({ at: reminderAt(day, time) })}
           onClose={() => setSheet(null)}
         />

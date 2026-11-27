@@ -34,8 +34,12 @@ export function automationRoutes(
         await schedules.remove(input.scheduleId);
         return ok;
       }),
-      runNow: os.schedules.runNow.handler(async ({ input }) => {
-        await schedules.runNow(input.scheduleId, input.runId);
+      runNow: os.schedules.runNow.handler(async ({ input }) => ({
+        ...ok,
+        ...(await schedules.runNow(input.scheduleId, input.runId)),
+      })),
+      setCheckIn: os.schedules.setCheckIn.handler(async ({ input }) => {
+        await schedules.setCheckIn(input.teammateId, input.on);
         return ok;
       }),
     },

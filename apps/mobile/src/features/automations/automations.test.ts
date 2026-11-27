@@ -18,8 +18,11 @@ import {
   mainAction,
   minuteChoices,
   patchOf,
+  quietNote,
   rebaseForm,
+  RETRY_WINDOW_MS,
   RetryKeys,
+  runNowOutcome,
   stateBadge,
   timeLabel,
   timeOf,
@@ -42,6 +45,7 @@ function schedule(patch: Partial<ScheduleView> = {}): ScheduleView {
     timezone: "UTC",
     enabled: true,
     quiet: false,
+    checkIn: false,
     createdBy: "user",
     nextRunAt: "2026-11-30T09:00:00.000Z",
     lastRunAt: null,
@@ -134,15 +138,16 @@ describe("the automations list", () => {
   });
 
   it("says when each runs, or what it watches, in a line", () => {
+    const utc = { now, phoneZone: "UTC" };
     const routine = asSchedule(schedule({ quiet: true }));
-    expect(whenLine(routine, { now })).toMatch(
-      /^Weekdays at 9:00 AM · next (Sun|Mon|Tue) \d+:\d\d (AM|PM) · tells you only if something changed$/,
+    expect(whenLine(routine, utc)).toBe(
+      "Weekdays at 9:00 AM · next Mon 9:00 AM · tells you only if something changed",
     );
     const due = asSchedule(schedule({ nextRunAt: "2026-11-28T09:00:00.000Z" }));
-    expect(whenLine(due, { now, computerOnline: false })).toBe(
+    expect(whenLine(due, { ...utc, computerOnline: false })).toBe(
       "Weekdays at 9:00 AM · waiting for the computer",
     );
-    expect(whenLine(asSchedule(schedule({ enabled: false })), { now })).toBe("Weekdays at 9:00 AM");
+    expect(whenLine(asSchedule(schedule({ enabled: false })), utc)).toBe("Weekdays at 9:00 AM");
     expect(whenLine(asTrigger(trigger({ lookFor: "in stock" })), { now })).toBe(
       "shop.example/kettle · every hour · waiting for “in stock”",
     );
@@ -155,6 +160,35 @@ describe("the automations list", () => {
         { now },
       ),
     ).toBe("me@example.com · 15 minutes before each event");
+  });
+
+  it("puts a schedule's times on its own clock, and names it when the phone's is another", () => {
+    const london = { phoneZone: "Europe/London" };
+    // A 9:00 reminder in Kolkata, seen from London on Sat Nov 28: one clock, named.
+    const reminder = asSchedule(
+      schedule({
+        kind: "once",
+        cron: null,
+        runAt: "2026-11-30T03:30:00.000Z",
+        nextRunAt: "2026-11-30T03:30:00.000Z",
+        timezone: "Asia/Kolkata",
+      }),
+    );
+    expect(whenLine(reminder, { ...london, now })).toBe(
+      "Once, Mon Nov 30, 9:00 AM · next Mon 9:00 AM · Kolkata time",
+    );
+    // Near midnight: Sun 22:30 in London is already Mon 04:00 in Kolkata, so its 9:00 is today.
+    const late = new Date("2026-11-29T22:30:00Z");
+    const routine = asSchedule(
+      schedule({ timezone: "Asia/Kolkata", nextRunAt: "2026-11-30T03:30:00.000Z" }),
+    );
+    expect(whenLine(routine, { ...london, now: late })).toBe(
+      "Weekdays at 9:00 AM · next today 9:00 AM · Kolkata time",
+    );
+    // On the phone's own clock, nothing is named.
+    expect(whenLine(routine, { phoneZone: "Asia/Kolkata", now: late })).toBe(
+      "Weekdays at 9:00 AM · next today 9:00 AM",
+    );
   });
 
   it("says how it went last, a failed check first", () => {
@@ -218,6 +252,21 @@ describe("the automations list", () => {
 });
 
 describe("editing an automation on the phone", () => {
+  it("says a routine is quiet, and that making it a reminder drops that", () => {
+    const quiet = asSchedule(schedule({ quiet: true }));
+    const form = automationForm(quiet, now);
+    expect(quietNote(quiet, form)).toBe(
+      "It tells you only if something changed. Change that in open-bot on a computer.",
+    );
+    expect(quietNote(quiet, { ...form, timing: { ...form.timing!, kind: "once" } })).toBe(
+      "As a one-time reminder it will tell you how it went, so it won't stay quiet.",
+    );
+    const loud = asSchedule(schedule());
+    expect(quietNote(loud, automationForm(loud, now))).toBeNull();
+    const watch = asTrigger(trigger());
+    expect(quietNote(watch, automationForm(watch, now))).toBeNull();
+  });
+
   it("sends only what changed, the name trimmed", () => {
     const automation = asSchedule(schedule());
     const start = automationForm(automation, now);
@@ -286,11 +335,40 @@ describe("asking once", () => {
   it("keeps the same id for a retry until the ask is answered", () => {
     let next = 0;
     const keys = new RetryKeys(() => `key-${++next}`);
-    expect(keys.for("s1")).toBe("key-1");
-    expect(keys.for("s1")).toBe("key-1");
-    expect(keys.for("s2")).toBe("key-2");
+    expect(keys.for("s1", 0)).toBe("key-1");
+    expect(keys.for("s1", 1000)).toBe("key-1");
+    expect(keys.for("s2", 1000)).toBe("key-2");
     keys.done("s1");
-    expect(keys.for("s1")).toBe("key-3");
+    expect(keys.for("s1", 2000)).toBe("key-3");
+    keys.clear();
+    expect(keys.for("s2", 2000)).toBe("key-4");
+  });
+
+  it("makes a tap long after a lost answer a new ask, not a retry", () => {
+    let next = 0;
+    const keys = new RetryKeys(() => `key-${++next}`);
+    expect(keys.for("s1", 0)).toBe("key-1");
+    // Retried within the window after each try, it stays the same ask.
+    expect(keys.for("s1", RETRY_WINDOW_MS)).toBe("key-1");
+    expect(keys.for("s1", 2 * RETRY_WINDOW_MS)).toBe("key-1");
+    // Hours later, it's a run of its own.
+    expect(keys.for("s1", 2 * RETRY_WINDOW_MS + 3 * 3_600_000)).toBe("key-2");
+  });
+
+  it("says whether this tap started the run, or an earlier one had", () => {
+    const brief = { title: "Morning brief" };
+    expect(runNowOutcome(brief, { started: true }, "Ana")).toEqual({
+      title: "Started “Morning brief”",
+      body: "Ana is on it.",
+      failed: false,
+    });
+    expect(runNowOutcome(brief, { started: false }, "Ana")).toEqual({
+      title: "“Morning brief” was already started",
+      body: "Your earlier tap went through, so nothing more started. Ana is on it.",
+      failed: false,
+    });
+    // A server from before `started` started one.
+    expect(runNowOutcome(brief, {}, "Ana").title).toBe("Started “Morning brief”");
   });
 });
 

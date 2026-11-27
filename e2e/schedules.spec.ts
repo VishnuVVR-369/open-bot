@@ -1,5 +1,5 @@
 import { expect, test } from "./fixtures";
-import { createTeammate, uniqueName } from "./helpers";
+import { apiFor, createTeammate, uniqueName } from "./helpers";
 
 test("create, edit and delete a schedule", async ({ page }) => {
   const name = uniqueName("Tess");
@@ -27,6 +27,14 @@ test("create, edit and delete a schedule", async ({ page }) => {
   await page.getByRole("dialog").getByRole("combobox").nth(2).click();
   await page.getByRole("option", { name: "Friday" }).click();
   await page.getByLabel("What to do").fill("Send me a short weekly digest.");
+  // A change made elsewhere while the dialog is open (the phone turns it off) refreshes the list,
+  // and what you typed here stays.
+  const api = apiFor(page);
+  const scheduleId = (await api.schedules.list()).find((entry) => entry.title === title)!.id;
+  await api.schedules.setEnabled({ scheduleId, enabled: false });
+  // The open dialog hides the list from the accessibility tree, so the switch is found by its role.
+  await expect(row.locator('[role="switch"]')).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByLabel("What to do")).toHaveValue("Send me a short weekly digest.");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(row).toContainText("Every Friday at");
 

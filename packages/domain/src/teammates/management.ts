@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { autonomySchema, TEAMMATE_COLORS } from "./profile";
 import { skillInputSchema } from "../skills/skills";
-import { pickStarters, TEAMMATE_TEMPLATES, templateSkills } from "./templates";
+import { DAILY_CHECK_IN, pickStarters, TEAMMATE_TEMPLATES, templateSkills } from "./templates";
 
 /** A teammate's profile: the same validation for the web app and the teammates' tools. */
 export const teammateProfileSchema = z.object({
@@ -125,6 +125,8 @@ export interface TeammateCreationPlan {
     cron: string | null;
     at: string | null;
     quiet: boolean;
+    /** The template's daily check-in. */
+    checkIn?: boolean;
   }[];
 }
 
@@ -162,6 +164,7 @@ export function teammateCreation(
         cron: starter.cron,
         at: null,
         quiet: starter.quiet ?? false,
+        ...(starter.id === DAILY_CHECK_IN.id ? { checkIn: true } : {}),
       })),
       ...schedules.map((schedule) => ({
         title: schedule.title,

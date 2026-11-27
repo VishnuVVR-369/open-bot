@@ -8,7 +8,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react-native";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
 import { Card } from "@/components/section";
@@ -23,11 +23,12 @@ import { useOnline } from "@/lib/network";
 import { openOutside } from "@/lib/open-outside";
 import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
-import { OFFLINE_ACTION } from "@open-bot/domain";
+import { OFFLINE_ACTION, viewerTimeZone } from "@open-bot/domain";
 import { radius, space, useColors } from "@/theme";
 import {
   checkTriggerNow,
   confirmDeleteAutomation,
+  newRunKeys,
   runScheduleNow,
   setAutomationEnabled,
   type ActionOutcome,
@@ -51,7 +52,7 @@ import { useAutomation, useAutomationRuns } from "../hooks";
 import { AutomationAvatar, StateBadge } from "./automation-parts";
 import { RunHistory } from "./run-history";
 
-const phoneZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+const phoneZone = viewerTimeZone;
 
 /**
  * One automation: who runs it and when, its switch, "Run now" or "Check now", what it does,
@@ -87,6 +88,9 @@ function AutomationDetails({ automation }: { automation: Automation }) {
   const runs = useAutomationRuns(automation.type, automation.id);
   const [busy, setBusy] = useState(false);
   const [outcome, setOutcome] = useState<ActionOutcome | null>(null);
+  // "Run now" ids kept for a retry on this screen only: once you leave, a tap is a new ask.
+  const [runKeys] = useState(newRunKeys);
+  useEffect(() => () => runKeys.clear(), [runKeys]);
   const { refreshing, onRefresh } = usePullToRefresh(() => runs.refetch());
   const teammate = teammates.find((entry) => entry.id === automation.teammateId);
   const teammateName = teammate?.name ?? "Your teammate";
@@ -102,7 +106,7 @@ function AutomationDetails({ automation }: { automation: Automation }) {
     setOutcome(null);
     const result =
       automation.type === "schedule"
-        ? await runScheduleNow(automation, teammateName)
+        ? await runScheduleNow(automation, teammateName, runKeys)
         : await checkTriggerNow(automation, teammateName);
     setBusy(false);
     setOutcome(result);
@@ -236,7 +240,12 @@ function AutomationDetails({ automation }: { automation: Automation }) {
 
       <Details automation={automation} />
 
-      <RunHistory runs={runs.data} loading={runs.isLoading} empty={emptyHistory(automation)} />
+      <RunHistory
+        runs={runs.data}
+        loading={runs.isLoading}
+        empty={emptyHistory(automation)}
+        yours={outcome?.runId ?? null}
+      />
 
       <Text variant="small" muted style={styles.inset} testID="automation-web-note">
         {webOnlyNote(automation)}

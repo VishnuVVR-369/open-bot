@@ -19,7 +19,7 @@ import {
 /**
  * When a task is due: a quick day (today, tomorrow, a week out), or any day on a month's
  * calendar, which starts on the phone's first day of the week. No due date clears it. A reminder's
- * day is picked here too, with its own title and no way to clear it.
+ * day is picked here too, with its own title, no way to clear it, and today on its schedule's clock.
  */
 export function DueSheet({
   open,
@@ -28,6 +28,7 @@ export function DueSheet({
   onClose,
   title = "Due",
   clearable = true,
+  today: todayDay,
 }: {
   open: boolean;
   value: string | null;
@@ -36,6 +37,8 @@ export function DueSheet({
   title?: string;
   /** Offers "No due date". */
   clearable?: boolean;
+  /** Today, which the shortcuts count from and the calendar marks: the phone's, without one. */
+  today?: string;
 }) {
   const colors = useColors();
   const [shown, setShown] = useState(() => monthOf(value));
@@ -48,7 +51,7 @@ export function DueSheet({
     () => calendarWeeks(shown.year, shown.month, weekStart),
     [shown, weekStart],
   );
-  const today = formatDay(new Date());
+  const today = todayDay ?? formatDay(new Date());
   const pick = (day: string | null) => {
     haptics.tap();
     onPick(day);
@@ -65,7 +68,7 @@ export function DueSheet({
   return (
     <Sheet open={open} onClose={onClose} title={title} testID="due-sheet">
       <View style={styles.shortcuts}>
-        {dueShortcuts().map((shortcut) => (
+        {dueShortcuts(today).map((shortcut) => (
           <Chip
             key={shortcut.label}
             label={shortcut.label}

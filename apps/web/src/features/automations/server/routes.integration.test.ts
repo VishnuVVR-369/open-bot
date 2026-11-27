@@ -14,44 +14,73 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     api = harness.api;
   });
 
-  it("turns a daily check-in on in the owner's time zone, and resumes it rather than adding one", async () => {
-    const s = await import("@open-bot/db");
-    const checkIn = randomUUID();
-    answers.set("/internal/schedules", { status: 200, body: { id: checkIn } });
-    answers.set(`/internal/schedules/${checkIn}/enabled`, { status: 200, body: { ok: true } });
+  it("turns a daily check-in on or off through the worker, which finds it by its mark", async () => {
+    const path = `/internal/teammates/${ids.teammate}/check-in`;
+    answers.set(path, { status: 200, body: { ok: true } });
     try {
       await api.schedules.setCheckIn({ teammateId: ids.teammate, on: true });
-      expect(workerBodies.findLast((b) => b.path === "/internal/schedules")?.body).toMatchObject({
-        ...owned(ids.teammate),
-        title: DAILY_CHECK_IN.title,
-        timezone: "Europe/Berlin",
-        quiet: true,
+      await api.schedules.setCheckIn({ teammateId: ids.teammate, on: false });
+      expect(workerBodies.filter((b) => b.path === path).map((b) => b.body)).toEqual([
+        { on: true },
+        { on: false },
+      ]);
+      // A worker from before the route: nothing is written in its place.
+      const before = workerBodies.length;
+      answers.set(path, { status: 404, body: { error: "not found", code: "NOT_FOUND" } });
+      await expect(
+        api.schedules.setCheckIn({ teammateId: ids.teammate, on: true }),
+      ).rejects.toMatchObject({
+        message: "open-bot is finishing an update, so nothing changed. Try again in a minute.",
       });
-      // What the worker would have saved.
-      await database.db.insert(s.schedules).values({
-        id: checkIn,
+      expect(workerBodies.slice(before).map((b) => b.path)).toEqual([path]);
+    } finally {
+      answers.clear();
+    }
+  });
+
+  it("says whether Run now started the run, and that an older worker did", async () => {
+    const path = `/internal/schedules/${ids.schedule}/run`;
+    const runId = randomUUID();
+    try {
+      answers.set(path, { status: 200, body: { ok: true, started: false } });
+      expect(await api.schedules.runNow({ scheduleId: ids.schedule, runId })).toEqual({
+        ok: true,
+        started: false,
+      });
+      // A worker from before `started` ignores the run id and always starts one.
+      answers.set(path, { status: 200, body: { ok: true } });
+      expect(await api.schedules.runNow({ scheduleId: ids.schedule, runId })).toEqual({
+        ok: true,
+        started: true,
+      });
+    } finally {
+      answers.clear();
+    }
+  });
+
+  it("lists which schedule is the daily check-in", async () => {
+    const s = await import("@open-bot/db");
+    const { eq } = await import("drizzle-orm");
+    const [marked] = await database.db
+      .insert(s.schedules)
+      .values({
         ...owned(ids.teammate),
-        title: DAILY_CHECK_IN.title,
+        title: "Morning look",
         prompt: DAILY_CHECK_IN.prompt,
         kind: "cron",
         cron: DAILY_CHECK_IN.cron,
         timezone: "Europe/Berlin",
         quiet: true,
+        checkIn: true,
         createdBy: "user",
-      });
-      const created = workerBodies.filter((b) => b.path === "/internal/schedules").length;
-      await api.schedules.setCheckIn({ teammateId: ids.teammate, on: false });
-      await api.schedules.setCheckIn({ teammateId: ids.teammate, on: true });
-      expect(
-        workerBodies
-          .filter((b) => b.path === `/internal/schedules/${checkIn}/enabled`)
-          .map((b) => b.body),
-      ).toEqual([{ enabled: false }, { enabled: true }]);
-      expect(workerBodies.filter((b) => b.path === "/internal/schedules")).toHaveLength(created);
+      })
+      .returning({ id: s.schedules.id });
+    try {
+      const listed = await api.schedules.list();
+      expect(listed.find((row) => row.id === marked!.id)).toMatchObject({ checkIn: true });
+      expect(listed.find((row) => row.id === ids.schedule)).toMatchObject({ checkIn: false });
     } finally {
-      const { eq } = await import("drizzle-orm");
-      await database.db.delete(s.schedules).where(eq(s.schedules.id, checkIn));
-      answers.clear();
+      await database.db.delete(s.schedules).where(eq(s.schedules.id, marked!.id));
     }
   });
 
@@ -95,7 +124,11 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       body: { id: ids.trigger },
     });
     const runId = randomUUID();
-    answers.set(`/internal/schedules/${ids.schedule}/run`, { status: 200, body: { ok: true } });
+    const before = workerBodies.length;
+    answers.set(`/internal/schedules/${ids.schedule}/run`, {
+      status: 200,
+      body: { ok: true, started: true },
+    });
     try {
       await api.schedules.patch({
         scheduleId: ids.schedule,
@@ -103,9 +136,11 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       });
       await api.triggers.patch({ triggerId: ids.trigger, title: "Kettle", intervalMinutes: 360 });
       await api.schedules.runNow({ scheduleId: ids.schedule, runId });
-      const sent = workerBodies.filter(
-        (b) => b.path.endsWith("/patch") || b.path === `/internal/schedules/${ids.schedule}/run`,
-      );
+      const sent = workerBodies
+        .slice(before)
+        .filter(
+          (b) => b.path.endsWith("/patch") || b.path === `/internal/schedules/${ids.schedule}/run`,
+        );
       expect(sent).toEqual([
         {
           path: `/internal/schedules/${ids.schedule}/patch`,

@@ -16,6 +16,40 @@ describe("teammateBundleSchema", () => {
     expect(bundle.lessons).toEqual([]);
   });
 
+  it("keeps the check-in's mark, and finds it in a file from before the mark", () => {
+    const routine = { prompt: "Look around", cron: "0 9 * * *", quiet: true };
+    const routines = (bundle: unknown) =>
+      teammateBundleSchema.parse(bundle).routines.map((entry) => [entry.title, entry.checkIn]);
+    // From before: the first quiet "Daily check-in" is it, and a loud one never is.
+    expect(
+      routines({
+        ...minimal,
+        routines: [
+          { ...routine, title: "Daily check-in", quiet: false },
+          { ...routine, title: "Daily check-in" },
+          { ...routine, title: "Daily check-in" },
+        ],
+      }),
+    ).toEqual([
+      ["Daily check-in", undefined],
+      ["Daily check-in", true],
+      ["Daily check-in", undefined],
+    ]);
+    // Marked: renamed, it's still the check-in, and a same-named routine isn't.
+    expect(
+      routines({
+        ...minimal,
+        routines: [
+          { ...routine, title: "Daily check-in", checkIn: false },
+          { ...routine, title: "Morning look", checkIn: true },
+        ],
+      }),
+    ).toEqual([
+      ["Daily check-in", false],
+      ["Morning look", true],
+    ]);
+  });
+
   it("explains files it can't read", () => {
     const wrongFormat = teammateBundleSchema.safeParse({ ...minimal, format: "other" });
     expect(wrongFormat.error?.issues[0]?.message).toBe("This isn't an open-bot teammate file.");

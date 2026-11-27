@@ -1,6 +1,7 @@
 import { base, id, ok } from "../base";
 import { z } from "zod";
 import {
+  runNowAnswerSchema,
   scheduleInputSchema,
   schedulePatchSchema,
   triggerInputSchema,
@@ -31,10 +32,19 @@ export const schedulesContract = {
     .route({ method: "POST", path: "/internal/schedules/{scheduleId}/delete" })
     .input(z.object({ scheduleId: id }))
     .output(ok),
-  /** Run it now, without changing when it runs next; a `runId` already used starts nothing more. */
+  /**
+   * Run it now, without changing when it runs next; a `runId` already used starts nothing more.
+   * `started` is false when an earlier ask with the same `runId` started the run; an id another
+   * run has is 409, and so is a schedule whose teammate is archived.
+   */
   runNow: base
     .route({ method: "POST", path: "/internal/schedules/{scheduleId}/run" })
     .input(z.object({ scheduleId: id, runId: id.optional() }))
+    .output(runNowAnswerSchema),
+  /** The teammate's daily check-in, on or off; see `schedulesContract.setCheckIn` in the API. */
+  setCheckIn: base
+    .route({ method: "POST", path: "/internal/teammates/{teammateId}/check-in" })
+    .input(z.object({ teammateId: id, on: z.boolean() }))
     .output(ok),
 };
 

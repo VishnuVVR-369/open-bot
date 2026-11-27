@@ -1,17 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { DAILY_CHECK_IN } from "../teammates/templates";
 import {
   comingUp,
   dailyCheckInOn,
   describeAccountWatch,
   formatWhen,
   intervalChoices,
+  isDailyCheckIn,
   isFinishedReminder,
   leadChoices,
   nextRunLabel,
+  otherZoneLabel,
   runIsHeldBack,
   scheduleCadence,
   shortPageUrl,
+  todayIn,
 } from "./display";
 
 describe("automations as the app shows them", () => {
@@ -34,11 +36,42 @@ describe("automations as the app shows them", () => {
     expect(formatWhen("2026-12-01T15:05:00.000Z", "America/New_York")).toBe("Tue Dec 1, 10:05 AM");
   });
 
-  it("labels the next run today, tomorrow, or by weekday", () => {
-    const now = new Date(2026, 10, 28, 8, 0);
-    expect(nextRunLabel(new Date(2026, 10, 28, 16, 0), now)).toBe("Today 4:00 PM");
-    expect(nextRunLabel(new Date(2026, 10, 29, 8, 0), now)).toBe("Tomorrow 8:00 AM");
-    expect(nextRunLabel(new Date(2026, 11, 2, 0, 5), now)).toBe("Wed 12:05 AM");
+  it("labels the next run today, tomorrow, or by weekday, on the schedule's clock", () => {
+    // 8:00 in London is 13:30 in Kolkata, on Sat Nov 28.
+    const now = new Date("2026-11-28T08:00:00Z");
+    expect(nextRunLabel("2026-11-28T16:00:00Z", "Europe/London", now)).toBe("Today 4:00 PM");
+    expect(nextRunLabel("2026-11-29T08:00:00Z", "Europe/London", now)).toBe("Tomorrow 8:00 AM");
+    expect(nextRunLabel("2026-12-02T00:05:00Z", "Europe/London", now)).toBe("Wed 12:05 AM");
+    // 9:00 on Sun Nov 29 in Kolkata is 3:30 that morning in London: tomorrow on both clocks, but
+    // at the schedule's time, never the viewer's.
+    expect(nextRunLabel("2026-11-29T03:30:00Z", "Asia/Kolkata", now)).toBe("Tomorrow 9:00 AM");
+  });
+
+  it("judges today and tomorrow in the schedule's zone, near midnight", () => {
+    // 23:30 Sat in London is 05:00 Sun in Kolkata.
+    const now = new Date("2026-11-28T23:30:00Z");
+    // 9:00 Sun in Kolkata: still Sat night in London, but today on the schedule's clock.
+    expect(nextRunLabel("2026-11-29T03:30:00Z", "Asia/Kolkata", now)).toBe("Today 9:00 AM");
+    expect(nextRunLabel("2026-11-29T03:30:00Z", "Europe/London", now)).toBe("Tomorrow 3:30 AM");
+    // 9:00 Mon in Kolkata is tomorrow there, though it's two days off on London's calendar.
+    expect(nextRunLabel("2026-11-30T03:30:00Z", "Asia/Kolkata", now)).toBe("Tomorrow 9:00 AM");
+    expect(nextRunLabel("2026-11-30T03:30:00Z", "Europe/London", now)).toBe("Mon 3:30 AM");
+    // A year's last day rolls over to the next year's first.
+    const newYearsEve = new Date("2026-12-31T20:00:00Z");
+    expect(nextRunLabel("2027-01-01T08:00:00Z", "America/New_York", newYearsEve)).toBe(
+      "Tomorrow 3:00 AM",
+    );
+    expect(todayIn("Asia/Kolkata", now)).toBe("2026-11-29");
+    expect(todayIn("Europe/London", now)).toBe("2026-11-28");
+  });
+
+  it("names the schedule's zone only when it isn't the viewer's", () => {
+    expect(otherZoneLabel("Asia/Kolkata", "Europe/London")).toBe("Kolkata time");
+    expect(otherZoneLabel("America/New_York", "UTC")).toBe("New York time");
+    expect(otherZoneLabel("UTC", "Asia/Kolkata")).toBe("UTC time");
+    expect(otherZoneLabel("Asia/Kolkata", "Asia/Kolkata")).toBeNull();
+    // Before the viewer's zone is known (a page rendered on the server), nothing is said.
+    expect(otherZoneLabel("Asia/Kolkata", null)).toBeNull();
   });
 
   it("holds a due run back only while the computer is offline", () => {
@@ -67,18 +100,15 @@ describe("automations as the app shows them", () => {
     expect(comingUp(rows).map((row) => row.id)).toEqual(["a", "b", "c"]);
   });
 
-  it("finds a teammate's daily check-in by its title and quiet flag", () => {
-    const checkIn = {
-      teammateId: "t1",
-      title: DAILY_CHECK_IN.title,
-      quiet: true,
-      enabled: true,
-    };
+  it("finds a teammate's daily check-in by its mark, whatever it's called", () => {
+    const checkIn = { teammateId: "t1", checkIn: true, enabled: true };
     expect(dailyCheckInOn([checkIn], "t1")).toBe(true);
     expect(dailyCheckInOn([checkIn], "t2")).toBe(false);
     expect(dailyCheckInOn([{ ...checkIn, enabled: false }], "t1")).toBe(false);
-    // A loud schedule with the same name is the owner's own, not the check-in.
-    expect(dailyCheckInOn([{ ...checkIn, quiet: false }], "t1")).toBe(false);
+    // A schedule the owner named "Daily check-in" isn't the check-in.
+    expect(dailyCheckInOn([{ ...checkIn, checkIn: false }], "t1")).toBe(false);
+    // A server from before the mark sends none.
+    expect(isDailyCheckIn({})).toBe(false);
   });
 
   it("describes what a trigger watches in a few words", () => {

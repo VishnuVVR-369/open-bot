@@ -1,6 +1,5 @@
 // How automations read in the app, the same on the web and the phone: their timing in words, how
 // their runs went, what deleting one does, and which teammates have their daily check-in on.
-import { DAILY_CHECK_IN } from "../teammates/templates";
 import type { RunStatus } from "../timeline/timeline";
 import { describeCron, type ScheduleKind } from "./schedules";
 import {
@@ -106,16 +105,55 @@ export function formatWhen(iso: string | Date, timeZone?: string): string {
   return `${parts.weekday} ${parts.month} ${parts.day}, ${parts.time}`;
 }
 
-/** "Today 4:00 PM", "Tomorrow 8:00 AM", or "Mon 8:00 AM" further out, on the viewer's clock. */
-export function nextRunLabel(iso: string | Date, now: Date = new Date()): string {
+/** A moment's calendar day in `timeZone`, as "2026-11-30". */
+function dayIn(date: Date, timeZone: string): string {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    })
+      .formatToParts(date)
+      .map((part) => [part.type, part.value]),
+  ) as Record<string, string>;
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+/** The day after a "2026-11-30" day. */
+function dayAfter(day: string): string {
+  const [year, month, date] = day.split("-").map(Number);
+  return new Date(Date.UTC(year!, month! - 1, date! + 1)).toISOString().slice(0, 10);
+}
+
+/** Today's date on `timeZone`'s clock, as "2026-11-30". */
+export const todayIn = (timeZone: string, now: Date = new Date()) => dayIn(now, timeZone);
+
+/**
+ * "Today 4:00 PM", "Tomorrow 8:00 AM", or "Mon 8:00 AM" further out, all on `timeZone`'s clock
+ * (a schedule's own), so it reads on the same clock as the schedule's cadence beside it.
+ */
+export function nextRunLabel(iso: string | Date, timeZone: string, now: Date = new Date()): string {
   const date = new Date(iso);
-  const parts = zoned(date);
-  const dayOf = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
-  const tomorrow = new Date(now);
-  tomorrow.setDate(now.getDate() + 1);
-  if (dayOf(date) === dayOf(now)) return `Today ${parts.time}`;
-  if (dayOf(date) === dayOf(tomorrow)) return `Tomorrow ${parts.time}`;
+  const parts = zoned(date, timeZone);
+  const day = dayIn(date, timeZone);
+  const today = dayIn(now, timeZone);
+  if (day === today) return `Today ${parts.time}`;
+  if (day === dayAfter(today)) return `Tomorrow ${parts.time}`;
   return `${parts.weekday} ${parts.time}`;
+}
+
+/** The viewer's own time zone, as the device has it. */
+export const viewerTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+/**
+ * "Kolkata time" when a schedule's clock isn't the viewer's, so a time on it never passes for the
+ * viewer's own; null when they're the same zone.
+ */
+export function otherZoneLabel(timeZone: string, viewerZone: string | null): string | null {
+  if (!viewerZone || timeZone === viewerZone) return null;
+  const place = timeZone.split("/").pop()!.replace(/_/g, " ");
+  return `${place} time`;
 }
 
 /** When a schedule runs, in words: "Weekdays at 9:00 AM", or "Once, Mon Nov 30, 9:00 AM". */
@@ -150,14 +188,18 @@ export function comingUp<T extends { enabled: boolean; nextRunAt: string | null 
     .slice(0, count);
 }
 
-/** Whether a schedule is a teammate's daily check-in, which `schedules.setCheckIn` turns on and off. */
-export function isDailyCheckIn(schedule: { title: string; quiet: boolean }): boolean {
-  return schedule.title === DAILY_CHECK_IN.title && schedule.quiet;
+/**
+ * Whether a schedule is a teammate's daily check-in, which `schedules.setCheckIn` turns on and off.
+ * It's marked when it's made, so renaming or retiming it keeps it the check-in.
+ */
+export function isDailyCheckIn(schedule: { checkIn?: boolean }): boolean {
+  // Optional: a server from before the mark doesn't send it.
+  return schedule.checkIn === true;
 }
 
 /** Whether the teammate's daily check-in is on. */
 export function dailyCheckInOn(
-  schedules: readonly { teammateId: string; title: string; quiet: boolean; enabled: boolean }[],
+  schedules: readonly { teammateId: string; checkIn?: boolean; enabled: boolean }[],
   teammateId: string,
 ): boolean {
   return schedules.some(

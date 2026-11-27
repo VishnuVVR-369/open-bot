@@ -1,16 +1,8 @@
 import { runColumns } from "@/lib/server/run-columns";
 import "server-only";
 import type { ApiInputs, ApiOutputs } from "@open-bot/api";
-import {
-  accountConnections,
-  connections,
-  ownerTimeZone,
-  runs,
-  schedules,
-  triggers,
-} from "@open-bot/db";
-import { DAILY_CHECK_IN } from "@open-bot/domain";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { accountConnections, connections, runs, schedules, triggers } from "@open-bot/db";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { ApiError } from "@/lib/server/api/errors";
 import { db } from "@/lib/server/db";
 import { FINISHING_UPDATE, isMissingRoute, worker } from "@/lib/server/worker";
@@ -51,43 +43,30 @@ export async function patchTrigger(
 }
 
 /**
- * Turn a teammate's daily check-in on or off. Turning it on resumes a paused one rather than
- * adding another.
+ * Turn a teammate's daily check-in on or off. The worker finds it by its mark, so a renamed one is
+ * still found, and turning it on resumes it rather than adding another. A worker from before that
+ * route, for the minute a deploy takes, can't; it's refused with nothing changed.
  */
-export async function setCheckIn({
-  teammateId,
-  on,
-}: ApiInputs["schedules"]["setCheckIn"]): Promise<{ ok: true }> {
-  const existing = await db
-    .select({ id: schedules.id })
-    .from(schedules)
-    .where(
-      and(
-        eq(schedules.teammateId, teammateId),
-        eq(schedules.title, DAILY_CHECK_IN.title),
-        eq(schedules.quiet, true),
-      ),
-    );
-  if (!on) {
-    for (const row of existing)
-      await worker.schedules.setEnabled({ scheduleId: row.id, enabled: false });
-    return { ok: true };
+export async function setCheckIn(
+  input: ApiInputs["schedules"]["setCheckIn"],
+): Promise<{ ok: true }> {
+  try {
+    return await worker.schedules.setCheckIn(input);
+  } catch (error) {
+    if (isMissingRoute(error)) throw new ApiError("BAD_REQUEST", FINISHING_UPDATE);
+    throw error;
   }
-  if (existing[0]) {
-    await worker.schedules.setEnabled({ scheduleId: existing[0].id, enabled: true });
-    return { ok: true };
-  }
-  const timezone = await ownerTimeZone(db);
-  await worker.schedules.create({
-    teammateId,
-    title: DAILY_CHECK_IN.title,
-    prompt: DAILY_CHECK_IN.prompt,
-    cron: DAILY_CHECK_IN.cron,
-    at: null,
-    timezone,
-    quiet: true,
-  });
-  return { ok: true };
+}
+
+/**
+ * Run a schedule now. A worker from before `started` answers only `ok`, and it ignores `runId`, so
+ * it started a run whatever was asked (see the deploy notes in the automations flow).
+ */
+export async function runScheduleNow(
+  input: ApiInputs["schedules"]["runNow"],
+): Promise<ApiOutputs["schedules"]["runNow"]> {
+  const answer: { started?: boolean } = await worker.schedules.runNow(input);
+  return { ok: true, started: answer.started ?? true };
 }
 
 /** Call a webhook with a sample request, as a service would. */
@@ -140,6 +119,7 @@ export async function listSchedules(): Promise<ScheduleView[]> {
       timezone: row.timezone,
       enabled: row.enabled,
       quiet: row.quiet,
+      checkIn: row.checkIn,
       createdBy: row.createdBy,
       nextRunAt: row.nextRunAt?.toISOString() ?? null,
       lastRunAt: row.lastRunAt?.toISOString() ?? null,

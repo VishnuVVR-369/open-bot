@@ -10,7 +10,7 @@ import {
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
@@ -78,9 +78,10 @@ export function ScheduleDialog({
   // A schedule keeps the timezone it was made in; new ones use yours.
   const timezone = schedule?.timezone ?? defaultTimezone;
 
-  // Start from the schedule (or a blank one) each time the dialog opens.
-  useEffect(() => {
-    if (!open) return;
+  // Start from the schedule (or a blank one) each time the dialog opens, or opens on another one.
+  // Only then: a fresher copy of the schedule, or app state arriving with your zone, while it's
+  // open must not wipe what you typed, so it reads them as they are at that moment.
+  const reset = useEffectEvent(() => {
     setSelectedTeammate(schedule?.teammateId ?? teammateId ?? "");
     setTitle(schedule?.title ?? "");
     setPrompt(schedule?.prompt ?? "");
@@ -93,7 +94,11 @@ export function ScheduleDialog({
     setWeekday(form.weekday);
     setCustom(form.custom);
     setAt(form.at);
-  }, [open, schedule, teammateId, defaultTimezone]);
+  });
+  const scheduleId = schedule?.id;
+  useEffect(() => {
+    if (open) reset();
+  }, [open, scheduleId]);
 
   const cron = cadenceCron(cadence, time, weekday, custom);
   const summary = useMemo(() => (kind === "cron" ? describeCron(cron) : null), [kind, cron]);

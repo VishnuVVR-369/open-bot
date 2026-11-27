@@ -6,6 +6,7 @@ import {
   isFinishedReminder,
   LAST_RUN_TEXT,
   nextRunLabel,
+  otherZoneLabel,
   relativeTime,
   runIsHeldBack,
   SCHEDULE_DELETE_TEXT,
@@ -19,6 +20,7 @@ import {
   TRIGGER_CHECK_FAILED,
   TRIGGER_DELETE_TEXT,
   TRIGGER_EMPTY_HISTORY,
+  viewerTimeZone,
   WAITING_FOR_COMPUTER,
   type ScheduleTimingForm,
   type TriggerKind,
@@ -119,14 +121,24 @@ export function mainAction(
   return { kind: "check", label: "Check now" };
 }
 
-/** "next tomorrow 9:00 AM", or "next Wed 9:00 AM" further out. */
-const nextText = (iso: string, now: Date) =>
-  `next ${nextRunLabel(iso, now).replace(/^(Today|Tomorrow)/, (word) => word.toLowerCase())}`;
+/** "next tomorrow 9:00 AM", or "next Wed 9:00 AM" further out, on `timeZone`'s clock. */
+const nextText = (iso: string, timeZone: string, now: Date) =>
+  `next ${nextRunLabel(iso, timeZone, now).replace(/^(Today|Tomorrow)/, (word) => word.toLowerCase())}`;
 
-/** When it runs, or what it watches, in one line under its title, as the web's row says it. */
+/** Said of a schedule that tells you only when something changed. */
+export const QUIET_TEXT = "tells you only if something changed";
+
+/**
+ * When it runs, or what it watches, in one line under its title, as the web's row says it. A
+ * schedule's times are all on its own clock, which the line names when it isn't the phone's.
+ */
 export function whenLine(
   automation: Automation,
-  { now = new Date(), computerOnline = true }: { now?: Date; computerOnline?: boolean } = {},
+  {
+    now = new Date(),
+    computerOnline = true,
+    phoneZone = viewerTimeZone(),
+  }: { now?: Date; computerOnline?: boolean; phoneZone?: string } = {},
 ): string {
   if (automation.type === "schedule") {
     const parts = [scheduleCadence(automation)];
@@ -134,9 +146,11 @@ export function whenLine(
       parts.push(
         runIsHeldBack(automation.nextRunAt, now.getTime(), computerOnline)
           ? WAITING_FOR_COMPUTER.toLowerCase()
-          : nextText(automation.nextRunAt, now),
+          : nextText(automation.nextRunAt, automation.timezone, now),
       );
-    if (automation.quiet) parts.push("tells you only if something changed");
+    const zone = otherZoneLabel(automation.timezone, phoneZone);
+    if (zone) parts.push(zone);
+    if (automation.quiet) parts.push(QUIET_TEXT);
     return parts.join(" · ");
   }
   if (isAccountTrigger(automation.kind))
@@ -221,6 +235,25 @@ export function zoneNote(scheduleZone: string, phoneZone: string): string {
     : `Times in ${scheduleZone}. This phone is on ${phoneZone}.`;
 }
 
+/**
+ * What a "Run now" did, said honestly: started by this tap, or by an earlier one whose answer was
+ * lost (the server found the run it started), so nothing more started.
+ */
+export function runNowOutcome(
+  schedule: Pick<ScheduleView, "title">,
+  answer: { started?: boolean },
+  teammateName: string,
+): { title: string; body: string; failed: boolean } {
+  // A server from before `started` says nothing: it started a run.
+  if (answer.started === false)
+    return {
+      title: `“${schedule.title}” was already started`,
+      body: `Your earlier tap went through, so nothing more started. ${teammateName} is on it.`,
+      failed: false,
+    };
+  return { title: `Started “${schedule.title}”`, body: `${teammateName} is on it.`, failed: false };
+}
+
 /** What "Check now" found, as the web's notice says it. */
 export function checkOutcome(
   trigger: Pick<TriggerView, "kind" | "title">,
@@ -301,6 +334,18 @@ export function rebaseForm(draft: AutomationDraft, fresh: AutomationForm): Autom
   return { start: fresh, form };
 }
 
+/**
+ * What the editor says about a quiet routine (it tells you only when something changed): that it
+ * is, or that making it a one-time reminder drops that, since a reminder always tells you. Null
+ * for one that isn't quiet.
+ */
+export function quietNote(automation: Automation, form: AutomationForm): string | null {
+  if (automation.type !== "schedule" || !automation.quiet) return null;
+  if (form.timing?.kind === "once")
+    return "As a one-time reminder it will tell you how it went, so it won't stay quiet.";
+  return "It tells you only if something changed. Change that in open-bot on a computer.";
+}
+
 /** Why the form can't be saved, in the worker's words, or null when it can. */
 export function formProblem(
   automation: Automation,
@@ -350,27 +395,38 @@ export function patchOf(
 
 /* ------------------------------------------------------------------ Retries */
 
+/** How long a "Run now" id is kept for a retry after a try whose answer was lost. */
+export const RETRY_WINDOW_MS = 2 * 60_000;
+
 /**
  * The id of each ask that must not happen twice ("Run now"), kept for retries until it goes
  * through, so asking again after an answer was lost finds the first run instead of starting one.
+ * Only for a short while after the last try: a tap much later is a new ask, not a retry, and
+ * must start a run of its own.
  */
 export class RetryKeys {
-  private readonly keys = new Map<string, string>();
+  private readonly keys = new Map<string, { key: string; at: number }>();
 
-  constructor(private readonly newKey: () => string) {}
+  constructor(
+    private readonly newKey: () => string,
+    private readonly windowMs: number = RETRY_WINDOW_MS,
+  ) {}
 
-  for(name: string): string {
-    let key = this.keys.get(name);
-    if (!key) {
-      key = this.newKey();
-      this.keys.set(name, key);
-    }
+  for(name: string, now: number = Date.now()): string {
+    const kept = this.keys.get(name);
+    const key = kept && now - kept.at <= this.windowMs ? kept.key : this.newKey();
+    this.keys.set(name, { key, at: now });
     return key;
   }
 
   /** The ask went through, or was refused: the next one is a new ask. */
   done(name: string) {
     this.keys.delete(name);
+  }
+
+  /** Every ask kept so far is forgotten (the screen that made them closed). */
+  clear() {
+    this.keys.clear();
   }
 }
 

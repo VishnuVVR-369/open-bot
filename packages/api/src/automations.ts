@@ -27,12 +27,21 @@ export const scheduleViewSchema = z.object({
   enabled: z.boolean(),
   /** Only tells you when there's news. */
   quiet: z.boolean(),
+  /** The teammate's daily check-in, which its profile's switch turns on and off. */
+  checkIn: z.boolean(),
   createdBy: creatorSchema,
   nextRunAt: isoDate.nullable(),
   lastRunAt: isoDate.nullable(),
   lastRun: lastRunSchema.nullable(),
 });
 export type ScheduleView = z.infer<typeof scheduleViewSchema>;
+
+/**
+ * What "Run now" did: `started` is true when this ask started the run, and false when an earlier
+ * ask with the same run id already had (its answer was lost), so nothing more started.
+ */
+export const runNowAnswerSchema = z.object({ ok: z.literal(true), started: z.boolean() });
+export type RunNowAnswer = z.infer<typeof runNowAnswerSchema>;
 
 /** A page watch, a webhook, or a Gmail or Calendar trigger that wakes a teammate. */
 export const triggerViewSchema = z.object({

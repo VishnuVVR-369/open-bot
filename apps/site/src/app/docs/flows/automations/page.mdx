@@ -80,9 +80,12 @@ If the worker was down for a while, a schedule fires once when it comes back, no
 
 Each schedule's recent runs are listed under it, and **Run now** fires it without changing its next run time.
 A paused routine stays paused when you edit it, and a finished reminder moved to a new time runs again.
-Run now takes an optional run id: a retry with the same id answers with the run it already started, and an id used for another schedule is refused with `409`.
-The Android app sends one, so a Run now whose answer was lost doesn't run the schedule twice.
-The Android app edits only a name and a timing, through `schedules.patch` and `triggers.patch`, which change just the fields they're given, on the row locked for the update.
+Run now takes an optional run id: a retry with the same id finds the run it already started and starts nothing more, and an id used for another schedule is refused with `409`, also when another run takes it between the check and the save.
+Its answer says which happened: `started` is true when this ask started the run and false when an earlier one had, so the phone can say so instead of claiming a new run.
+The Android app sends one, and keeps it for a retry only on that screen and for two minutes after the last try, so a Run now whose answer was lost doesn't run the schedule twice, and a tap much later starts a run of its own.
+Run now on a schedule whose teammate is archived is refused with `409`.
+The Android app edits only a name and a timing, through `schedules.patch` and `triggers.patch`, which change just the fields they're given.
+Every write that reads a schedule before writing it (`update`, `patch`, and pausing or resuming) locks its row while it does, so a change that lands at the same moment waits instead of being undone, and resuming works out the next run from the timing it finds.
 The timing is checked as a full one would be, in the schedule's own time zone.
 A trigger's patch takes a page watch's interval or a Calendar trigger's lead, and refuses either on another kind.
 A web app talking to a worker from before these routes (`404` with no message of its own, during a deploy) says nothing changed, rather than sending a full update with values it may not have.
@@ -96,7 +99,13 @@ Its prompt gets one more line:
 
 When a quiet routine's run replies exactly that, it is marked `runs.quiet`.
 It sends no notification, stays out of the briefing on Home, doesn't mark the chat unread, move it up the list or become its preview, isn't passed on to your next turn, and shows as one muted line in the chat.
-Every template starts with a quiet daily check-in, and a teammate's Automations tab can turn one on.
+Every template starts with a quiet daily check-in, and a teammate's Automations tab, or their profile on the phone, can turn one on.
+The check-in is marked as such (`schedules.check_in`), so renaming or retiming it keeps it the check-in, and a teammate has one at most (a unique index on `teammate_id` where `check_in`).
+The worker's `setCheckIn` resumes the one a teammate has, or adds one only when it has none, so two asks at once add one.
+It always repeats: a timing that would make it a one-time reminder is refused.
+Migration 0046 marked the check-ins that existed before, which were found by their title and quiet flag: each teammate's first quiet "Daily check-in" routine, an enabled one over a paused one.
+A teammate file exported before the mark is read the same way.
+A one-time reminder is never quiet, so making a quiet routine a reminder drops it, which the phone's editor says before you save.
 
 ## Page watches
 

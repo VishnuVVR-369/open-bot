@@ -51,7 +51,7 @@ export function AutomationRow({
         styles.row,
         !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
       ]}
-      testID="automation-row"
+      testID={`automation-row-${automation.id}`}
     >
       <AutomationAvatar automation={automation} teammate={teammate} size={compact ? "md" : "lg"} />
       <View style={styles.text}>
@@ -80,7 +80,7 @@ export function AutomationRow({
           onValueChange={(enabled) => void setAutomationEnabled(automation, enabled)}
           disabled={!online}
           accessibilityLabel={`${automation.title} on`}
-          testID={`automation-toggle-${automation.title}`}
+          testID={`automation-toggle-${automation.id}`}
         />
       )}
     </Pressable>

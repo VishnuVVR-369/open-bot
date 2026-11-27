@@ -27,10 +27,13 @@ export function RunHistory({
   runs,
   loading,
   empty,
+  yours = null,
 }: {
   runs: readonly AutomationRunView[] | undefined;
   loading: boolean;
   empty: string;
+  /** The run "Run now" just started here, which its row says. */
+  yours?: string | null;
 }) {
   const colors = useColors();
   return (
@@ -71,9 +74,17 @@ export function RunHistory({
                   <RunIcon status={run.status} />
                 </View>
                 <View style={{ flex: 1, gap: 2 }}>
-                  <Text variant="caption" muted style={{ fontVariant: ["tabular-nums"] }}>
-                    {formatWhen(run.createdAt)}
-                  </Text>
+                  <View style={styles.when}>
+                    <Text variant="caption" muted style={{ fontVariant: ["tabular-nums"] }}>
+                      {formatWhen(run.createdAt)}
+                    </Text>
+                    {run.id === yours && (
+                      // Its own view, not nested text, so it can be found on its own.
+                      <Text variant="caption" muted testID="automation-run-yours">
+                        · you started it
+                      </Text>
+                    )}
+                  </View>
                   <Text
                     variant="small"
                     numberOfLines={2}
@@ -109,4 +120,5 @@ const styles = StyleSheet.create({
     minHeight: 56,
   },
   icon: { width: 20, alignItems: "center" },
+  when: { flexDirection: "row", gap: space(1) },
 });

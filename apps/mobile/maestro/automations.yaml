@@ -1,7 +1,9 @@
 appId: dev.openbot.mobile.dev
 name: Turn a schedule off and on, run it now, open its history and rename it
-# Run against a signed-in development app, with the title of a repeating schedule that is on:
-#   maestro test -e AUTOMATION="<schedule title>" maestro/automations.yaml
+# Run against a signed-in development app, with the id of a repeating schedule that is on:
+#   maestro test -e AUTOMATION_ID=<schedule id> maestro/automations.yaml
+# Find the id with `select id, title from schedules;` in the database. Rows are found by id, since
+# titles repeat (every teammate's check-in is "Daily check-in").
 # Run now queues a run in the schedule's chat; with the computer offline the button is off, so
 # start the computer first. The flow renames the schedule and then names it back.
 # Edits type into empty fields only: where a tap puts the cursor in a filled one varies by device.
@@ -16,38 +18,41 @@ name: Turn a schedule off and on, run it now, open its history and rename it
     timeout: 20000
 - scrollUntilVisible:
     element:
-      id: automation-toggle-${AUTOMATION}
+      id: automation-toggle-${AUTOMATION_ID}
     timeout: 10000
 
 # Turn it off, then on again.
 - assertVisible:
-    id: automation-toggle-${AUTOMATION}
+    id: automation-toggle-${AUTOMATION_ID}
     checked: true
 - tapOn:
-    id: automation-toggle-${AUTOMATION}
+    id: automation-toggle-${AUTOMATION_ID}
 - extendedWaitUntil:
     visible:
-      id: automation-toggle-${AUTOMATION}
+      id: automation-toggle-${AUTOMATION_ID}
       checked: false
     timeout: 10000
 - tapOn:
-    id: automation-toggle-${AUTOMATION}
+    id: automation-toggle-${AUTOMATION_ID}
 - extendedWaitUntil:
     visible:
-      id: automation-toggle-${AUTOMATION}
+      id: automation-toggle-${AUTOMATION_ID}
       checked: true
     timeout: 10000
 
-# Open it and run it now: the answer says so, and the run is in its history.
-- tapOn: "${AUTOMATION}.*"
+# Open it, and keep its title, as typed and as a pattern.
+- tapOn:
+    id: automation-row-${AUTOMATION_ID}
 - extendedWaitUntil:
     visible:
       id: automation-action
       enabled: true
     timeout: 15000
-- assertVisible:
+- copyTextFrom:
     id: automation-title
-    text: ${AUTOMATION}
+- runScript: title-pattern.js
+
+# Run it now: the answer says so, and the newest run in its history is the one just started.
 - tapOn:
     id: automation-action
 - extendedWaitUntil:
@@ -56,8 +61,13 @@ name: Turn a schedule off and on, run it now, open its history and rename it
     timeout: 15000
 - scrollUntilVisible:
     element:
-      id: automation-run
+      id: automation-run-yours
     timeout: 15000
+- assertVisible:
+    id: automation-run-yours
+    childOf:
+      id: automation-run
+      index: 0
 - tapOn:
     id: automation-run
     index: 0
@@ -81,14 +91,14 @@ name: Turn a schedule off and on, run it now, open its history and rename it
 - tapOn:
     id: automation-title-input
 - eraseText: 120
-- inputText: ${AUTOMATION} (Maestro)
+- inputText: ${output.title} (Maestro)
 - hideKeyboard
 - tapOn:
     id: automation-save
 - extendedWaitUntil:
     visible:
       id: automation-title
-      text: ${AUTOMATION} \(Maestro\)
+      text: ${output.titlePattern} \(Maestro\)
     timeout: 10000
 - tapOn:
     id: automation-edit
@@ -99,12 +109,12 @@ name: Turn a schedule off and on, run it now, open its history and rename it
 - tapOn:
     id: automation-title-input
 - eraseText: 120
-- inputText: ${AUTOMATION}
+- inputText: ${output.title}
 - hideKeyboard
 - tapOn:
     id: automation-save
 - extendedWaitUntil:
     visible:
       id: automation-title
-      text: ${AUTOMATION}
+      text: ${output.titlePattern}
     timeout: 10000

@@ -2,6 +2,7 @@
 
 import {
   isFinishedReminder,
+  otherZoneLabel,
   relativeTime,
   SCHEDULE_DELETE_TEXT,
   SCHEDULE_EMPTY_HISTORY,
@@ -16,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { attempt } from "@/lib/client/mutate";
 import { useScheduleRuns } from "../hooks";
 import { api } from "@/lib/client/rpc";
+import { useViewerTimeZone } from "@/lib/client/time-zone";
 import { runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
 import type { TeammateSummary, ScheduleView } from "@/lib/types";
 import { ScheduleDialog } from "./schedule-dialog";
@@ -62,6 +64,8 @@ export function ScheduleRow({
   const [editing, setEditing] = useState(false);
   const done = isFinishedReminder(schedule);
   const canRun = useCanRun();
+  // Its times are on the schedule's clock, named when it isn't yours.
+  const zone = otherZoneLabel(schedule.timezone, useViewerTimeZone());
 
   return (
     <li data-testid="schedule">
@@ -99,6 +103,7 @@ export function ScheduleRow({
               (runIsHeldBack(schedule.nextRunAt, Date.now(), canRun)
                 ? ` · ${WAITING_FOR_COMPUTER.toLowerCase()}`
                 : ` · next ${formatDistanceToNowStrict(new Date(schedule.nextRunAt), { addSuffix: true })}`)}
+            {zone && ` · ${zone}`}
             {schedule.quiet && " · tells you only if something changed"}
           </span>
           {schedule.lastRun && (

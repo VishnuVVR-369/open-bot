@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   automationRunViewSchema,
+  runNowAnswerSchema,
   scheduleInputSchema,
   schedulePatchSchema,
   scheduleViewSchema,
@@ -25,9 +26,10 @@ export const schedulesContract = {
   remove: base.input(z.object({ scheduleId: id })).output(ok),
   /**
    * Run it now, without changing when it runs next. `runId`, a new id the client makes, is the
-   * run's: asking again with it after an answer was lost starts nothing more.
+   * run's: asking again with it after an answer was lost starts nothing more, and answers
+   * `started: false`, since the earlier ask started it.
    */
-  runNow: base.input(z.object({ scheduleId: id, runId: id.optional() })).output(ok),
+  runNow: base.input(z.object({ scheduleId: id, runId: id.optional() })).output(runNowAnswerSchema),
   /**
    * A teammate's daily check-in, on or off: every morning it looks over its area and tells you
    * only what needs you. Turning it on resumes a paused one rather than adding another.

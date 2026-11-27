@@ -1,5 +1,12 @@
 import type { TeammateSummary } from "@open-bot/api";
-import { comingUp, nextRunLabel, runIsHeldBack, WAITING_FOR_COMPUTER } from "@open-bot/domain";
+import {
+  comingUp,
+  nextRunLabel,
+  otherZoneLabel,
+  runIsHeldBack,
+  viewerTimeZone,
+  WAITING_FOR_COMPUTER,
+} from "@open-bot/domain";
 import { router } from "expo-router";
 import { Pressable, StyleSheet, View } from "react-native";
 import { Card, Section } from "@/components/section";
@@ -23,6 +30,7 @@ export function ComingUp({ teammates }: { teammates: readonly TeammateSummary[] 
   const next = comingUp(schedules ?? []);
   if (next.length === 0) return null;
   const now = Date.now();
+  const phoneZone = viewerTimeZone();
   return (
     <View testID="home-coming-up">
       <Section
@@ -38,6 +46,8 @@ export function ComingUp({ teammates }: { teammates: readonly TeammateSummary[] 
         <Card>
           {next.map((schedule, index) => {
             const teammate = teammates.find((entry) => entry.id === schedule.teammateId);
+            // Its time is on the schedule's clock, named when it isn't the phone's.
+            const zone = otherZoneLabel(schedule.timezone, phoneZone);
             return (
               <Pressable
                 key={schedule.id}
@@ -62,12 +72,13 @@ export function ComingUp({ teammates }: { teammates: readonly TeammateSummary[] 
                   </Text>
                   <Text variant="small" muted numberOfLines={1}>
                     {teammate?.name ?? "Former teammate"}
+                    {zone ? ` · ${zone}` : ""}
                   </Text>
                 </View>
                 <Text variant="caption" muted style={{ fontVariant: ["tabular-nums"] }}>
                   {runIsHeldBack(schedule.nextRunAt!, now, !computerOffline)
                     ? WAITING_FOR_COMPUTER
-                    : nextRunLabel(schedule.nextRunAt!)}
+                    : nextRunLabel(schedule.nextRunAt!, schedule.timezone)}
                 </Text>
               </Pressable>
             );

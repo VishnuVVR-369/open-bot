@@ -1,4 +1,4 @@
-import { intervalChoices, leadChoices, timingSummary } from "@open-bot/domain";
+import { intervalChoices, leadChoices, timingSummary, viewerTimeZone } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { router, Stack, useLocalSearchParams, useNavigation, usePreventRemove } from "expo-router";
 import { CalendarClock, CloudOff } from "lucide-react-native";
@@ -19,11 +19,13 @@ import { space, useColors } from "@/theme";
 import {
   AUTOMATIONS_HREF,
   automationForm,
+  automationHref,
   formChanged,
   formProblem,
   isAutomationType,
   kindName,
   patchOf,
+  quietNote,
   rebaseForm,
   stateBadge,
   TITLE_MAX,
@@ -37,7 +39,7 @@ import { useAutomation } from "../hooks";
 import { Choices } from "./automation-parts";
 import { TimingFields } from "./timing-fields";
 
-const phoneZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+const phoneZone = viewerTimeZone;
 
 /** Renaming an automation and changing its timing, on its own screen. */
 export default function AutomationEditScreen() {
@@ -103,10 +105,14 @@ function AutomationEditor({
     if (!busy) setDraft((current) => rebaseForm(current, automationForm(automation)));
   }, [automation, busy]);
 
-  // Back once a save went through, after the guard below has let go.
+  // Back once a save went through, after the guard below has let go: to the automation, also
+  // when the editor was opened from a link with nothing under it, and only while it's still on
+  // screen (you may have gone elsewhere while it saved).
   useEffect(() => {
-    if (leave) router.back();
-  }, [leave]);
+    if (!leave || !navigation.isFocused()) return;
+    if (router.canGoBack()) router.back();
+    else router.replace(automationHref(automation));
+  }, [leave, navigation, automation]);
 
   usePreventRemove(changed && !leave && !gone, ({ data }) =>
     Alert.alert(
@@ -156,6 +162,7 @@ function AutomationEditor({
   }
 
   const badge = stateBadge(automation);
+  const quiet = quietNote(automation, form);
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: `Edit ${kindName(automation)}` }} />
@@ -190,6 +197,8 @@ function AutomationEditor({
               value={form.timing}
               onChange={(patch) => set({ timing: { ...form.timing!, ...patch } })}
               disabled={busy}
+              timeZone={automation.timezone}
+              repeatsOnly={automation.checkIn}
               summary={
                 <>
                   <Text variant="small" muted testID="timing-summary">
@@ -198,6 +207,11 @@ function AutomationEditor({
                   <Text variant="caption" muted>
                     {zoneNote(automation.timezone, phoneZone())}
                   </Text>
+                  {quiet && (
+                    <Text variant="caption" muted testID="automation-quiet">
+                      {quiet}
+                    </Text>
+                  )}
                   {badge === "Done" && (
                     <Text variant="caption" muted>
                       It already ran. Give it a new time to run it again.
