@@ -6,7 +6,8 @@ name: Turn a schedule off and on, run it now, open its history, discard an edit 
 # titles repeat (every teammate's check-in is "Daily check-in").
 # Run now queues a run in the schedule's chat; with the computer offline the button is off, so
 # start the computer first. The flow renames the schedule and then names it back.
-# Edits type into empty fields only: where a tap puts the cursor in a filled one varies by device.
+# A tap puts the cursor where it lands, so the flow taps the name's field at its right end, after
+# the name, and erases back from there: the schedule's name must fit in the field.
 ---
 - runFlow:
     file: flows/open-link.yaml
@@ -90,6 +91,7 @@ name: Turn a schedule off and on, run it now, open its history, discard an edit 
     timeout: 5000
 - tapOn:
     id: automation-title-input
+    point: 97%,50%
 - eraseText: 120
 - inputText: Not saved
 - hideKeyboard
@@ -110,6 +112,7 @@ name: Turn a schedule off and on, run it now, open its history, discard an edit 
     timeout: 5000
 - tapOn:
     id: automation-title-input
+    point: 97%,50%
 - eraseText: 120
 - inputText: ${output.title} (Maestro)
 - hideKeyboard
@@ -128,6 +131,7 @@ name: Turn a schedule off and on, run it now, open its history, discard an edit 
     timeout: 5000
 - tapOn:
     id: automation-title-input
+    point: 97%,50%
 - eraseText: 120
 - inputText: ${output.title}
 - hideKeyboard
