@@ -23,7 +23,7 @@ export function SuggestionCard({
 }: {
   /** The teammate that suggested it, by name, when known. */
   by: string | null;
-  busy: "save" | "confirm" | "forget" | null;
+  busy: "save" | "confirm" | "forget" | "reload" | null;
   disabled: boolean;
   changed: boolean;
   onConfirm: () => void;

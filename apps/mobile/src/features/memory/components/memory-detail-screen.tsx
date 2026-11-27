@@ -1,10 +1,13 @@
 import type { MemoryItem } from "@open-bot/domain";
+import { safe } from "@orpc/client";
 import { router, useLocalSearchParams } from "expo-router";
 import { Brain } from "lucide-react-native";
 import { useRef } from "react";
 import { LoadError, Loading, NotFound } from "@/components/states";
 import { taskScreenState } from "@/features/tasks/tasks";
-import { isNotFound } from "@/lib/errors";
+import { api } from "@/lib/api";
+import { errorMessage, isNotFound } from "@/lib/errors";
+import { queryClient, queryKeys } from "@/lib/query";
 import { useMemory } from "../hooks";
 import { memoryListHref, saveNote } from "../memory";
 import { MemoryEditor } from "./memory-editor";
@@ -47,7 +50,22 @@ export default function MemoryDetailScreen() {
       item={state.task}
       gone={state.gone}
       note={saveNote(saved)}
-      reload={async () => (await read.refetch()).data}
+      reload={async () => {
+        // Read from the server, not the cache: a failed read must not pass for the saved version.
+        const fresh = await safe(api.memory.get({ memoryId }));
+        if (fresh.error) {
+          // Forgotten since: the screen's own read finds that out and says so.
+          if (isNotFound(fresh.error)) void read.refetch();
+          return {
+            ok: false,
+            message: isNotFound(fresh.error)
+              ? "This memory was forgotten, so there's no saved version to reload."
+              : errorMessage(fresh.error, "Couldn't reload it. Your changes are still here."),
+          };
+        }
+        queryClient.setQueryData(queryKeys.memory(memoryId), fresh.data);
+        return { ok: true, item: fresh.data };
+      }}
     />
   );
 }

@@ -161,20 +161,30 @@ Tap a memory to edit what it says, its type (fact, preference, lesson or note) a
 An expiry set on the web shows there, and can be cleared; setting one is on the web.
 Every change names the revision you opened (`expectedRevision`), so one made meanwhile on the web or by a teammate is refused (`STATE_CONFLICT`).
 The screen then says "Changed since you opened it" with Reload, which shows the saved version; it never saves over the newer one.
+Reload reads the memory from the server (`memory.get`): only a fresh copy replaces your changes, and when that read fails (offline, or the server failing) your changes and the conflict stay and the screen says why.
 What you haven't touched follows the memory as it changes elsewhere.
 A memory a teammate suggested shows Confirm and Dismiss; dismissing asks first, like Forget, which removes the memory and its history.
+Forget checks the connection again once you confirm, and sends nothing if the phone went offline meanwhile.
+When it's done, the screen leaves only once it's the one you're looking at, so History or a chat opened meanwhile stays open.
+A memory forgotten elsewhere while you edit it says so; leaving still asks first while you have changes, and "Copy what you wrote" keeps your text.
 History lists every revision with who made it and a link to the conversation, and Restore makes an earlier one the newest, as a new revision.
+Once the server says the memory is gone, History shows that instead of revisions it read before, so nothing offers to restore it.
 
 Add a memory with the plus.
 Saving the same words again confirms or finds the one already saved instead of adding another (`saveOutcome`), and the screen says so.
-When a save gets no answer, the form stays as it was sent and Try again sends it unchanged, so a lost save is never added twice.
+Each new memory is sent with an id the phone makes for it (`memory.create`'s `id`), and the memory is saved under that id.
+When a save gets no answer, the form stays as it was sent and Try again sends it unchanged, with the same id, so a lost save is never added twice.
+If the first attempt was saved, the server answers with that memory as it is now, even if it was edited on the web since; if it was forgotten since, it says so (`STATE_CONFLICT`) and adding it again is a new save.
 Leaving with unsaved changes asks first, and while the phone is offline nothing is sent and your draft stays.
+Switching between Shared and a teammate shows a loading list, never the other scope's memories, while typing a search keeps the last results up, faded.
 Each screen reads memory itself (`memory.get`, `memory.history`), so a link or a lesson opens it, and the `memory` app event refreshes it when anything changes.
 
 A teammate's profile shows how much they remember, with suggestions to confirm, and their lessons: what they learned from your feedback, read before every task.
 Lessons are memories of kind lesson, so each one opens to edit or forget.
 When a teammate suggests new instructions for itself, Home lists it and its profile shows what would change, line by line, against the instructions as they are now (`proposals.pending`).
 Accept or Dismiss says which is on its way, then that it's done; deciding the same way again is harmless, so a lost answer can be tried again, and one decided elsewhere says so.
+Accept sends the instructions the change was shown against (`expectedInstructions`), so if you edited them on the web meanwhile, or archived the teammate, it's refused (`STATE_CONFLICT`) instead of overwriting them.
+The card then says so and shows the change against the instructions as they are now, to review again.
 
 ## Pages
 

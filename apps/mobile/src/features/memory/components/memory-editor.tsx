@@ -1,12 +1,9 @@
-import {
-  isSuggestion,
-  MEMORY_CONTENT_MAX,
-  type MemoryInput,
-  type MemoryItem,
-} from "@open-bot/domain";
+import { isSuggestion, MEMORY_CONTENT_MAX, type MemoryItem } from "@open-bot/domain";
 import { safe } from "@orpc/client";
+import * as Clipboard from "expo-clipboard";
+import * as Crypto from "expo-crypto";
 import { router, Stack, useNavigation, usePreventRemove } from "expo-router";
-import { CloudOff, History, MessageSquare, Trash2 } from "lucide-react-native";
+import { CloudOff, Copy, History, MessageSquare, Trash2 } from "lucide-react-native";
 import { useEffect, useState, type ReactNode } from "react";
 import { Alert, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,9 +23,11 @@ import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { space, useColors } from "@/theme";
 import { CHANGED_SINCE, confirmForget, confirmMemory, refreshMemory } from "../actions";
 import {
+  afterReload,
   changedSince,
-  createOutcome,
   followMemory,
+  leaveQuestion,
+  memoryCreate,
   memoryDraft,
   memoryFormChanged,
   memoryFormProblem,
@@ -36,7 +35,9 @@ import {
   memoryHref,
   memoryInput,
   memoryMeta,
+  type MemoryCreate,
   type MemoryForm,
+  type MemoryReload,
 } from "../memory";
 import { MemoryOptions, SuggestionCard } from "./memory-cards";
 import { Field, KindPicker, Notice } from "./memory-parts";
@@ -62,8 +63,8 @@ export function MemoryEditor({
   gone?: boolean;
   /** What saving it said, when it wasn't just added (it was already saved, say). */
   note?: string | null;
-  /** Reads the memory again, for the Reload after a conflict. */
-  reload?: () => Promise<MemoryItem | undefined>;
+  /** Reads the memory again from the server, for the Reload after a conflict. */
+  reload?: () => Promise<MemoryReload>;
 }) {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -73,12 +74,14 @@ export function MemoryEditor({
   const { data: teammates = [] } = useTeammates();
   const [draft, setDraft] = useState(() => memoryDraft(item));
   const { base, start, form } = draft;
-  const [busy, setBusy] = useState<"save" | "confirm" | "forget" | null>(null);
+  const [busy, setBusy] = useState<"save" | "confirm" | "forget" | "reload" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   // The server refused a change because the memory changed meanwhile.
   const [refused, setRefused] = useState(false);
-  // A new memory whose save got no answer: the form stays as sent until it's settled.
-  const [lost, setLost] = useState<MemoryInput | null>(null);
+  // A new memory whose save got no answer: the form stays as sent, with its id, until it's settled.
+  const [lost, setLost] = useState<MemoryCreate | null>(null);
+  // Forgotten here: the screen leaves once it's the one you're looking at.
+  const [forgotten, setForgotten] = useState(false);
   const [footer, setFooter] = useState(0);
   const [leave, setLeave] = useState<(() => void) | null>(null);
   useEffect(() => leave?.(), [leave]);
@@ -101,12 +104,24 @@ export function MemoryEditor({
   // The form moved on to a newer revision, so an earlier refusal no longer holds.
   useEffect(() => setRefused(false), [base?.revision, base?.state]);
 
-  usePreventRemove(changed && !leave && !gone, ({ data }) =>
-    Alert.alert("Discard your changes?", "What you changed in this memory isn't saved.", [
+  // Forgotten while History or the chat was open on top: leave once you're back, not from there.
+  useEffect(() => {
+    if (!forgotten) return;
+    const open = () =>
+      setLeave(() => () => (router.canGoBack() ? router.back() : router.replace("/memory")));
+    if (navigation.isFocused()) open();
+    return navigation.addListener("focus", open);
+  }, [forgotten, navigation]);
+
+  // Even once it's forgotten elsewhere, what you wrote isn't dropped without asking.
+  const question = leaveQuestion(changed, leave !== null, gone);
+  usePreventRemove(question !== null, ({ data }) => {
+    if (!question) return;
+    Alert.alert(question.title, question.body, [
       { text: "Keep editing", style: "cancel" },
       { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(data.action) },
-    ]),
-  );
+    ]);
+  });
 
   const set = (patch: Partial<MemoryForm>) => {
     if (locked) return;
@@ -145,17 +160,21 @@ export function MemoryEditor({
       if (navigation.isFocused()) go(() => router.back());
       return;
     }
-    // Sent again unchanged after a lost answer, it can't add a second memory: the server answers
-    // with the one the first may have added.
-    const input = lost ?? memoryInput(form, teammateId);
-    const result = await safe(api.memory.create(input));
+    // Sent again unchanged, with the same id, after a lost answer, it can't add a second memory:
+    // the server answers with the one the first attempt added, as it is now.
+    const request = memoryCreate(lost, form, teammateId, Crypto.randomUUID);
+    const result = await safe(api.memory.create({ ...request.input, id: request.id }));
     void refreshMemory();
     if (result.error) {
-      // No answer, so it may have been added: keep it as sent. A refusal added nothing.
-      setLost(isRetryable(result.error) ? input : null);
-      return failed(result.error, "Couldn't save the memory.");
+      // No answer, so it may have been added: keep it as sent. A refusal added nothing, or says
+      // what became of it (forgotten since), and a new try is a new save.
+      setLost(isRetryable(result.error) ? request : null);
+      setBusy(null);
+      haptics.error();
+      setProblem(errorMessage(result.error, "Couldn't save the memory."));
+      return;
     }
-    const outcome = createOutcome(result.data.saveOutcome, lost !== null);
+    const outcome = result.data.saveOutcome;
     setLost(null);
     saved(result.data);
     if (!navigation.isFocused()) return;
@@ -192,24 +211,33 @@ export function MemoryEditor({
       },
       onDone: (result) => {
         setBusy(null);
-        if (result.ok) {
-          queryClient.removeQueries({ queryKey: queryKeys.memory(base.id) });
-          go(() => (router.canGoBack() ? router.back() : router.replace("/memory")));
-        } else if (result.conflict) setRefused(true);
+        if (result.ok) setForgotten(true);
+        else if (result.conflict) setRefused(true);
         else setProblem(result.message);
       },
     });
   }
 
+  /** Reload after a conflict: only a fresh read from the server replaces what you wrote. */
   async function reloadSaved() {
+    if (!reload) return;
     haptics.tap();
-    const fresh = (await reload?.()) ?? item;
-    if (fresh) setDraft(memoryDraft(fresh));
-    setRefused(false);
+    setBusy("reload");
     setProblem(null);
+    const next = afterReload(draft, await reload());
+    setBusy(null);
+    setDraft(next.draft);
+    setRefused(next.refused);
+    setProblem(next.problem);
+    if (next.problem) haptics.error();
   }
 
-  const writable = online && !gone && !stale;
+  async function copyDraft() {
+    await Clipboard.setStringAsync(form.content);
+    haptics.success();
+  }
+
+  const writable = online && !gone && !stale && !forgotten;
   const canSave = writable && !invalid && busy === null && (base === null || changed);
 
   return (
@@ -223,7 +251,20 @@ export function MemoryEditor({
         testID="memory-editor"
       >
         {gone && (
-          <Notice testID="memory-gone">
+          <Notice
+            testID="memory-gone"
+            action={
+              changed && form.content.trim() ? (
+                <Button
+                  title="Copy what you wrote"
+                  variant="outline"
+                  icon={<Copy size={16} color={colors.foreground} />}
+                  onPress={() => void copyDraft()}
+                  testID="memory-copy-draft"
+                />
+              ) : undefined
+            }
+          >
             This memory was forgotten, so changes here can't be saved.
           </Notice>
         )}
@@ -236,7 +277,8 @@ export function MemoryEditor({
                 title="Reload"
                 variant="outline"
                 onPress={() => void reloadSaved()}
-                disabled={busy !== null}
+                disabled={busy !== null || !online || !reload}
+                busy={busy === "reload"}
                 testID="memory-reload"
               />
             }

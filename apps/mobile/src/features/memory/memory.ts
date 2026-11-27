@@ -39,6 +39,13 @@ export function memoryScopes(teammates: readonly { id: string; name: string }[])
 export const scopeTeammate = (scope: string): string | null =>
   scope === SHARED_SCOPE ? null : scope;
 
+/**
+ * Whether a list read under `key` (`queryKeys.memories`) is of the same scope as `teammateId`'s, so
+ * its results may stand in while a new search in that scope loads.
+ */
+export const sameMemoryScope = (key: readonly unknown[], teammateId: string | null) =>
+  key[0] === "memory" && key[1] === "list" && key[2] === teammateId;
+
 /** What the memory form edits. The topic key and expiry are kept as they are, or cleared. */
 export interface MemoryForm {
   content: string;
@@ -125,11 +132,55 @@ export function saveNote(outcome: string | undefined): string | null {
 }
 
 /**
- * The outcome to report for a create. Sending again after an answer was lost dedupes to the
- * memory the first one may have added, which the server calls "unchanged": that's this save.
+ * A new memory's save: what it sends and the id it's saved under. A save whose answer was lost is
+ * sent again exactly, with the same id, so the server answers with the memory the first attempt
+ * added (as it is now) and never adds it twice.
  */
-export const createOutcome = (outcome: MemorySaveOutcome, retried: boolean): MemorySaveOutcome =>
-  retried && outcome === "unchanged" ? "created" : outcome;
+export interface MemoryCreate {
+  input: MemoryInput;
+  id: string;
+}
+
+/** The save to send: the lost one again, or the form as it is with a fresh id. */
+export const memoryCreate = (
+  lost: MemoryCreate | null,
+  form: MemoryForm,
+  teammateId: string | null,
+  newId: () => string,
+): MemoryCreate => lost ?? { input: memoryInput(form, teammateId), id: newId() };
+
+/** A fresh read of the memory, for Reload after a conflict: it, or why it couldn't be read. */
+export type MemoryReload = { ok: true; item: MemoryItem } | { ok: false; message: string };
+
+/**
+ * The form after Reload. Only a fresh read replaces your changes with the saved version; a failed
+ * one (offline, the server failing, or the memory gone) keeps them and the conflict, and says why.
+ */
+export function afterReload(
+  draft: MemoryDraft,
+  result: MemoryReload,
+): { draft: MemoryDraft; refused: boolean; problem: string | null } {
+  if (result.ok) return { draft: memoryDraft(result.item), refused: false, problem: null };
+  return { draft, refused: true, problem: result.message };
+}
+
+/**
+ * What leaving asks first, or null to just leave: your changes aren't saved, and once the memory
+ * was forgotten they can't be, so it says to copy them first.
+ */
+export function leaveQuestion(
+  changed: boolean,
+  leaving: boolean,
+  gone: boolean,
+): { title: string; body: string } | null {
+  if (!changed || leaving) return null;
+  return gone
+    ? {
+        title: "Discard what you wrote?",
+        body: "This memory was forgotten, so what you wrote here can't be saved. Copy it first to keep it.",
+      }
+    : { title: "Discard your changes?", body: "What you changed in this memory isn't saved." };
+}
 
 /** What a reply was given, as one line each: the memory then, or why it can't be shown. */
 export function runMemoryText(ref: MemoryRunRef): { text: string; faded: boolean } {
@@ -161,6 +212,35 @@ export function memoryMeta(item: MemoryItem, savedBy: string | null, now = new D
     ...(item.expiresAt ? [expiryLabel(item.expiresAt, now)] : []),
     ...(item.revision > 1 ? [`Revision ${item.revision}`] : []),
   ];
+}
+
+/** A read as the history screen sees it. */
+interface Read<T> {
+  data: T | undefined;
+  error: unknown;
+  isLoading: boolean;
+}
+
+/**
+ * What a memory's history screen shows, from its two reads. The server saying either is gone (the
+ * memory was forgotten, which removes its history too) hides what was cached, so nothing offers to
+ * restore a memory that's gone. A failure that may pass keeps what was read before on screen.
+ */
+export function historyScreenState<M, R>(
+  memory: Read<M>,
+  history: Read<R[]>,
+  isGone: (error: unknown) => boolean,
+):
+  | { kind: "loading" }
+  | { kind: "gone" }
+  | { kind: "error"; error: unknown }
+  | { kind: "ready"; current: M; revisions: R[] } {
+  const failed = [memory.error, history.error].filter((error) => error != null);
+  if (failed.some(isGone)) return { kind: "gone" };
+  if (memory.data !== undefined && history.data !== undefined)
+    return { kind: "ready", current: memory.data, revisions: history.data };
+  if (failed.length) return { kind: "error", error: failed[0] };
+  return { kind: "loading" };
 }
 
 /** Who made a revision, in a few words. */

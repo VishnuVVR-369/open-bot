@@ -64,9 +64,10 @@ name: Add, search, edit, restore and forget a memory, and decide suggested instr
 # Its history: restore the first revision, which comes back as revision 3.
 - waitForAnimationToEnd
 - tapOn: "Prefers aisle seats on long flights \\(Maestro\\).*"
+# The editor's top shows first; History may be below the fold, so scroll to it from there.
 - extendedWaitUntil:
     visible:
-      id: memory-history
+      id: memory-content-input
     timeout: 5000
 - scrollUntilVisible:
     element:

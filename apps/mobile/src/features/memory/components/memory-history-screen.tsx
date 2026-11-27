@@ -1,12 +1,13 @@
 import type { MemoryRevision } from "@open-bot/domain";
 import { router, useLocalSearchParams } from "expo-router";
-import { History } from "lucide-react-native";
+import { Brain, History } from "lucide-react-native";
 import { useState } from "react";
 import { FlatList, Pressable, RefreshControl, StyleSheet, View } from "react-native";
 import { Button } from "@/components/button";
 import { Card } from "@/components/section";
-import { Empty, LoadError, Loading } from "@/components/states";
+import { Empty, LoadError, Loading, NotFound } from "@/components/states";
 import { Text } from "@/components/text";
+import { isNotFound } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { chatHref } from "@/lib/links";
 import { useOnline } from "@/lib/network";
@@ -16,7 +17,7 @@ import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { space, useColors } from "@/theme";
 import { restoreRevision } from "../actions";
 import { useMemory, useMemoryHistory } from "../hooks";
-import { revisionSource } from "../memory";
+import { historyScreenState, memoryListHref, revisionSource } from "../memory";
 import { Notice } from "./memory-parts";
 
 /**
@@ -35,7 +36,9 @@ export default function MemoryHistoryScreen() {
   const { refreshing, onRefresh } = usePullToRefresh(() =>
     Promise.all([memory.refetch(), history.refetch()]),
   );
-  const current = memory.data;
+  // The same rule as the memory's screen: only the server saying it's gone counts as forgotten.
+  const state = historyScreenState(memory, history, isNotFound);
+  const current = state.kind === "ready" ? state.current : undefined;
 
   async function restore(revision: number) {
     if (!current) return;
@@ -51,13 +54,22 @@ export default function MemoryHistoryScreen() {
     );
   }
 
-  if (history.isLoading || (memory.isLoading && !current)) return <Loading />;
-  const error = history.error ?? memory.error;
-  if (error && (!history.data || !current))
+  if (state.kind === "loading") return <Loading />;
+  if (state.kind === "gone")
+    return (
+      <NotFound
+        icon={Brain}
+        title="This memory is gone"
+        body="It was forgotten, and its history with it."
+        action="Go to Memory"
+        onAction={() => router.replace(memoryListHref())}
+      />
+    );
+  if (state.kind === "error")
     return (
       <LoadError
         title="Couldn't load the history"
-        error={error}
+        error={state.error}
         onRetry={() => void onRefresh()}
         onBack={() => router.back()}
       />
@@ -65,7 +77,7 @@ export default function MemoryHistoryScreen() {
 
   return (
     <FlatList
-      data={history.data ?? []}
+      data={state.revisions}
       keyExtractor={(revision) => String(revision.revision)}
       contentContainerStyle={[styles.content, { paddingBottom: bottom + space(4) }]}
       refreshControl={

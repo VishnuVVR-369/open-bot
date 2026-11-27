@@ -4,10 +4,14 @@ import { Alert } from "react-native";
 import { api } from "@/lib/api";
 import { errorMessage, isStateConflict } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
+import { onlineNow } from "@/lib/network";
 import { queryClient, queryKeys } from "@/lib/query";
 
 /** Reads every memory list, memory and history again. */
 export const refreshMemory = () => queryClient.invalidateQueries({ queryKey: queryKeys.allMemory });
+
+/** What a write refused because the phone is offline says first. */
+export const OFFLINE_TITLE = "You're offline";
 
 /** What to tell you when a change was refused, saying a conflict plainly. */
 export const CHANGED_SINCE = "Changed since you opened it.";
@@ -66,6 +70,12 @@ export function confirmForget(
       text: question.action,
       style: "destructive",
       onPress: async () => {
+        // The connection may have dropped while the question was open: send nothing offline.
+        if (!(await onlineNow())) {
+          haptics.error();
+          Alert.alert(OFFLINE_TITLE, "Nothing was forgotten. Try again once you're back.");
+          return;
+        }
         onStart();
         onDone(
           await change(

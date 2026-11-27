@@ -1,11 +1,14 @@
 import type { MemoryItem } from "@open-bot/domain";
 import { describe, expect, it } from "vitest";
 import {
+  afterReload,
   changedSince,
-  createOutcome,
   expiryLabel,
   followMemory,
+  historyScreenState,
+  leaveQuestion,
   memoryCount,
+  memoryCreate,
   memoryDraft,
   memoryHref,
   memoryInput,
@@ -16,6 +19,7 @@ import {
   newMemoryHref,
   revisionSource,
   runMemoryText,
+  sameMemoryScope,
   saveNote,
   scopeTeammate,
   SHARED_SCOPE,
@@ -118,10 +122,17 @@ describe("following a memory that changed elsewhere", () => {
 });
 
 describe("saving a new memory", () => {
-  it("counts a resend after a lost answer as this save, not an old one", () => {
-    expect(createOutcome("unchanged", true)).toBe("created");
-    expect(createOutcome("unchanged", false)).toBe("unchanged");
-    expect(createOutcome("confirmed", true)).toBe("confirmed");
+  const form = { ...memoryDraft(null).form, content: "Lives in Berlin" };
+
+  it("sends a lost save again exactly, with its id, and a new save with a fresh id", () => {
+    let n = 0;
+    const newId = () => `id-${++n}`;
+    const first = memoryCreate(null, form, "t1", newId);
+    expect(first).toEqual({ input: memoryInput(form, "t1"), id: "id-1" });
+    // Edits after a lost answer can't happen (the form is frozen), but even so the resend is the
+    // one that may have been saved, under the same id.
+    expect(memoryCreate(first, { ...form, content: "Lives in Paris" }, "t1", newId)).toBe(first);
+    expect(memoryCreate(null, form, "t1", newId).id).toBe("id-2");
   });
 
   it("says when nothing new was added", () => {
@@ -185,6 +196,88 @@ describe("what a reply was given", () => {
     expect(runMemoryText({ ...ref, content: null, forgotten: true, changed: true })).toEqual({
       text: "Forgotten memory",
       faded: true,
+    });
+  });
+});
+
+describe("reloading after a conflict", () => {
+  const opened = memory();
+  const edited = {
+    ...memoryDraft(opened),
+    form: { ...memoryDraft(opened).form, content: "Lives in Paris" },
+  };
+
+  it("replaces your changes only with a fresh read", () => {
+    const fresh = memory({ revision: 2, content: "Lives in Rome" });
+    expect(afterReload(edited, { ok: true, item: fresh })).toEqual({
+      draft: memoryDraft(fresh),
+      refused: false,
+      problem: null,
+    });
+  });
+
+  it("keeps your changes and the conflict when the read failed", () => {
+    const next = afterReload(edited, { ok: false, message: "Couldn't reach open-bot." });
+    expect(next.draft).toBe(edited);
+    expect(next.draft.form.content).toBe("Lives in Paris");
+    expect(next.refused).toBe(true);
+    expect(next.problem).toBe("Couldn't reach open-bot.");
+  });
+});
+
+describe("leaving the editor", () => {
+  it("asks while what you wrote isn't saved, even once the memory was forgotten", () => {
+    expect(leaveQuestion(false, false, false)).toBeNull();
+    expect(leaveQuestion(true, true, false)).toBeNull();
+    expect(leaveQuestion(true, false, false)?.title).toBe("Discard your changes?");
+    expect(leaveQuestion(true, false, true)?.body).toMatch(/Copy it first/);
+  });
+});
+
+describe("the memory list", () => {
+  it("keeps results on screen only for another search in the same scope", () => {
+    const shared = ["memory", "list", null, "berlin"] as const;
+    const ada = ["memory", "list", "t1", ""] as const;
+    expect(sameMemoryScope(shared, null)).toBe(true);
+    expect(sameMemoryScope(shared, "t1")).toBe(false);
+    expect(sameMemoryScope(ada, "t1")).toBe(true);
+    expect(sameMemoryScope(ada, null)).toBe(false);
+    expect(sameMemoryScope(["memory", "get", "t1"], "t1")).toBe(false);
+  });
+});
+
+describe("a memory's history", () => {
+  const read = <T>(data: T | undefined, error: unknown = null) => ({
+    data,
+    error,
+    isLoading: data === undefined && error === null,
+  });
+  const gone = { code: "NOT_FOUND" };
+  const offline = new TypeError("Network request failed");
+  const isGone = (error: unknown) => error === gone;
+  const revisions = [{ revision: 1 }];
+
+  it("hides cached revisions, and so Restore, once the server says it's gone", () => {
+    expect(historyScreenState(read(memory(), gone), read(revisions), isGone)).toEqual({
+      kind: "gone",
+    });
+    expect(historyScreenState(read(memory()), read(revisions, gone), isGone)).toEqual({
+      kind: "gone",
+    });
+  });
+
+  it("keeps what it read before through a failure that may pass", () => {
+    expect(historyScreenState(read(memory(), offline), read(revisions), isGone)).toEqual({
+      kind: "ready",
+      current: memory(),
+      revisions,
+    });
+    expect(historyScreenState(read(undefined, offline), read(revisions), isGone)).toEqual({
+      kind: "error",
+      error: offline,
+    });
+    expect(historyScreenState(read(undefined), read(revisions), isGone)).toEqual({
+      kind: "loading",
     });
   });
 });
