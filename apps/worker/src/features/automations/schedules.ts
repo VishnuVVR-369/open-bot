@@ -39,6 +39,42 @@ const RUN_ID_TAKEN = "That run id was already used for something else.";
 
 /** Why a daily check-in can't become a one-time reminder. */
 const CHECK_IN_REPEATS = "The daily check-in repeats. Pick when it runs each time.";
+const CHECK_IN_STAYS =
+  "The daily check-in stays with its teammate. Add a routine for the other teammate instead.";
+
+/** A teammate's marked daily check-in, if it has one. */
+async function markedCheckIn(tx: Tx, teammateId: string): Promise<{ id: string } | undefined> {
+  const [row] = await tx
+    .select({ id: schedules.id })
+    .from(schedules)
+    .where(and(eq(schedules.teammateId, teammateId), eq(schedules.checkIn, true)));
+  return row;
+}
+
+/**
+ * A check-in added without its mark, by a web app or worker from before the mark while they were
+ * being replaced, marked now as migration 0046 marked the ones before it: a quiet routine named
+ * "Daily check-in", an enabled one over a paused one, then the oldest. Without this the switch
+ * would add a second check-in next to it.
+ */
+async function adoptCheckIn(tx: Tx, teammateId: string): Promise<{ id: string } | undefined> {
+  const [legacy] = await tx
+    .select({ id: schedules.id })
+    .from(schedules)
+    .where(
+      and(
+        eq(schedules.teammateId, teammateId),
+        eq(schedules.title, DAILY_CHECK_IN.title),
+        eq(schedules.quiet, true),
+        eq(schedules.kind, "cron"),
+      ),
+    )
+    .orderBy(sql`${schedules.enabled} desc`, asc(schedules.createdAt))
+    .limit(1);
+  if (!legacy) return undefined;
+  await tx.update(schedules).set({ checkIn: true }).where(eq(schedules.id, legacy.id));
+  return legacy;
+}
 
 export class ScheduleService {
   private timer: NodeJS.Timeout | null = null;
@@ -130,6 +166,8 @@ export class ScheduleService {
     const row = await this.ctx.db.transaction(async (tx) => {
       const existing = await this.locked(tx, id);
       if (existing.checkIn && timing.kind === "once") throw new ScheduleError(CHECK_IN_REPEATS);
+      if (existing.checkIn && input.teammateId !== existing.teammateId)
+        throw new ScheduleError(CHECK_IN_STAYS, 409);
       const finishedReminder = existing.kind === "once" && !existing.enabled && existing.lastRunAt;
       const enabled = timing.kind === "once" && finishedReminder ? true : existing.enabled;
       const [updated] = await tx
@@ -234,19 +272,20 @@ export class ScheduleService {
    * clock) only when it has none. A teammate has one check-in at most, so two asks at once add one.
    */
   async setCheckIn(teammateId: string, on: boolean): Promise<void> {
-    const [teammate] = await this.ctx.db
-      .select({ archivedAt: teammates.archivedAt })
-      .from(teammates)
-      .where(eq(teammates.id, teammateId));
-    if (!teammate) throw new ScheduleError("That teammate no longer exists.", 404);
-    if (on && teammate.archivedAt)
-      throw new ScheduleError("That teammate is archived, so its check-in can't be on.", 409);
     const timezone = on ? await ownerTimeZone(this.ctx.db) : null;
     await this.ctx.db.transaction(async (tx) => {
-      const [existing] = await tx
-        .select({ id: schedules.id })
-        .from(schedules)
-        .where(and(eq(schedules.teammateId, teammateId), eq(schedules.checkIn, true)));
+      // The teammate's row, so two switches for it take turns. `no key update` doesn't hold up
+      // rows that only point at the teammate.
+      const [teammate] = await tx
+        .select({ archivedAt: teammates.archivedAt })
+        .from(teammates)
+        .where(eq(teammates.id, teammateId))
+        .for("no key update");
+      if (!teammate) throw new ScheduleError("That teammate no longer exists.", 404);
+      if (on && teammate.archivedAt)
+        throw new ScheduleError("That teammate is archived, so its check-in can't be on.", 409);
+      const existing =
+        (await markedCheckIn(tx, teammateId)) ?? (await adoptCheckIn(tx, teammateId));
       if (existing) {
         await this.setEnabledIn(tx, existing.id, on);
         return;
@@ -269,11 +308,9 @@ export class ScheduleService {
         .onConflictDoNothing({ target: schedules.teammateId, where: sql`${schedules.checkIn}` })
         .returning({ id: schedules.id });
       if (added) return;
-      // Another ask added it a moment ago: it waited on that one's index entry, so it's there now.
-      const [theirs] = await tx
-        .select({ id: schedules.id })
-        .from(schedules)
-        .where(and(eq(schedules.teammateId, teammateId), eq(schedules.checkIn, true)));
+      // Something else added it a moment ago (a teammate made from a template): this insert waited
+      // on that one's index entry, so it's there now.
+      const theirs = await markedCheckIn(tx, teammateId);
       if (theirs) await this.setEnabledIn(tx, theirs.id, true);
     });
     await publishApp(this.ctx, { type: "schedules" });

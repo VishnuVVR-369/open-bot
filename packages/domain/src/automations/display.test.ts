@@ -74,6 +74,19 @@ describe("automations as the app shows them", () => {
     expect(otherZoneLabel("Asia/Kolkata", null)).toBeNull();
   });
 
+  it("compares zones by their clocks, so an alias of the viewer's zone says nothing", () => {
+    const winter = new Date("2026-01-15T12:00:00Z");
+    const summer = new Date("2026-07-15T12:00:00Z");
+    expect(otherZoneLabel("Asia/Calcutta", "Asia/Kolkata", winter)).toBeNull();
+    expect(otherZoneLabel("Etc/UTC", "UTC", winter)).toBeNull();
+    // London is on UTC in winter only.
+    expect(otherZoneLabel("UTC", "Europe/London", winter)).toBeNull();
+    expect(otherZoneLabel("UTC", "Europe/London", summer)).toBe("UTC time");
+    // `Etc/GMT+5` is five hours behind UTC, so it's named by its offset, the right way round.
+    expect(otherZoneLabel("Etc/GMT+5", "Asia/Kolkata", winter)).toBe("UTC-5 time");
+    expect(otherZoneLabel("Etc/GMT-14", "UTC", winter)).toBe("UTC+14 time");
+  });
+
   it("holds a due run back only while the computer is offline", () => {
     const now = Date.parse("2026-11-07T00:00:00Z");
     expect(runIsHeldBack("2026-11-06T16:00:00Z", now, false)).toBe(true);

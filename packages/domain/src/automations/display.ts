@@ -146,12 +146,45 @@ export function nextRunLabel(iso: string | Date, timeZone: string, now: Date = n
 /** The viewer's own time zone, as the device has it. */
 export const viewerTimeZone = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
 
+/** Minutes `timeZone` is ahead of UTC at `at`. */
+function offsetMinutes(timeZone: string, at: Date): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "numeric",
+    })
+      .formatToParts(at)
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  const local = Date.UTC(parts.year!, parts.month! - 1, parts.day!, parts.hour!, parts.minute!);
+  return Math.round((local - Math.floor(at.getTime() / 60_000) * 60_000) / 60_000);
+}
+
 /**
  * "Kolkata time" when a schedule's clock isn't the viewer's, so a time on it never passes for the
- * viewer's own; null when they're the same zone.
+ * viewer's own; null when the two read the same at `at`. Zones are compared by their offset, not
+ * their names, so an alias of the viewer's own zone (`Asia/Calcutta` for `Asia/Kolkata`, `Etc/UTC`
+ * for `UTC`) says nothing. An `Etc/` zone is named by its offset, since `Etc/GMT+5` is UTC-5.
  */
-export function otherZoneLabel(timeZone: string, viewerZone: string | null): string | null {
+export function otherZoneLabel(
+  timeZone: string,
+  viewerZone: string | null,
+  at: Date = new Date(),
+): string | null {
   if (!viewerZone || timeZone === viewerZone) return null;
+  const offset = offsetMinutes(timeZone, at);
+  if (offset === offsetMinutes(viewerZone, at)) return null;
+  if (timeZone.startsWith("Etc/") || timeZone === "UTC") {
+    if (offset === 0) return "UTC time";
+    const hours = Math.floor(Math.abs(offset) / 60);
+    const minutes = Math.abs(offset) % 60;
+    return `UTC${offset < 0 ? "-" : "+"}${hours}${minutes ? `:${String(minutes).padStart(2, "0")}` : ""} time`;
+  }
   const place = timeZone.split("/").pop()!.replace(/_/g, " ");
   return `${place} time`;
 }

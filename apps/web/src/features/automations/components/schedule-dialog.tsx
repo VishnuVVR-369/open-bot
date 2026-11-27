@@ -153,7 +153,8 @@ export function ScheduleDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          {(!teammateId || schedule) && (
+          {/* The daily check-in stays with its teammate and repeats; the worker refuses otherwise. */}
+          {(!teammateId || schedule) && !schedule?.checkIn && (
             <div className="flex flex-col gap-2">
               <Label>Teammate</Label>
               <Select value={teammateValue} onValueChange={setSelectedTeammate}>
@@ -198,20 +199,22 @@ export function ScheduleDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label>When</Label>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              value={kind}
-              onValueChange={(value) => value && setKind(value as "cron" | "once")}
-              className="w-full"
-            >
-              <ToggleGroupItem value="cron" className="flex-1">
-                Repeats
-              </ToggleGroupItem>
-              <ToggleGroupItem value="once" className="flex-1">
-                Once
-              </ToggleGroupItem>
-            </ToggleGroup>
+            {!schedule?.checkIn && (
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={kind}
+                onValueChange={(value) => value && setKind(value as "cron" | "once")}
+                className="w-full"
+              >
+                <ToggleGroupItem value="cron" className="flex-1">
+                  Repeats
+                </ToggleGroupItem>
+                <ToggleGroupItem value="once" className="flex-1">
+                  Once
+                </ToggleGroupItem>
+              </ToggleGroup>
+            )}
           </div>
           {kind === "cron" ? (
             <div className="flex flex-col gap-3">

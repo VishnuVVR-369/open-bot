@@ -60,7 +60,8 @@ export async function setCheckIn(
 
 /**
  * Run a schedule now. A worker from before `started` answers only `ok`, and it ignores `runId`, so
- * it started a run whatever was asked (see the deploy notes in the automations flow).
+ * it started a run whatever was asked (see `POST /internal/schedules/:id/run` in
+ * `reference/http-api` in the site docs).
  */
 export async function runScheduleNow(
   input: ApiInputs["schedules"]["runNow"],

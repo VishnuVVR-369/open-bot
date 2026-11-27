@@ -157,6 +157,70 @@ describe.skipIf(!rpcEnabled)("schedule writes, end to end", () => {
     expect(mine).toMatchObject({ enabled: true, checkIn: false });
   });
 
+  it("setCheckIn: one added meanwhile by something else is turned on, not added again", async () => {
+    const created = await newTeammate("Rory", "assistant");
+    // A paused check-in being added for this teammate (as a template's starters are), uncommitted
+    // while the switch's own insert waits on its index entry.
+    const [answer] = await racedWhileLocked(
+      `insert into schedules (teammate_id, title, prompt, kind, cron, timezone, quiet, check_in, enabled, created_by)
+       values ($1, 'Daily check-in', 'Look around', 'cron', '0 9 * * *', 'UTC', true, true, false, 'user')`,
+      () => [worker.schedules.setCheckIn({ teammateId: created.id, on: true })],
+      [created.id],
+    );
+    expect(answer).toEqual({ ok: true });
+    const rows = await h.db.select().from(schedules).where(eq(schedules.teammateId, created.id));
+    expect(rows).toMatchObject([{ checkIn: true, enabled: true, prompt: "Look around" }]);
+  });
+
+  it("setCheckIn: marks a check-in added without its mark during a deploy, instead of adding one", async () => {
+    const created = await newTeammate("Sami", "assistant");
+    // What a web app from before the mark adds: the check-in's routine, unmarked.
+    const unmarked = await worker.schedules.create({
+      teammateId: created.id,
+      title: DAILY_CHECK_IN.title,
+      prompt: DAILY_CHECK_IN.prompt,
+      cron: DAILY_CHECK_IN.cron,
+      at: null,
+      timezone: "UTC",
+      quiet: true,
+    });
+    await worker.schedules.setCheckIn({ teammateId: created.id, on: false });
+    const rows = () => h.db.select().from(schedules).where(eq(schedules.teammateId, created.id));
+    expect(await rows()).toMatchObject([{ id: unmarked.id, checkIn: true, enabled: false }]);
+    await worker.schedules.setCheckIn({ teammateId: created.id, on: true });
+    expect(await rows()).toMatchObject([{ id: unmarked.id, checkIn: true, enabled: true }]);
+  });
+
+  it("update: the check-in stays with its teammate", async () => {
+    const ada = await newTeammate("Tess", "assistant");
+    const bo = await newTeammate("Uma", "assistant");
+    await worker.schedules.setCheckIn({ teammateId: ada.id, on: true });
+    await worker.schedules.setCheckIn({ teammateId: bo.id, on: true });
+    const [checkIn] = await h.db
+      .select()
+      .from(schedules)
+      .where(and(eq(schedules.teammateId, ada.id), eq(schedules.checkIn, true)));
+    expect(
+      await failure(
+        worker.schedules.update({
+          scheduleId: checkIn!.id,
+          teammateId: bo.id,
+          title: checkIn!.title,
+          prompt: checkIn!.prompt,
+          cron: checkIn!.cron,
+          at: null,
+          timezone: checkIn!.timezone,
+        }),
+      ),
+    ).toEqual({
+      status: 409,
+      message:
+        "The daily check-in stays with its teammate. Add a routine for the other teammate instead.",
+    });
+    const [after] = await h.db.select().from(schedules).where(eq(schedules.id, checkIn!.id));
+    expect(after).toMatchObject({ teammateId: ada.id, checkIn: true });
+  });
+
   it("setCheckIn: the check-in can't become a one-time reminder", async () => {
     const created = await newTeammate("Remy", "assistant");
     await worker.schedules.setCheckIn({ teammateId: created.id, on: true });
