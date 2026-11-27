@@ -27,7 +27,14 @@ import { announceRun, insertRun } from "../../runs/queue";
 import { errorMessage } from "../../logger";
 import { mainChat } from "../chat";
 import { fetchPage } from "./page-fetch";
-import { TriggerError, type TriggerInput, validateTrigger } from "./trigger-input";
+import {
+  checkLead,
+  checkTriggerTitle,
+  checkWatchInterval,
+  TriggerError,
+  type TriggerInput,
+  validateTrigger,
+} from "./trigger-input";
 
 export type Trigger = typeof triggers.$inferSelect;
 
@@ -41,6 +48,13 @@ export const ACCOUNT_TRIGGER_RUNS_PER_HOUR = 30;
 const MAX_PAYLOAD_CHARS = 20_000;
 
 export type CheckResult = TriggerCheck;
+
+/** What `patch` may change: a name, and a watch's interval or a Calendar trigger's lead time. */
+export interface TriggerPatch {
+  title?: string;
+  intervalMinutes?: number;
+  leadMinutes?: number;
+}
 
 /**
  * A run's prompt, made in the transaction that saves the run: it records what the run is about
@@ -159,6 +173,51 @@ export class TriggerService {
     await publishApp(this.ctx, { type: "triggers" });
     this.kickFor(existing.kind);
     return row!;
+  }
+
+  /**
+   * Change only the fields given, as the phone edits a name or a timing: the page, filters,
+   * account and instructions stay as they are, so an edit made elsewhere meanwhile isn't undone,
+   * and a trigger whose account was turned off can still be renamed. The row is locked while it's
+   * read and written. A new interval counts from the last check, and a new lead time looks at
+   * the calendar again, as `update` does.
+   */
+  async patch(id: string, changes: TriggerPatch): Promise<Trigger> {
+    const title = changes.title === undefined ? undefined : checkTriggerTitle(changes.title);
+    const row = await this.ctx.db.transaction(async (tx) => {
+      const [existing] = await tx.select().from(triggers).where(eq(triggers.id, id)).for("update");
+      if (!existing) throw new TriggerError("That automation was deleted.", 404);
+      if (changes.intervalMinutes !== undefined && existing.kind !== "watch")
+        throw new TriggerError("Only a page watch checks on an interval.");
+      if (changes.leadMinutes !== undefined && existing.kind !== "calendar")
+        throw new TriggerError("Only a Calendar trigger wakes before an event.");
+      const intervalMinutes =
+        changes.intervalMinutes === undefined
+          ? undefined
+          : checkWatchInterval(changes.intervalMinutes);
+      const leadMinutes =
+        changes.leadMinutes === undefined ? undefined : checkLead(changes.leadMinutes);
+      const newInterval =
+        intervalMinutes !== undefined && intervalMinutes !== existing.intervalMinutes;
+      const newLead = leadMinutes !== undefined && leadMinutes !== existing.leadMinutes;
+      const [updated] = await tx
+        .update(triggers)
+        .set({
+          ...(title !== undefined ? { title } : {}),
+          ...(intervalMinutes !== undefined ? { intervalMinutes } : {}),
+          ...(newInterval && existing.lastCheckedAt
+            ? { nextCheckAt: new Date(existing.lastCheckedAt.getTime() + intervalMinutes * 60_000) }
+            : {}),
+          ...(leadMinutes !== undefined ? { leadMinutes } : {}),
+          ...(newLead ? { lastError: null, nextCheckAt: new Date() } : {}),
+        })
+        .where(eq(triggers.id, id))
+        .returning();
+      return updated!;
+    });
+    await publishApp(this.ctx, { type: "triggers" });
+    this.kickFor(row.kind);
+    return row;
   }
 
   async setEnabled(id: string, enabled: boolean): Promise<void> {

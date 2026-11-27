@@ -1,11 +1,11 @@
 "use client";
 
 import {
+  CADENCES,
   type Cadence,
   cadenceCron,
-  cadenceOf,
   describeCron,
-  formatLocalDateTime,
+  timingForm,
   WEEKDAYS,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
@@ -40,13 +40,6 @@ import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import type { ScheduleView } from "@/lib/types";
 
-function defaultDateTime() {
-  const date = new Date(Date.now() + 60 * 60 * 1000);
-  date.setMinutes(0, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
-
 /**
  * Create a schedule, or edit one when `schedule` is given. Opens from `trigger`, or from outside
  * with `open` and `onOpenChange`.
@@ -78,7 +71,7 @@ export function ScheduleDialog({
   const [time, setTime] = useState("09:00");
   const [weekday, setWeekday] = useState("1");
   const [custom, setCustom] = useState("0 9 * * 1-5");
-  const [at, setAt] = useState(defaultDateTime);
+  const [at, setAt] = useState("");
   const [quiet, setQuiet] = useState(false);
   const [pending, startTransition] = useTransition();
   const queryClient = useQueryClient();
@@ -91,21 +84,16 @@ export function ScheduleDialog({
     setSelectedTeammate(schedule?.teammateId ?? teammateId ?? "");
     setTitle(schedule?.title ?? "");
     setPrompt(schedule?.prompt ?? "");
-    setKind(schedule?.kind ?? "cron");
     setQuiet(schedule?.quiet ?? false);
-    const parsed = schedule?.cron
-      ? cadenceOf(schedule.cron)
-      : { cadence: "weekdays" as const, time: "09:00", weekday: "1" };
-    setCadence(parsed.cadence);
-    setTime(parsed.time);
-    setWeekday(parsed.weekday);
-    setCustom(schedule?.cron ?? "0 9 * * 1-5");
-    setAt(
-      schedule?.runAt && new Date(schedule.runAt).getTime() > Date.now()
-        ? formatLocalDateTime(new Date(schedule.runAt), schedule.timezone)
-        : defaultDateTime(),
-    );
-  }, [open, schedule, teammateId]);
+    // The same form the phone edits, on the schedule's own clock (yours for a new one).
+    const form = timingForm(schedule ?? null, schedule?.timezone ?? defaultTimezone);
+    setKind(form.kind);
+    setCadence(form.cadence);
+    setTime(form.time);
+    setWeekday(form.weekday);
+    setCustom(form.custom);
+    setAt(form.at);
+  }, [open, schedule, teammateId, defaultTimezone]);
 
   const cron = cadenceCron(cadence, time, weekday, custom);
   const summary = useMemo(() => (kind === "cron" ? describeCron(cron) : null), [kind, cron]);
@@ -228,11 +216,11 @@ export function ScheduleDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Every day</SelectItem>
-                    <SelectItem value="weekdays">Weekdays</SelectItem>
-                    <SelectItem value="weekly">Every week</SelectItem>
-                    <SelectItem value="hourly">Every hour</SelectItem>
-                    <SelectItem value="custom">Custom (cron)</SelectItem>
+                    {CADENCES.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {cadence === "weekly" && (

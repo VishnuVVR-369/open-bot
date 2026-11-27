@@ -1,4 +1,4 @@
-import { teammates, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
+import { teammates, ownerTimeZone, runs, schedules, type Queryable, type Tx } from "@open-bot/db";
 import {
   type Creator,
   describeCron,
@@ -19,9 +19,16 @@ export type Schedule = typeof schedules.$inferSelect;
 
 /** A schedule that can't be saved or run as asked; the message says why. */
 export class ScheduleError extends WorkerError {
-  constructor(message: string) {
-    super(400, message);
+  constructor(message: string, status: 400 | 404 | 409 = 400) {
+    super(status, message);
   }
+}
+
+/** What `patch` may change: only the fields given, each checked as `update` checks it. */
+export interface SchedulePatch {
+  title?: string;
+  /** Exactly one of `cron` (recurring) or `at` (one time, wall-clock in the schedule's zone). */
+  timing?: { cron: string | null; at: string | null };
 }
 
 const TICK_MS = 10_000;
@@ -131,6 +138,46 @@ export class ScheduleService {
     return row!;
   }
 
+  /**
+   * Change only the fields given, as the phone edits a name or a time: the prompt, the teammate
+   * and anything else changed elsewhere meanwhile stay as they are. The row is locked while it's
+   * read and written, so an edit that lands at the same moment isn't lost. New timing is read in
+   * the schedule's own time zone, follows `update`'s rules (a reminder that already ran runs again
+   * at its new time), and a one-time reminder is never quiet, as the web's form saves it.
+   */
+  async patch(id: string, changes: SchedulePatch): Promise<Schedule> {
+    const title = changes.title?.trim();
+    if (changes.title !== undefined && !title) throw new ScheduleError("Give it a name.");
+    if (title && title.length > 80) throw new ScheduleError("Keep the name under 80 characters.");
+    const row = await this.ctx.db.transaction(async (tx) => {
+      const [existing] = await tx
+        .select()
+        .from(schedules)
+        .where(eq(schedules.id, id))
+        .for("update");
+      if (!existing) throw new ScheduleError("That schedule was deleted.", 404);
+      const timing = changes.timing
+        ? await this.timing({ ...changes.timing, timezone: existing.timezone })
+        : null;
+      const finishedReminder = existing.kind === "once" && !existing.enabled && existing.lastRunAt;
+      const rerun = timing?.kind === "once" && Boolean(finishedReminder);
+      const [updated] = await tx
+        .update(schedules)
+        .set({
+          ...(title ? { title } : {}),
+          ...(timing ?? {}),
+          ...(timing?.kind === "once" ? { quiet: false } : {}),
+          ...(rerun ? { enabled: true, lastRunAt: null } : {}),
+        })
+        .where(eq(schedules.id, id))
+        .returning();
+      return updated!;
+    });
+    await publishApp(this.ctx, { type: "schedules" });
+    this.kick();
+    return row;
+  }
+
   /** Pause or resume. A reminder whose time has passed can't be resumed; it would never run. */
   async setEnabled(id: string, enabled: boolean): Promise<Schedule> {
     const [row] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
@@ -187,17 +234,39 @@ export class ScheduleService {
       .join("\n");
   }
 
-  /** Run a schedule now, without changing when it runs next. */
-  async runNow(id: string): Promise<void> {
+  /**
+   * Run a schedule now, without changing when it runs next. `runId`, when given, is the run's id:
+   * asking again with it after an answer that was lost finds that run and starts nothing more.
+   */
+  async runNow(id: string, runId?: string): Promise<void> {
     const [row] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
     if (!row) throw new ScheduleError("Schedule not found");
-    await this.fire(row);
+    if (runId && (await this.ranAs(id, runId))) return;
+    try {
+      await this.fire(row, runId);
+    } catch (error) {
+      // The same ask, sent twice at once: the first one saved the run.
+      if (runId && (await this.ranAs(id, runId))) return;
+      throw error;
+    }
   }
 
-  private async fire(row: Schedule) {
+  /** Whether the run `runId` is this schedule's; an id another run has is refused. */
+  private async ranAs(scheduleId: string, runId: string): Promise<boolean> {
+    const [run] = await this.ctx.db
+      .select({ scheduleId: runs.scheduleId })
+      .from(runs)
+      .where(eq(runs.id, runId));
+    if (!run) return false;
+    if (run.scheduleId !== scheduleId)
+      throw new ScheduleError("That run id was already used for something else.", 409);
+    return true;
+  }
+
+  private async fire(row: Schedule, runId?: string) {
     const chatId = await this.runChat(row);
     if (!chatId) return;
-    await enqueueRun(this.ctx, runInput(row, chatId));
+    await enqueueRun(this.ctx, { ...runInput(row, chatId), ...(runId ? { id: runId } : {}) });
   }
 
   /** The chat a schedule's run goes to: its teammate's main chat, unless it's archived. */

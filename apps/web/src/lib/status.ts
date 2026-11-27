@@ -5,13 +5,8 @@ import type { AppState, TeammateSummary } from "./types";
 export { chatStatus, STATUS, teammateStatus } from "@open-bot/domain";
 export type { ChatStatus, StatusLabel, TeammateStatus } from "@open-bot/domain";
 
-/** A scheduled run whose time has come while the computer is offline. */
-export const WAITING_FOR_COMPUTER = "Waiting for the computer";
-
-/** Whether a scheduled run is due but can't start: its time has passed and the computer is offline. */
-export function runIsHeldBack(nextRunAt: string, now: number, computerOnline: boolean): boolean {
-  return !computerOnline && new Date(nextRunAt).getTime() <= now;
-}
+// When a scheduled run is held back by an offline computer, also shared with the phone.
+export { runIsHeldBack, WAITING_FOR_COMPUTER } from "@open-bot/domain";
 
 /** Said once on a surface, to explain why every row says "Paused". */
 export const COMPUTER_OFFLINE_LINE = "Computer offline";

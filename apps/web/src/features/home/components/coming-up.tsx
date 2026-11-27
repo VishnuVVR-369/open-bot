@@ -1,29 +1,18 @@
 "use client";
 
-import { format, isToday, isTomorrow } from "date-fns";
+import { comingUp, nextRunLabel } from "@open-bot/domain";
 import { TeammateAvatar } from "@/components/teammate-avatar";
 import { useSchedules } from "@/features/automations";
 import { useAppState } from "@/features/app-shell";
 import { isComputerOnline, runIsHeldBack, WAITING_FOR_COMPUTER } from "@/lib/status";
 import { SideHeading } from "./side-heading";
 
-/** "Today 4:00 PM", "Tomorrow 8:00 AM", or "Mon 8:00 AM" further out. */
-function nextRunLabel(date: Date): string {
-  const time = format(date, "h:mm a");
-  if (isToday(date)) return `Today ${time}`;
-  if (isTomorrow(date)) return `Tomorrow ${time}`;
-  return format(date, "EEE h:mm a");
-}
-
 /** The next few scheduled runs, so you know what your teammates will do without asking. */
 export function ComingUp({ now }: { now: number | null }) {
   const { data: state } = useAppState();
   const { data: schedules } = useSchedules();
   const online = isComputerOnline(state);
-  const next = (schedules ?? [])
-    .filter((schedule) => schedule.enabled && schedule.nextRunAt)
-    .sort((a, b) => a.nextRunAt!.localeCompare(b.nextRunAt!))
-    .slice(0, 3);
+  const next = comingUp(schedules ?? []);
   if (!state || next.length === 0) return null;
   return (
     <section className="flex flex-col gap-3" aria-label="Coming up" data-testid="coming-up">
@@ -52,7 +41,7 @@ export function ComingUp({ now }: { now: number | null }) {
               <span className="shrink-0 text-[12.5px] text-muted-foreground tabular-nums">
                 {now !== null && runIsHeldBack(schedule.nextRunAt!, now, online)
                   ? WAITING_FOR_COMPUTER
-                  : nextRunLabel(new Date(schedule.nextRunAt!))}
+                  : nextRunLabel(schedule.nextRunAt!)}
               </span>
             </li>
           );

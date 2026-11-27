@@ -1,0 +1,110 @@
+appId: dev.openbot.mobile.dev
+name: Turn a schedule off and on, run it now, open its history and rename it
+# Run against a signed-in development app, with the title of a repeating schedule that is on:
+#   maestro test -e AUTOMATION="<schedule title>" maestro/automations.yaml
+# Run now queues a run in the schedule's chat; with the computer offline the button is off, so
+# start the computer first. The flow renames the schedule and then names it back.
+# Edits type into empty fields only: where a tap puts the cursor in a filled one varies by device.
+---
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://automations
+- extendedWaitUntil:
+    visible:
+      id: automations
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: automation-toggle-${AUTOMATION}
+    timeout: 10000
+
+# Turn it off, then on again.
+- assertVisible:
+    id: automation-toggle-${AUTOMATION}
+    checked: true
+- tapOn:
+    id: automation-toggle-${AUTOMATION}
+- extendedWaitUntil:
+    visible:
+      id: automation-toggle-${AUTOMATION}
+      checked: false
+    timeout: 10000
+- tapOn:
+    id: automation-toggle-${AUTOMATION}
+- extendedWaitUntil:
+    visible:
+      id: automation-toggle-${AUTOMATION}
+      checked: true
+    timeout: 10000
+
+# Open it and run it now: the answer says so, and the run is in its history.
+- tapOn: "${AUTOMATION}.*"
+- extendedWaitUntil:
+    visible:
+      id: automation-action
+      enabled: true
+    timeout: 15000
+- assertVisible:
+    id: automation-title
+    text: ${AUTOMATION}
+- tapOn:
+    id: automation-action
+- extendedWaitUntil:
+    visible:
+      id: automation-outcome
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: automation-run
+    timeout: 15000
+- tapOn:
+    id: automation-run
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 15000
+- back
+- extendedWaitUntil:
+    visible:
+      id: automation-edit
+    timeout: 10000
+
+# Rename it, then give it its name back.
+- tapOn:
+    id: automation-edit
+- extendedWaitUntil:
+    visible:
+      id: automation-title-input
+    timeout: 5000
+- tapOn:
+    id: automation-title-input
+- eraseText: 120
+- inputText: ${AUTOMATION} (Maestro)
+- hideKeyboard
+- tapOn:
+    id: automation-save
+- extendedWaitUntil:
+    visible:
+      id: automation-title
+      text: ${AUTOMATION} \(Maestro\)
+    timeout: 10000
+- tapOn:
+    id: automation-edit
+- extendedWaitUntil:
+    visible:
+      id: automation-title-input
+    timeout: 5000
+- tapOn:
+    id: automation-title-input
+- eraseText: 120
+- inputText: ${AUTOMATION}
+- hideKeyboard
+- tapOn:
+    id: automation-save
+- extendedWaitUntil:
+    visible:
+      id: automation-title
+      text: ${AUTOMATION}
+    timeout: 10000

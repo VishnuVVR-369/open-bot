@@ -4,6 +4,7 @@ import { router, Stack, useNavigation } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router/native-stack";
 import {
   Bell,
+  CalendarClock,
   FileText,
   House,
   ListTodo,
@@ -62,6 +63,12 @@ const PAGES: AppPlace[] = [
     href: "/tasks",
     icon: ListTodo,
     keywords: "board todo to-do doing done plan assign",
+  },
+  {
+    title: "Automations",
+    href: "/automations",
+    icon: CalendarClock,
+    keywords: "schedules routines reminders watches webhooks gmail calendar triggers check-in",
   },
   {
     title: "Settings",

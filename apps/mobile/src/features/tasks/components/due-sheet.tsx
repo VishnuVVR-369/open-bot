@@ -18,18 +18,24 @@ import {
 
 /**
  * When a task is due: a quick day (today, tomorrow, a week out), or any day on a month's
- * calendar, which starts on the phone's first day of the week. No due date clears it.
+ * calendar, which starts on the phone's first day of the week. No due date clears it. A reminder's
+ * day is picked here too, with its own title and no way to clear it.
  */
 export function DueSheet({
   open,
   value,
   onPick,
   onClose,
+  title = "Due",
+  clearable = true,
 }: {
   open: boolean;
   value: string | null;
   onPick: (day: string | null) => void;
   onClose: () => void;
+  title?: string;
+  /** Offers "No due date". */
+  clearable?: boolean;
 }) {
   const colors = useColors();
   const [shown, setShown] = useState(() => monthOf(value));
@@ -57,7 +63,7 @@ export function DueSheet({
   };
 
   return (
-    <Sheet open={open} onClose={onClose} title="Due" testID="due-sheet">
+    <Sheet open={open} onClose={onClose} title={title} testID="due-sheet">
       <View style={styles.shortcuts}>
         {dueShortcuts().map((shortcut) => (
           <Chip
@@ -67,7 +73,9 @@ export function DueSheet({
             onPress={() => pick(shortcut.day)}
           />
         ))}
-        {value && <Chip label="No due date" onPress={() => pick(null)} testID="due-clear" />}
+        {value && clearable && (
+          <Chip label="No due date" onPress={() => pick(null)} testID="due-clear" />
+        )}
       </View>
       <View style={styles.calendar}>
         <View style={styles.monthRow}>

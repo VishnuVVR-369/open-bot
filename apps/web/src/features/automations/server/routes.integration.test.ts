@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { apiHarness, apiTestUrl } from "@/test/api/harness";
 import { randomUUID } from "node:crypto";
 import { DAILY_CHECK_IN } from "@open-bot/domain";
+import { ORPCError } from "@orpc/client";
 
 // Keep the original suite name so full test names remain comparable across the move.
 describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
@@ -79,6 +80,81 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       expect(
         workerBodies.findLast((b) => b.path === "/internal/hooks/hook-token")?.body,
       ).toMatchObject({ method: "POST", contentType: "application/json" });
+    } finally {
+      answers.clear();
+    }
+  });
+
+  it("sends the phone's rename and timing edits to the worker's patch, and nothing else", async () => {
+    answers.set(`/internal/schedules/${ids.schedule}/patch`, {
+      status: 200,
+      body: { id: ids.schedule },
+    });
+    answers.set(`/internal/triggers/${ids.trigger}/patch`, {
+      status: 200,
+      body: { id: ids.trigger },
+    });
+    const runId = randomUUID();
+    answers.set(`/internal/schedules/${ids.schedule}/run`, { status: 200, body: { ok: true } });
+    try {
+      await api.schedules.patch({
+        scheduleId: ids.schedule,
+        timing: { cron: "30 7 * * 1-5", at: null },
+      });
+      await api.triggers.patch({ triggerId: ids.trigger, title: "Kettle", intervalMinutes: 360 });
+      await api.schedules.runNow({ scheduleId: ids.schedule, runId });
+      const sent = workerBodies.filter(
+        (b) => b.path.endsWith("/patch") || b.path === `/internal/schedules/${ids.schedule}/run`,
+      );
+      expect(sent).toEqual([
+        {
+          path: `/internal/schedules/${ids.schedule}/patch`,
+          body: { timing: { cron: "30 7 * * 1-5", at: null } },
+        },
+        {
+          path: `/internal/triggers/${ids.trigger}/patch`,
+          body: { title: "Kettle", intervalMinutes: 360 },
+        },
+        { path: `/internal/schedules/${ids.schedule}/run`, body: { runId } },
+      ]);
+      // A patch that changes nothing isn't sent.
+      await expect(api.schedules.patch({ scheduleId: ids.schedule })).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+      });
+    } finally {
+      answers.clear();
+    }
+  });
+
+  it("refuses an edit with nothing changed while the worker is from before patch", async () => {
+    const noRoute = { status: 404, body: { error: "not found", code: "NOT_FOUND" } };
+    answers.set(`/internal/schedules/${ids.schedule}/patch`, noRoute);
+    answers.set(`/internal/triggers/${ids.trigger}/patch`, noRoute);
+    try {
+      const before = workerBodies.length;
+      for (const call of [
+        api.schedules.patch({ scheduleId: ids.schedule, title: "Renamed" }),
+        api.triggers.patch({ triggerId: ids.trigger, title: "Renamed" }),
+      ]) {
+        const error = await call.catch((caught: unknown) => caught);
+        expect(error).toBeInstanceOf(ORPCError);
+        expect((error as ORPCError<string, unknown>).message).toBe(
+          "open-bot is finishing an update, so nothing changed. Try again in a minute.",
+        );
+      }
+      // No full update was sent in its place, which could undo an edit made meanwhile.
+      expect(workerBodies.slice(before).map((b) => b.path)).toEqual([
+        `/internal/schedules/${ids.schedule}/patch`,
+        `/internal/triggers/${ids.trigger}/patch`,
+      ]);
+      // The worker's own 404 is passed on as the automation being gone.
+      answers.set(`/internal/schedules/${ids.schedule}/patch`, {
+        status: 404,
+        body: { error: "That schedule was deleted.", code: "NOT_FOUND" },
+      });
+      await expect(
+        api.schedules.patch({ scheduleId: ids.schedule, title: "Renamed" }),
+      ).rejects.toMatchObject({ code: "NOT_FOUND", message: "That schedule was deleted." });
     } finally {
       answers.clear();
     }

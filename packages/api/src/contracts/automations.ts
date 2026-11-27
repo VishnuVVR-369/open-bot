@@ -2,8 +2,10 @@ import { z } from "zod";
 import {
   automationRunViewSchema,
   scheduleInputSchema,
+  schedulePatchSchema,
   scheduleViewSchema,
   triggerInputSchema,
+  triggerPatchSchema,
   triggerViewSchema,
 } from "../automations";
 import { base, id, ok } from "../base";
@@ -17,10 +19,15 @@ export const schedulesContract = {
   update: base
     .input(scheduleInputSchema.extend({ scheduleId: id }))
     .output(z.object({ id: z.string() })),
+  /** Change only its name or timing, as the phone edits it; see `schedulePatchSchema`. */
+  patch: base.input(schedulePatchSchema).output(z.object({ id: z.string() })),
   setEnabled: base.input(z.object({ scheduleId: id, enabled: z.boolean() })).output(ok),
   remove: base.input(z.object({ scheduleId: id })).output(ok),
-  /** Run it now, without changing when it runs next. */
-  runNow: base.input(z.object({ scheduleId: id })).output(ok),
+  /**
+   * Run it now, without changing when it runs next. `runId`, a new id the client makes, is the
+   * run's: asking again with it after an answer was lost starts nothing more.
+   */
+  runNow: base.input(z.object({ scheduleId: id, runId: id.optional() })).output(ok),
   /**
    * A teammate's daily check-in, on or off: every morning it looks over its area and tells you
    * only what needs you. Turning it on resumes a paused one rather than adding another.
@@ -39,6 +46,8 @@ export const triggersContract = {
   update: base
     .input(triggerInputSchema.extend({ triggerId: id }))
     .output(z.object({ id: z.string() })),
+  /** Change only its name or timing, as the phone edits it; see `triggerPatchSchema`. */
+  patch: base.input(triggerPatchSchema).output(z.object({ id: z.string() })),
   setEnabled: base.input(z.object({ triggerId: id, enabled: z.boolean() })).output(ok),
   remove: base.input(z.object({ triggerId: id })).output(ok),
   /** Look at the watched page, mail or calendar now. */

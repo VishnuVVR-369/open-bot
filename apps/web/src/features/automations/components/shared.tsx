@@ -1,6 +1,6 @@
 "use client";
 
-import { isRunActive } from "@open-bot/domain";
+import { AUTOMATION_RUN_STATUS, isRunActive } from "@open-bot/domain";
 import { format } from "date-fns";
 import {
   Check,
@@ -40,26 +40,8 @@ import { isComputerOnline } from "@/lib/status";
 import type { ScheduleRunView } from "@/lib/types";
 import { chatHref } from "@/lib/utils";
 
-const RUN_STATUS: Record<string, string> = {
-  completed: "Finished",
-  failed: "Failed",
-  interrupted: "Stopped",
-  running: "Running",
-  starting: "Starting",
-  waiting: "Waiting for you",
-  queued: "Starting",
-};
-
-/** How the last run went, under an automation's title. */
-export const LAST_RUN_TEXT: Record<string, string> = {
-  completed: "Last run finished",
-  failed: "Last run failed",
-  interrupted: "Last run was stopped",
-  running: "Running now",
-  starting: "Running now",
-  waiting: "Waiting for you",
-  queued: "Starting",
-};
+// How runs read, and why actions wait for the computer, are shared with the phone.
+export { LAST_RUN_TEXT, OFFLINE_ACTION } from "@open-bot/domain";
 
 function RunIcon({ status }: { status: ScheduleRunView["status"] }) {
   if (status === "completed") return <Check className="size-3.5 text-done" />;
@@ -105,7 +87,9 @@ export function RunHistory({
                 </span>
                 <span className="min-w-0 flex-1 truncate">
                   {isRunActive(run.status) || !run.preview ? (
-                    <span className="text-muted-foreground">{RUN_STATUS[run.status]}</span>
+                    <span className="text-muted-foreground">
+                      {AUTOMATION_RUN_STATUS[run.status]}
+                    </span>
                   ) : (
                     run.preview
                   )}
@@ -202,9 +186,6 @@ export function OfflineBanner() {
     </div>
   );
 }
-
-/** Why a row's run button is off while the computer is offline. */
-export const OFFLINE_ACTION = "Works once the computer is back";
 
 /** The rows of one kind of automation: one surface, divided, not a stack of cards. */
 export const ROWS = "flex flex-col divide-y rounded-xl border bg-card";

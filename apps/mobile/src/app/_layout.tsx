@@ -113,6 +113,15 @@ function App() {
               <Stack.Screen name="tasks/index" options={{ title: "Tasks" }} />
               <Stack.Screen name="tasks/new" options={{ title: "New task" }} />
               <Stack.Screen name="tasks/[taskId]" options={{ title: "Task" }} />
+              <Stack.Screen name="automations/index" options={{ title: "Automations" }} />
+              <Stack.Screen
+                name="automations/[kind]/[automationId]/index"
+                options={{ title: "" }}
+              />
+              <Stack.Screen
+                name="automations/[kind]/[automationId]/edit"
+                options={{ title: "Edit" }}
+              />
               <Stack.Screen name="share" options={{ title: "Share with a teammate" }} />
             </Stack.Protected>
             <Stack.Protected guard={!signedIn}>

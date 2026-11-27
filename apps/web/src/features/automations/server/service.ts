@@ -13,13 +13,41 @@ import { DAILY_CHECK_IN } from "@open-bot/domain";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { ApiError } from "@/lib/server/api/errors";
 import { db } from "@/lib/server/db";
-import { worker } from "@/lib/server/worker";
+import { FINISHING_UPDATE, isMissingRoute, worker } from "@/lib/server/worker";
 import type { ScheduleRunView, ScheduleView, TriggerView } from "@/lib/types";
 
 export async function removeSchedule({
   scheduleId,
 }: ApiInputs["schedules"]["remove"]): Promise<{ ok: true }> {
   return worker.schedules.remove({ scheduleId });
+}
+
+/**
+ * Rename a schedule or change its timing, and nothing else (the phone's edit). A worker from before
+ * `patch`, for the minute a deploy takes, can't; sending the whole schedule instead could undo an
+ * edit made meanwhile, so it's refused with nothing changed.
+ */
+export async function patchSchedule(
+  input: ApiInputs["schedules"]["patch"],
+): Promise<ApiOutputs["schedules"]["patch"]> {
+  try {
+    return await worker.schedules.patch(input);
+  } catch (error) {
+    if (isMissingRoute(error)) throw new ApiError("BAD_REQUEST", FINISHING_UPDATE);
+    throw error;
+  }
+}
+
+/** Rename a trigger or change its timing, and nothing else, as `patchSchedule` does. */
+export async function patchTrigger(
+  input: ApiInputs["triggers"]["patch"],
+): Promise<ApiOutputs["triggers"]["patch"]> {
+  try {
+    return await worker.triggers.patch(input);
+  } catch (error) {
+    if (isMissingRoute(error)) throw new ApiError("BAD_REQUEST", FINISHING_UPDATE);
+    throw error;
+  }
 }
 
 /**

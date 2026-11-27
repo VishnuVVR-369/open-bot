@@ -9,6 +9,7 @@ import { NeedsYou } from "@/features/home/components/needs-you";
 import { Pages } from "@/features/home/components/pages";
 import { Teammates } from "@/features/home/components/teammates";
 import { HomeTasks } from "@/features/home/components/tasks";
+import { ComingUp } from "@/features/automations/components/coming-up";
 import {
   ComputerOfflineNotice,
   ConnectionNotice,
@@ -118,6 +119,7 @@ export default function HomeScreen() {
             computerOffline={computerOffline}
           />
           {tasks.data && <HomeTasks tasks={tasks.data} teammates={allTeammates} />}
+          <ComingUp teammates={allTeammates} />
           <Pages pages={pages.data ?? []} teammates={allTeammates} />
           <Elsewhere
             activity={data.activity}

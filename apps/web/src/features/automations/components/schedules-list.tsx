@@ -1,7 +1,13 @@
 "use client";
 
-import { describeCron, relativeTime } from "@open-bot/domain";
-import { format, formatDistanceToNowStrict } from "date-fns";
+import {
+  isFinishedReminder,
+  relativeTime,
+  SCHEDULE_DELETE_TEXT,
+  SCHEDULE_EMPTY_HISTORY,
+  scheduleCadence,
+} from "@open-bot/domain";
+import { formatDistanceToNowStrict } from "date-fns";
 import { Play } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -24,12 +30,6 @@ import {
   useCanRun,
 } from "./shared";
 
-function cadence(schedule: ScheduleView) {
-  if (schedule.kind === "cron" && schedule.cron) return describeCron(schedule.cron);
-  if (schedule.runAt) return `Once, ${format(new Date(schedule.runAt), "EEE MMM d, h:mm a")}`;
-  return "Once";
-}
-
 /** What the schedule asks for, and how its recent runs went. */
 function ScheduleDetails({ schedule }: { schedule: ScheduleView }) {
   const { data: history, isLoading } = useScheduleRuns(schedule.id, true);
@@ -43,7 +43,7 @@ function ScheduleDetails({ schedule }: { schedule: ScheduleView }) {
       <RunHistory
         runs={history}
         isLoading={isLoading}
-        empty="It hasn't run yet. Press play to try it now."
+        empty={`${SCHEDULE_EMPTY_HISTORY} Press play to try it now.`}
       />
     </div>
   );
@@ -60,7 +60,7 @@ export function ScheduleRow({
 }) {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
-  const done = schedule.kind === "once" && Boolean(schedule.lastRunAt) && !schedule.enabled;
+  const done = isFinishedReminder(schedule);
   const canRun = useCanRun();
 
   return (
@@ -93,7 +93,7 @@ export function ScheduleRow({
             )}
           </span>
           <span className="text-[13px] text-muted-foreground sm:truncate">
-            {cadence(schedule)}
+            {scheduleCadence(schedule)}
             {schedule.enabled &&
               schedule.nextRunAt &&
               (runIsHeldBack(schedule.nextRunAt, Date.now(), canRun)
@@ -141,7 +141,7 @@ export function ScheduleRow({
           )}
           <RowMenu
             title={schedule.title}
-            deleteDescription="It won't run again. Past runs stay in their chats."
+            deleteDescription={SCHEDULE_DELETE_TEXT}
             onEdit={() => setEditing(true)}
             onDelete={async () => {
               const result = await attempt(api.schedules.remove({ scheduleId: schedule.id }));

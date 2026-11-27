@@ -1,11 +1,15 @@
 "use client";
 
 import {
+  describeAccountWatch,
   describeGmailQuery,
   describeInterval,
-  describeLead,
   isAccountTrigger,
   relativeTime,
+  shortPageUrl,
+  TRIGGER_CHECK_FAILED,
+  TRIGGER_DELETE_TEXT,
+  TRIGGER_EMPTY_HISTORY,
   type TriggerKind,
 } from "@open-bot/domain";
 import {
@@ -44,11 +48,6 @@ import { copyWebhookUrl, isLocalOrigin, webhookUrl } from "./webhook-url";
 
 const ago = (iso: string) => relativeTime(iso);
 
-/** The page, without the scheme, for a compact line. */
-function shortUrl(url: string) {
-  return url.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
-}
-
 const KIND_ICONS: Record<TriggerKind, LucideIcon> = {
   watch: Eye,
   webhook: Webhook,
@@ -56,32 +55,10 @@ const KIND_ICONS: Record<TriggerKind, LucideIcon> = {
   calendar: CalendarDays,
 };
 
-/** Which mail, or which events, an account trigger wakes for, in a few words. */
-function accountWatch(trigger: TriggerView): string {
-  if (trigger.kind === "gmail") return describeGmailQuery(trigger.query);
-  const events = trigger.query === "guests" ? "event with other people" : "event";
-  return `${describeLead(trigger.leadMinutes ?? 30).toLowerCase()} each ${events}`;
-}
-
+/** Said before a trigger's first run, with what you can do about it here. */
 const EMPTY_HISTORY: Record<TriggerKind, string> = {
-  watch: "The page hasn't changed yet.",
-  webhook: "Nothing has called it yet. Send a test to try it.",
-  gmail: "No new mail has woken it yet.",
-  calendar: "No events have come up yet.",
-};
-
-const DELETE_TEXT: Record<TriggerKind, string> = {
-  watch: "The page won't be checked again. Past runs stay in their chats.",
-  webhook: "Its URL stops working. Past runs stay in their chats.",
-  gmail: "New mail won't wake your teammate any more. Past runs stay in their chats.",
-  calendar: "Events won't wake your teammate any more. Past runs stay in their chats.",
-};
-
-const CHECK_FAILED: Record<TriggerKind, string> = {
-  watch: "Couldn't check the page",
-  webhook: "Couldn't call the webhook",
-  gmail: "Couldn't check for new mail",
-  calendar: "Couldn't check the calendar",
+  ...TRIGGER_EMPTY_HISTORY,
+  webhook: `${TRIGGER_EMPTY_HISTORY.webhook} Send a test to try it.`,
 };
 
 const subscribeNever = () => () => {};
@@ -175,7 +152,7 @@ function TriggerDetails({ trigger, teammateName }: { trigger: TriggerView; teamm
           <span className="text-[12.5px] text-muted-foreground">
             {trigger.kind === "gmail"
               ? `Wakes ${teammateName} for ${describeGmailQuery(trigger.query)}, checked every 2 minutes`
-              : `Wakes ${teammateName} ${accountWatch(trigger)}, skipping all-day events and ones you declined`}
+              : `Wakes ${teammateName} ${describeAccountWatch(trigger)}, skipping all-day events and ones you declined`}
           </span>
         </div>
       )}
@@ -193,7 +170,7 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
   if (isAccountTrigger(trigger.kind)) {
     return (
       <span className="line-clamp-2 text-[13px] text-muted-foreground sm:truncate">
-        {trigger.account ?? "No account"} · {accountWatch(trigger)}
+        {trigger.account ?? "No account"} · {describeAccountWatch(trigger)}
       </span>
     );
   }
@@ -207,7 +184,7 @@ function StatusLine({ trigger }: { trigger: TriggerView }) {
   }
   return (
     <span className="truncate text-[13px] text-muted-foreground">
-      {shortUrl(trigger.url ?? "")} ·{" "}
+      {shortPageUrl(trigger.url ?? "")} ·{" "}
       {describeInterval(trigger.intervalMinutes ?? 60).toLowerCase()}
       {trigger.lookFor && ` · waiting for “${trigger.lookFor}”`}
     </span>
@@ -312,7 +289,7 @@ export function TriggerRow({
               onClick={() =>
                 startBusy(async () => {
                   const result = await attempt(api.triggers.check({ triggerId: trigger.id }));
-                  const failed = CHECK_FAILED[trigger.kind];
+                  const failed = TRIGGER_CHECK_FAILED[trigger.kind];
                   if (!result.ok) toast.error(failed, { description: result.error });
                   else if (!result.data.ok)
                     toast.error(failed, { description: result.data.summary });
@@ -363,7 +340,7 @@ export function TriggerRow({
           />
           <RowMenu
             title={trigger.title}
-            deleteDescription={DELETE_TEXT[trigger.kind]}
+            deleteDescription={TRIGGER_DELETE_TEXT[trigger.kind]}
             onEdit={() => setEditing(true)}
             onDelete={async () => {
               const result = await attempt(api.triggers.remove({ triggerId: trigger.id }));

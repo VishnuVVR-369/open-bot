@@ -5,6 +5,8 @@ import {
   listAutomationRuns,
   listSchedules,
   listTriggers,
+  patchSchedule,
+  patchTrigger,
   removeSchedule,
   setCheckIn,
   testWebhook,
@@ -23,6 +25,7 @@ export function automationRoutes() {
       ),
       create: os.schedules.create.handler(({ input }) => worker.schedules.create(input)),
       update: os.schedules.update.handler(({ input }) => worker.schedules.update(input)),
+      patch: os.schedules.patch.handler(({ input }) => patchSchedule(input)),
       setEnabled: os.schedules.setEnabled.handler(({ input }) =>
         worker.schedules.setEnabled(input),
       ),
@@ -37,6 +40,7 @@ export function automationRoutes() {
       ),
       create: os.triggers.create.handler(({ input }) => worker.triggers.create(input)),
       update: os.triggers.update.handler(({ input }) => worker.triggers.update(input)),
+      patch: os.triggers.patch.handler(({ input }) => patchTrigger(input)),
       setEnabled: os.triggers.setEnabled.handler(({ input }) => worker.triggers.setEnabled(input)),
       remove: os.triggers.remove.handler(({ input }) => worker.triggers.remove(input)),
       // Looking at a page can take a while.

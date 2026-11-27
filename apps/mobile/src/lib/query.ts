@@ -57,6 +57,12 @@ export const queryKeys = {
   task: (taskId: string) => ["tasks", "get", taskId] as const,
   /** The board and every task open on its own. */
   allTasks: ["tasks"] as const,
+  // The "schedules" and "triggers" events, and every run starting or finishing ("chats"),
+  // refresh the lists and each automation's history.
+  schedules: ["schedules", "list"] as const,
+  scheduleRuns: (scheduleId: string) => ["schedules", "runs", scheduleId] as const,
+  triggers: ["triggers", "list"] as const,
+  triggerRuns: (triggerId: string) => ["triggers", "runs", triggerId] as const,
   /** Short-lived, so never shared with the lists the "pages" event refreshes. */
   pageLink: (versionId: string, theme: string) => ["page-link", versionId, theme] as const,
 };

@@ -37,6 +37,7 @@ import { useHome } from "@/features/home/hooks";
 import { useTeammates } from "@/features/teammates/hooks";
 import { useChats, useNewDirectChat } from "@/features/chat/hooks";
 import { screenHref } from "@/features/computer/screens";
+import { AutomationSection } from "@/features/automations/components/automation-section";
 import { TaskSection } from "@/features/tasks/components/task-section";
 import { useTasks } from "@/features/tasks/hooks";
 import { teammateTasks } from "@/features/tasks/tasks";
@@ -342,6 +343,8 @@ export default function TeammateScreen() {
             testID="profile-tasks"
           />
         )}
+
+        <AutomationSection teammate={teammate} />
 
         <Section title="How they work">
           <Card>

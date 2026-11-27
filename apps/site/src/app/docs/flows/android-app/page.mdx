@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/flows/android-app");
 
 # The Android app
 
-Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, and approvals you can decide from the notification shade.
+Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, automations, and approvals you can decide from the notification shade.
 It is an Expo app (React Native) that talks to your open-bot deployment through the same RPC contract the web app serves (`packages/api`).
 It is installed over USB; there is no Play Store listing.
 Building, configuring and testing it is covered in `apps/mobile/README.md`.
@@ -14,7 +14,7 @@ Building, configuring and testing it is covered in `apps/mobile/README.md`.
 Home leads with what needs you, then your teammates, then a briefing of work finished while you were away.
 Each teammate's avatar shows what they're doing: a soft pulse while they work, an amber ring and mark while they wait for you, and a dashed ring while they're up next.
 Teammates who need you sort first; tap one to open your latest chat with them, or hold to open their profile.
-A teammate's profile has Message, New chat and Screen, their open tasks, how much they do on their own, their Always allow rules, and every conversation they're in.
+A teammate's profile has Message, New chat and Screen, their open tasks, their daily check-in and automations, how much they do on their own, their Always allow rules, and every conversation they're in.
 Use Computer to watch or take over a teammate's screen; suggested instructions are still reviewed on the web.
 
 ## Chats
@@ -147,6 +147,29 @@ The board shows the move at once and keeps showing it until a board read after i
 Move up and Move down step past the next task you can see: tasks hidden by the filter don't count, and a task never crosses the line between what waits on you and the rest, since that line decides the order first.
 Deleting asks first, since the board has no undo, and says when the teammate may still be working on it.
 While the phone is offline, everything that would change the board is disabled, and a task you're writing stays on screen until you're back.
+
+## Automations
+
+Automations lists what runs without you asking, as the web's Automations page does: schedules, then page watches, then Gmail and Calendar triggers, then webhooks.
+Filter by teammate at the top; a teammate's profile opens it filtered to them, and search finds it as Automations.
+Home has a Coming up section with the next three runs, and a teammate's profile has their daily check-in switch and up to four of their automations.
+The check-in is the same quiet routine the web's switch turns on (see [quiet routines and check-ins](/docs/flows/automations#quiet-routines-and-check-ins)), so it isn't listed again under it.
+Each row says when it runs or what it watches, how its last run or check went, and has a switch to pause or resume it; a reminder that already ran says Done and has no switch.
+The list refreshes on its own from the `schedules` and `triggers` app events.
+
+Tap one to see what it does, its recent runs, and Run now for a schedule or Check now for a watch or an account trigger.
+Each run opens in its chat.
+Run now sends an id the phone makes, and trying again after a lost answer sends the same id, so the schedule runs once.
+Check now says what it found, or why the check failed.
+Both are off while the computer is offline, and every change is off while the phone is offline.
+Delete asks first.
+
+Edit changes the name and the timing: when a schedule runs (every day, weekdays, a day of the week, every hour, a cron expression, or once on a day at a time), how often a page watch looks, and how long before an event a Calendar trigger wakes its teammate.
+It checks the timing with the same rules and words as the web's dialog, which share them through `packages/domain`.
+A schedule's times are on its own clock, in its time zone, and the editor names the zone, and the phone's when they differ.
+Only what you changed is sent (`schedules.patch`, `triggers.patch`), so an edit made on the web meanwhile stays, and what you haven't touched follows the automation as it changes elsewhere.
+Leaving with unsaved changes asks first.
+The prompt, the page and what to look for, the Gmail search, a webhook's URL and test, and making new automations stay on the web, and each screen says so.
 
 ## Pages
 

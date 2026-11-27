@@ -80,6 +80,12 @@ If the worker was down for a while, a schedule fires once when it comes back, no
 
 Each schedule's recent runs are listed under it, and **Run now** fires it without changing its next run time.
 A paused routine stays paused when you edit it, and a finished reminder moved to a new time runs again.
+Run now takes an optional run id: a retry with the same id answers with the run it already started, and an id used for another schedule is refused with `409`.
+The Android app sends one, so a Run now whose answer was lost doesn't run the schedule twice.
+The Android app edits only a name and a timing, through `schedules.patch` and `triggers.patch`, which change just the fields they're given, on the row locked for the update.
+The timing is checked as a full one would be, in the schedule's own time zone.
+A trigger's patch takes a page watch's interval or a Calendar trigger's lead, and refuses either on another kind.
+A web app talking to a worker from before these routes (`404` with no message of its own, during a deploy) says nothing changed, rather than sending a full update with values it may not have.
 
 ## Quiet routines and check-ins
 
