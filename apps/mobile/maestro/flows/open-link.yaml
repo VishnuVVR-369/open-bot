@@ -2,11 +2,18 @@ appId: dev.openbot.mobile.dev
 ---
 - openLink: ${LINK}
 # Both the daily app and dev client own the auth scheme; keep the daily default unchanged.
+# Android asks in one of two ways: a list titled "Open with" to pick from, or, once an app was
+# picked before, "Open with open-bot dev" offering just that one. Text matches the whole label.
 - runFlow:
     when:
       visible: Open with
     commands:
       - tapOn: open-bot dev
+      - tapOn: Just once
+- runFlow:
+    when:
+      visible: Open with open-bot dev
+    commands:
       - tapOn: Just once
 - runFlow:
     when:
