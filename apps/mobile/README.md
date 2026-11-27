@@ -95,7 +95,7 @@ Pass a published page as `PAGE_ID`, for example `maestro test -e PAGE_ID=<page i
 It opens the page from a link, checks that it loads, opens Ask and the menu, and switches to an older version when there is one.
 `maestro/tasks.yaml` adds a task for a teammate, edits it, starts it (its chat opens) and deletes it, against a signed-in development app.
 Pass the teammate's name: `maestro test -e TEAMMATE=<name> maestro/tasks.yaml`.
-`maestro/automations.yaml` turns a schedule off and on, runs it now, opens the run from its history, and renames it and back, against a signed-in development app with the computer on.
+`maestro/automations.yaml` turns a schedule off and on, runs it now, opens the run from its history, discards an edit, and renames it and back, against a signed-in development app with the computer on.
 Pass the id of a repeating schedule that is on (`select id, title from schedules;` finds it): `maestro test -e AUTOMATION_ID=<id> maestro/automations.yaml`.
 It finds rows by id, since titles repeat, and checks that the newest run in the history is the one it just started.
 To check sharing, send a share with `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'https://example.com'" dev.openbot.mobile.dev`.

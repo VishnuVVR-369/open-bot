@@ -96,6 +96,7 @@ function AutomationEditor({
   const [goneHere, setGoneHere] = useState(false);
   const [footer, setFooter] = useState(0);
   const [leave, setLeave] = useState(false);
+  const [discarded, setDiscarded] = useState(false);
   const gone = deleted || goneHere;
   const changed = formChanged(start, form);
   const invalid = formProblem(automation, form);
@@ -116,13 +117,22 @@ function AutomationEditor({
     else router.replace(automationHref(automation));
   }, [leave, navigation, automation]);
 
-  usePreventRemove(changed && !leave && !gone, ({ data }) =>
+  // Discard lets go of the guard and goes on with the leaving it held: `repeat`, since that same
+  // leaving dispatched again would be held again.
+  usePreventRemove(changed && !leave && !gone && !discarded, ({ repeat }) =>
     Alert.alert(
       "Discard your changes?",
       `What you changed in this ${kindName(automation)} isn't saved.`,
       [
         { text: "Keep editing", style: "cancel" },
-        { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(data.action) },
+        {
+          text: "Discard",
+          style: "destructive",
+          onPress: () => {
+            setDiscarded(true);
+            repeat();
+          },
+        },
       ],
     ),
   );

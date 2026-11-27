@@ -87,6 +87,7 @@ export function TaskEditor({
   const [leave, setLeave] = useState<(() => void) | null>(null);
   useEffect(() => leave?.(), [leave]);
   const go = (to: () => void) => setLeave(() => to);
+  const [discarded, setDiscarded] = useState(false);
   // Deleted here, it's on its way out: no notice while it goes.
   const gone = deleted && !leave;
 
@@ -124,10 +125,19 @@ export function TaskEditor({
     else if (to.kind === "task") go(() => router.replace(taskHref(to.taskId)));
   }
 
-  usePreventRemove(changed && !leave && !gone, ({ data }) =>
+  // Discard lets go of the guard and goes on with the leaving it held: `repeat`, since that same
+  // leaving dispatched again would be held again.
+  usePreventRemove(changed && !leave && !gone && !discarded, ({ repeat }) =>
     Alert.alert("Discard your changes?", "What you changed in this task isn't saved.", [
       { text: "Keep editing", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(data.action) },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          setDiscarded(true);
+          repeat();
+        },
+      },
     ]),
   );
 

@@ -1,5 +1,5 @@
 appId: dev.openbot.mobile.dev
-name: Turn a schedule off and on, run it now, open its history and rename it
+name: Turn a schedule off and on, run it now, open its history, discard an edit and rename it
 # Run against a signed-in development app, with the id of a repeating schedule that is on:
 #   maestro test -e AUTOMATION_ID=<schedule id> maestro/automations.yaml
 # Find the id with `select id, title from schedules;` in the database. Rows are found by id, since
@@ -79,6 +79,26 @@ name: Turn a schedule off and on, run it now, open its history and rename it
 - extendedWaitUntil:
     visible:
       id: automation-edit
+    timeout: 10000
+
+# Change its name and leave without saving: Discard goes back to it, still named as it was.
+- tapOn:
+    id: automation-edit
+- extendedWaitUntil:
+    visible:
+      id: automation-title-input
+    timeout: 5000
+- tapOn:
+    id: automation-title-input
+- eraseText: 120
+- inputText: Not saved
+- hideKeyboard
+- back
+- tapOn: Discard
+- extendedWaitUntil:
+    visible:
+      id: automation-title
+      text: ${output.titlePattern}
     timeout: 10000
 
 # Rename it, then give it its name back.
