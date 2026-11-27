@@ -70,16 +70,21 @@ export function Field({ label, children }: { label: string; children: ReactNode 
   );
 }
 
-/** A quiet box with a short message, like "This memory was forgotten". */
+/**
+ * A quiet box with a short message, like "This memory was forgotten". A short action sits beside
+ * the message; a `stacked` one, with a longer label, goes under it so the message keeps its width.
+ */
 export function Notice({
   children,
   action,
   tone = "quiet",
+  stacked = false,
   testID,
 }: {
   children: string;
   action?: ReactNode;
   tone?: "quiet" | "attention";
+  stacked?: boolean;
   testID?: string;
 }) {
   const colors = useColors();
@@ -87,6 +92,7 @@ export function Notice({
     <View
       style={[
         styles.notice,
+        stacked && styles.stacked,
         tone === "attention"
           ? { backgroundColor: colors.surface, borderColor: colors.attention }
           : { backgroundColor: colors.subtle, borderColor: colors.subtle },
@@ -96,7 +102,7 @@ export function Notice({
       <Text
         variant="small"
         style={[
-          { flex: 1 },
+          stacked ? null : { flex: 1 },
           tone === "attention" ? { color: colors.attentionInk } : { color: colors.mutedForeground },
         ]}
       >
@@ -134,4 +140,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(3),
     paddingVertical: space(2.5),
   },
+  stacked: { flexDirection: "column", alignItems: "stretch", paddingVertical: space(3) },
 });

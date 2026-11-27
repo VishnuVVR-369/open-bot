@@ -262,6 +262,7 @@ export function MemoryEditor({
         {gone && (
           <Notice
             testID="memory-gone"
+            stacked
             action={
               changed && form.content.trim() ? (
                 <Button
@@ -339,9 +340,11 @@ export function MemoryEditor({
               leading={<RowIcon icon={<History size={18} color={colors.foreground} />} />}
               title="History"
               subtitle={
-                base.revision > 1
-                  ? `${base.revision} revisions. Restore an earlier one.`
-                  : "Every change is kept here."
+                gone
+                  ? "Forgotten with the memory."
+                  : base.revision > 1
+                    ? `${base.revision} revisions. Restore an earlier one.`
+                    : "Every change is kept here."
               }
               onPress={() => router.push(memoryHistoryHref(base.id))}
               testID="memory-history"
