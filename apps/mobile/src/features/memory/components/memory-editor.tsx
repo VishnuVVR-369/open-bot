@@ -113,13 +113,22 @@ export function MemoryEditor({
     return navigation.addListener("focus", open);
   }, [forgotten, navigation]);
 
-  // Even once it's forgotten elsewhere, what you wrote isn't dropped without asking.
-  const question = leaveQuestion(changed, leave !== null, gone);
-  usePreventRemove(question !== null, ({ data }) => {
+  // Even once it's forgotten elsewhere, what you wrote isn't dropped without asking. Discard lets
+  // the blocked leave go through with `repeat`: dispatching it again would only be blocked again.
+  const [discarding, setDiscarding] = useState(false);
+  const question = leaveQuestion(changed, leave !== null || discarding, gone);
+  usePreventRemove(question !== null, ({ repeat }) => {
     if (!question) return;
     Alert.alert(question.title, question.body, [
       { text: "Keep editing", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(data.action) },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          setDiscarding(true);
+          repeat();
+        },
+      },
     ]);
   });
 

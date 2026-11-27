@@ -124,10 +124,20 @@ export function TaskEditor({
     else if (to.kind === "task") go(() => router.replace(taskHref(to.taskId)));
   }
 
-  usePreventRemove(changed && !leave && !gone, ({ data }) =>
+  // Discard lets the blocked leave go through with `repeat`: dispatching it again would only be
+  // blocked again.
+  const [discarding, setDiscarding] = useState(false);
+  usePreventRemove(changed && !leave && !gone && !discarding, ({ repeat }) =>
     Alert.alert("Discard your changes?", "What you changed in this task isn't saved.", [
       { text: "Keep editing", style: "cancel" },
-      { text: "Discard", style: "destructive", onPress: () => navigation.dispatch(data.action) },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: () => {
+          setDiscarding(true);
+          repeat();
+        },
+      },
     ]),
   );
 
