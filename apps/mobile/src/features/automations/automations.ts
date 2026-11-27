@@ -44,6 +44,26 @@ export const automationHref = (automation: Pick<Automation, "type" | "id">): Hre
 export const automationEditHref = (automation: Pick<Automation, "type" | "id">): Href =>
   `/automations/${automation.type}/${automation.id}/edit`;
 
+/** The automation's own screen, as the app's stack names it. */
+const AUTOMATION_ROUTE = "automations/[kind]/[automationId]/index";
+
+/**
+ * Whether the screen under the editor is the automation's own, so a save goes back to it. Opened
+ * from a link, the editor may sit on whatever was open before (a profile, a chat), and a save
+ * then opens the automation instead of returning there.
+ */
+export function editorReturnsToAutomation(
+  previous: { name: string; params?: object } | undefined,
+  automation: Pick<Automation, "type" | "id">,
+): boolean {
+  const params = previous?.params as { kind?: unknown; automationId?: unknown } | undefined;
+  return (
+    previous?.name === AUTOMATION_ROUTE &&
+    params?.kind === automation.type &&
+    params.automationId === automation.id
+  );
+}
+
 export const asSchedule = (view: ScheduleView): Automation => ({ type: "schedule", ...view });
 export const asTrigger = (view: TriggerView): Automation => ({ type: "trigger", ...view });
 

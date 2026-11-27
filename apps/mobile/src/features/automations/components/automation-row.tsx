@@ -33,7 +33,7 @@ export function AutomationRow({
   teammate: TeammateSummary | undefined;
   computerOnline: boolean;
   first: boolean;
-  /** One line under the title, for a profile's short list. */
+  /** A shorter row under the title, for a profile's short list. */
   compact?: boolean;
 }) {
   const colors = useColors();
@@ -62,8 +62,9 @@ export function AutomationRow({
           </Text>
           {badge && <StateBadge label={badge} />}
         </View>
-        {/* All of it in the full list: cut short, it drops "tells you only if…" or a zone. */}
-        <Text variant="small" muted numberOfLines={compact ? 1 : undefined}>
+        {/* All of it in the full list: cut short, it drops "tells you only if…" or a zone. A
+            profile's short list keeps two lines, enough for the cadence and the next run. */}
+        <Text variant="small" muted numberOfLines={compact ? 2 : undefined}>
           {keepTimesWhole(whenLine(automation, { computerOnline }))}
         </Text>
         {last && (

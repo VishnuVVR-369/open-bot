@@ -20,6 +20,7 @@ import {
   AUTOMATIONS_HREF,
   automationForm,
   automationHref,
+  editorReturnsToAutomation,
   formChanged,
   formProblem,
   isAutomationType,
@@ -105,12 +106,13 @@ function AutomationEditor({
     if (!busy) setDraft((current) => rebaseForm(current, automationForm(automation)));
   }, [automation, busy]);
 
-  // Back once a save went through, after the guard below has let go: to the automation, also
-  // when the editor was opened from a link with nothing under it, and only while it's still on
-  // screen (you may have gone elsewhere while it saved).
+  // To the automation once a save went through, after the guard below has let go: back to its
+  // screen when that's under the editor, or in the editor's place when the editor was opened from
+  // a link, and only while it's still on screen (you may have gone elsewhere while it saved).
   useEffect(() => {
     if (!leave || !navigation.isFocused()) return;
-    if (router.canGoBack()) router.back();
+    const { routes, index } = navigation.getState() ?? { routes: [], index: 0 };
+    if (editorReturnsToAutomation(routes[index - 1], automation)) router.back();
     else router.replace(automationHref(automation));
   }, [leave, navigation, automation]);
 

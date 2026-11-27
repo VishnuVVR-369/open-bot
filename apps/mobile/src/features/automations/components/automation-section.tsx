@@ -112,5 +112,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     paddingVertical: space(3.5),
   },
-  icon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
+  // The size of the rows' teammate avatars under it, so their text lines up with this one's.
+  icon: { width: 36, height: 36, borderRadius: 11, alignItems: "center", justifyContent: "center" },
 });

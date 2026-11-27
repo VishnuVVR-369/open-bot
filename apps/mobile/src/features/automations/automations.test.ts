@@ -21,6 +21,7 @@ import {
   quietNote,
   rebaseForm,
   RETRY_WINDOW_MS,
+  editorReturnsToAutomation,
   keepTimesWhole,
   RetryKeys,
   runNowOutcome,
@@ -355,6 +356,38 @@ describe("editing an automation on the phone", () => {
     expect(rebased.form.timing?.time).toBe("08:00");
     // Nothing new: the draft stays as it is.
     expect(rebaseForm(draft, automationForm(before, now))).toBe(draft);
+  });
+});
+
+describe("leaving the editor after a save", () => {
+  it("goes back only to the automation's own screen", () => {
+    const automation = { type: "schedule" as const, id: "s1" };
+    const own = {
+      name: "automations/[kind]/[automationId]/index",
+      params: { kind: "schedule", automationId: "s1" },
+    };
+    expect(editorReturnsToAutomation(own, automation)).toBe(true);
+    // Opened from a link over a profile, or with nothing under it: open the automation instead.
+    expect(
+      editorReturnsToAutomation(
+        { name: "teammates/[teammateId]", params: { teammateId: "t1" } },
+        automation,
+      ),
+    ).toBe(false);
+    expect(editorReturnsToAutomation(undefined, automation)).toBe(false);
+    // Another automation's screen isn't this one's.
+    expect(
+      editorReturnsToAutomation(
+        { ...own, params: { kind: "schedule", automationId: "s2" } },
+        automation,
+      ),
+    ).toBe(false);
+    expect(
+      editorReturnsToAutomation(
+        { ...own, params: { kind: "trigger", automationId: "s1" } },
+        automation,
+      ),
+    ).toBe(false);
   });
 });
 
