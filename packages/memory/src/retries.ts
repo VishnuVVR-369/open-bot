@@ -1,6 +1,6 @@
 // A save retried with the client id it was first sent with: the answer the first attempt got.
 import { asc, eq } from "drizzle-orm";
-import { memoryItems, memoryRevisions, type Tx } from "@open-bot/db";
+import { databaseError, memoryItems, memoryRevisions, type Tx } from "@open-bot/db";
 import { fingerprint, itemView, MemoryError, type MemorySaveResult } from "./model";
 
 /**
@@ -17,8 +17,7 @@ export async function savedAs(
 ): Promise<MemorySaveResult | null> {
   const [row] = await tx.select().from(memoryItems).where(eq(memoryItems.id, id));
   if (!row) return null;
-  const reused = () =>
-    new MemoryError(409, "That memory id was already used for something else.", "reused-id");
+  const reused = reusedId;
   if (row.teammateId !== teammateId) throw reused();
   if (row.state === "deleted")
     throw new MemoryError(
@@ -34,4 +33,18 @@ export async function savedAs(
     .limit(1);
   if (first && fingerprint(first.content) !== hash) throw reused();
   return { ...itemView(row), saveOutcome: "created" };
+}
+
+/** A client id that already names a different memory. */
+export function reusedId(): MemoryError {
+  return new MemoryError(409, "That memory id was already used for something else.", "reused-id");
+}
+
+/**
+ * Whether an insert failed because its id was taken meanwhile: the same client id sent at once for
+ * two scopes passes both scopes' locks, so the second insert meets the first's row.
+ */
+export function takenId(error: unknown): boolean {
+  const cause = databaseError(error) as { code?: string; constraint?: string } | null;
+  return cause?.code === "23505" && cause.constraint === "memory_items_pkey";
 }

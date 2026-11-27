@@ -136,6 +136,34 @@ describe.skipIf(!databaseServer)("memory with real Postgres", () => {
       });
     expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(1);
   });
+  it("says an id is taken when another scope's save adds it at the same time", async () => {
+    const id = randomUUID();
+    // Another scope's save, adding this id, isn't committed yet: its scope lock isn't this one's.
+    const other = await pool.connect();
+    try {
+      await other.query("begin");
+      await other.query(
+        "insert into memory_items (id, teammate_id, content, fingerprint, source) values ($1, null, 'Likes tea', $2, '{}')",
+        [id, fingerprint("Likes tea")],
+      );
+      const saving = memory.save(input("Likes tea"), user, { id }).catch((error: unknown) => error);
+      // Wait until this save's insert waits on the other's row.
+      for (;;) {
+        const { rows } = await pool.query<{ waiting: number }>(
+          "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+        );
+        if (rows[0]!.waiting > 0) break;
+        await new Promise((resolve) => setImmediate(resolve));
+      }
+      await other.query("commit");
+      expect(await saving).toMatchObject({ status: 409, reason: "reused-id" });
+    } finally {
+      // A failed run leaves it inside an aborted transaction: end it before the pool reuses it.
+      await other.query("rollback").catch(() => undefined);
+      other.release();
+    }
+    expect(await memory.list({ teammateId: teammate }, user)).toHaveLength(0);
+  });
   it("rejects one of two competing edits and preserves the winning revision", async () => {
     const saved = await memory.save(input("Prefers remote roles"), user);
     const results = await Promise.allSettled(

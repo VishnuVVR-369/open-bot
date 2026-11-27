@@ -65,12 +65,15 @@ export async function checkReviewed(
     .from(instructionProposals)
     .where(eq(instructionProposals.id, proposalId));
   if (!proposal) return;
-  // The teammate first, as every teammate write locks it, then the suggestion.
+  // The teammate first, as every teammate write locks it, then the suggestion. `no key update`
+  // still waits for an edit or an archive, but not for rows that only reference the teammate: a
+  // new suggestion locks the waiting one, then checks its key against this row, so `update` here
+  // would deadlock with it.
   const [teammate] = await tx
     .select({ instructions: teammates.instructions, archivedAt: teammates.archivedAt })
     .from(teammates)
     .where(eq(teammates.id, proposal.teammateId))
-    .for("update");
+    .for("no key update");
   const [waiting] = await tx
     .select({ status: instructionProposals.status })
     .from(instructionProposals)

@@ -35,7 +35,7 @@ import {
 } from "./model";
 import { inScope, now, readable, scopeOf } from "./queries";
 import { recordRevision } from "./revisions";
-import { savedAs } from "./retries";
+import { reusedId, savedAs, takenId } from "./retries";
 import {
   listMemories,
   memoryGeneration,
@@ -185,7 +185,10 @@ export class MemoryService {
             expiresAt,
             source: options.source ?? sourceOf(actor),
           })
-          .returning();
+          .returning()
+          .catch((error: unknown) => {
+            throw options.id && takenId(error) ? reusedId() : error;
+          });
         await recordRevision(tx, row!);
         await recordChange(tx, data.teammateId, actor, state === "active");
         return { ...itemView(row!), saveOutcome: "created" };

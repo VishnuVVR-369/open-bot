@@ -10,7 +10,7 @@ import { rpcEnabled, rpcHarness, failure, ID } from "../../testing/rpc";
 
 describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   const h = rpcHarness();
-  const { db, sync, teammates, worker, teammateWithRun } = h;
+  const { pool, db, sync, teammates, worker, teammateWithRun } = h;
 
   describe("teammate writes", () => {
     const { imported, leads } = teammateRouteHarness(h);
@@ -145,6 +145,66 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       expect(await instructions()).toBe("Answer in bullets.");
       // The one taken before the archive still answers the same.
       await worker.proposals.accept({ proposalId, expectedInstructions: reviewed });
+    });
+
+    it("accepts a suggestion while the teammate makes a newer one, without deadlocking", async () => {
+      const { teammateId } = await imported("Racer");
+      const instructions = async () =>
+        (await db.select().from(teammateRows).where(eq(teammateRows.id, teammateId)))[0]!
+          .instructions;
+      const before = await instructions();
+      const { run } = await teammateWithRun();
+      await teammates.proposeInstructions({
+        teammateId,
+        current: "",
+        proposed: "Answer in bullets.",
+        reason: "Shorter",
+        runId: run.id,
+      });
+      const [waiting] = await db
+        .select()
+        .from(instructionProposals)
+        .where(
+          and(
+            eq(instructionProposals.teammateId, teammateId),
+            eq(instructionProposals.status, "pending"),
+          ),
+        );
+      // A newer suggestion's order (`addProposal`): it dismisses the waiting one, then adds itself,
+      // whose key check reads the teammate's row.
+      const newer = await pool.connect();
+      try {
+        await newer.query("begin");
+        await newer.query(
+          "update instruction_proposals set status = 'dismissed', decided_at = now() where teammate_id = $1 and status = 'pending'",
+          [teammateId],
+        );
+        const accepting = failure(
+          worker.proposals.accept({ proposalId: waiting!.id, expectedInstructions: before }),
+        );
+        // Wait until accepting waits on the suggestion the newer one holds.
+        for (;;) {
+          const { rows } = await pool.query<{ waiting: number }>(
+            "select count(*)::int as waiting from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock'",
+          );
+          if (rows[0]!.waiting > 0) break;
+          await new Promise((resolve) => setImmediate(resolve));
+        }
+        await newer.query(
+          "insert into instruction_proposals (teammate_id, current, proposed, reason, run_id) values ($1, '', 'Use headings.', 'Clearer', $2)",
+          [teammateId, run.id],
+        );
+        await newer.query("commit");
+        expect(await accepting).toEqual({
+          status: 409,
+          message: "A newer suggestion replaced this one.",
+        });
+      } finally {
+        // A failed run leaves it inside an aborted transaction: end it before the pool reuses it.
+        await newer.query("rollback").catch(() => undefined);
+        newer.release();
+      }
+      expect(await instructions()).toBe(before);
     });
 
     it("removes a schedule, and a schedule already gone is fine", async () => {

@@ -89,7 +89,7 @@ function Proposal({
       else
         void queryClient.invalidateQueries({ queryKey: queryKeys.proposal(proposal.teammateId) });
       setBusy(null);
-      if (afterConflict(proposal.id, fresh.error ? undefined : fresh.data) === "review-again")
+      if (afterConflict(proposal.id, fresh) === "review-again")
         return setProblem(errorMessage(result.error));
       return onSettled({
         id: proposal.id,
