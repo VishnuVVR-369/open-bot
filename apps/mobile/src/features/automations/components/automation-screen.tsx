@@ -64,20 +64,27 @@ export default function AutomationScreen() {
   const params = useLocalSearchParams<{ kind: string; automationId: string }>();
   const type = isAutomationType(params.kind) ? params.kind : "schedule";
   const { automation, gone, isLoading, error, refetch } = useAutomation(type, params.automationId);
-  if (!isAutomationType(params.kind) || gone)
-    return (
-      <NotFound
-        icon={CalendarClock}
-        title="This automation is gone"
-        body="It was deleted, or the link is wrong. Past runs stay in their chats."
-        action="See automations"
-        onAction={() => router.replace(AUTOMATIONS_HREF)}
-      />
-    );
-  if (isLoading) return <Loading />;
-  if (!automation)
-    return <LoadError error={error} onRetry={() => void refetch()} title="Couldn't load it" />;
-  return <AutomationDetails automation={automation} />;
+  if (isAutomationType(params.kind) && automation && !gone)
+    return <AutomationDetails automation={automation} />;
+  return (
+    <>
+      {/* No Edit without an automation, also once it's deleted while open. */}
+      <Stack.Screen options={{ headerRight: () => null }} />
+      {!isAutomationType(params.kind) || gone ? (
+        <NotFound
+          icon={CalendarClock}
+          title="This automation is gone"
+          body="It was deleted, or the link is wrong. Past runs stay in their chats."
+          action="See automations"
+          onAction={() => router.replace(AUTOMATIONS_HREF)}
+        />
+      ) : isLoading ? (
+        <Loading />
+      ) : (
+        <LoadError error={error} onRetry={() => void refetch()} title="Couldn't load it" />
+      )}
+    </>
+  );
 }
 
 function AutomationDetails({ automation }: { automation: Automation }) {
