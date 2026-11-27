@@ -37,9 +37,11 @@ import { useHome } from "@/features/home/hooks";
 import { useTeammates } from "@/features/teammates/hooks";
 import { useChats, useNewDirectChat } from "@/features/chat/hooks";
 import { screenHref } from "@/features/computer/screens";
+import { TeammateMemory } from "@/features/memory/components/teammate-memory";
 import { TaskSection } from "@/features/tasks/components/task-section";
 import { useTasks } from "@/features/tasks/hooks";
 import { teammateTasks } from "@/features/tasks/tasks";
+import { InstructionsProposalSection } from "@/features/teammates/components/instructions-proposal";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
@@ -331,6 +333,8 @@ export default function TeammateScreen() {
           </View>
         </View>
 
+        <InstructionsProposalSection teammateId={teammate.id} name={teammate.name} />
+
         {tasks && (
           <TaskSection
             tasks={teammateTasks(tasks, teammate.id)}
@@ -370,6 +374,8 @@ export default function TeammateScreen() {
             />
           </Card>
         </Section>
+
+        <TeammateMemory teammateId={teammate.id} name={teammate.name} />
 
         {theirs.length > 0 && (
           <Section title="Conversations">

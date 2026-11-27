@@ -15,6 +15,8 @@ export const memoryContract = {
   list: base
     .input(z.object({ teammateId: id.nullable(), query: z.string().max(200) }))
     .output(z.array(memoryItemSchema)),
+  /** One memory you can see, by id; `NOT_FOUND` once it's forgotten. */
+  get: base.input(z.object({ memoryId: id })).output(memoryItemSchema),
   /** Every revision of a memory, newest first. */
   history: base.input(z.object({ memoryId: id })).output(z.array(memoryRevisionSchema)),
   /** The memories a reply was given. */

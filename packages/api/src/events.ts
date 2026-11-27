@@ -22,9 +22,11 @@ export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]>
   notification: [["notifications"]],
   approvals: [["approvals"]],
   takeovers: [["screens", "list"]],
+  // A teammate's suggested instructions come and go with this event too.
   teammates: [
     ["teammates", "list"],
     ["chats", "list"],
+    ["proposals", "pending"],
   ],
   // Runs starting and finishing show up in automations' history, in chat lists and in the model
   // logs' run list. An open chat follows its own stream, so `chats.get` isn't refreshed for every

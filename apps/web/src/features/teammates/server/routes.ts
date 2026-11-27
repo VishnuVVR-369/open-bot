@@ -11,6 +11,7 @@ import {
   getSpending,
   importTeammate,
   listLessons,
+  pendingProposalFor,
   setBudget,
   setLead,
   updateTeammate,
@@ -39,6 +40,7 @@ export function teammateRoutes() {
       setBudget: os.teammates.setBudget.handler(({ input }) => setBudget(input)),
     },
     proposals: {
+      pending: os.proposals.pending.handler(({ input }) => pendingProposalFor(input.teammateId)),
       accept: os.proposals.accept.handler(({ input }) => acceptProposal(input)),
       dismiss: os.proposals.dismiss.handler(({ input }) => dismissProposal(input)),
     },

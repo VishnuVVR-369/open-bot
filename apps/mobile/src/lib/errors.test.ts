@@ -1,6 +1,14 @@
 import { createApiClient } from "@open-bot/api";
 import { describe, expect, it } from "vitest";
-import { errorMessage, FileError, isGone, isNotFound, isRetryable, isUnauthorized } from "./errors";
+import {
+  errorMessage,
+  FileError,
+  isGone,
+  isNotFound,
+  isRetryable,
+  isStateConflict,
+  isUnauthorized,
+} from "./errors";
 
 /** What the real client throws when the server answers with `response`. */
 async function failure(response: () => Response): Promise<unknown> {
@@ -67,6 +75,22 @@ describe("call errors", () => {
     );
     expect(isUnauthorized(error)).toBe(true);
     expect(isRetryable(error)).toBe(false);
+  });
+
+  it("spots a change made since you loaded it, which sending again won't fix", async () => {
+    const error = await failure(() =>
+      json(409, {
+        json: {
+          defined: true,
+          code: "STATE_CONFLICT",
+          status: 409,
+          message: "This memory changed. Reload it before saving.",
+        },
+      }),
+    );
+    expect(isStateConflict(error)).toBe(true);
+    expect(isRetryable(error)).toBe(false);
+    expect(isStateConflict(new TypeError("Network request failed"))).toBe(false);
   });
 
   it("retries when the server or the connection failed", async () => {

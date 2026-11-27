@@ -39,6 +39,31 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     expect(await api.memory.list({ ...owned(null), query: "Berlin" })).toEqual([]);
   });
 
+  it("reads one memory by id, with the chat that saved it, and none once it's forgotten", async () => {
+    const { memory } = await import("@/features/memory/server");
+    const saved = await memory.save(
+      {
+        ...owned(ids.teammate),
+        kind: "preference",
+        content: "Prefers window seats",
+        key: null,
+        pinned: false,
+        expiresAt: null,
+      },
+      { kind: "teammate", teammateId: ids.teammate, runId: ids.run, verified: true },
+    );
+    expect(await api.memory.get({ memoryId: saved.id })).toMatchObject({
+      id: saved.id,
+      content: "Prefers window seats",
+      revision: 1,
+      source: { runId: ids.run, teammateId: ids.teammate, chatId: ids.chat },
+    });
+    await api.memory.forget({ id: saved.id, expectedRevision: 1 });
+    await expect(api.memory.get({ memoryId: saved.id })).rejects.toMatchObject({
+      code: "NOT_FOUND",
+    });
+  });
+
   it("confirms a teammate's suggested memory", async () => {
     const { memory } = await import("@/features/memory/server");
     const suggested = await memory.save(

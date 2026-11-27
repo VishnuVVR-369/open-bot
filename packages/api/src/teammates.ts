@@ -27,6 +27,14 @@ export const proposalViewSchema = z.object({
 });
 export type ProposalView = z.infer<typeof proposalViewSchema>;
 
+/** The suggestion waiting for you from one teammate, with the instructions as they are now. */
+export const pendingProposalViewSchema = proposalViewSchema.extend({
+  teammateId: z.string(),
+  /** What accepting it replaces: the teammate's instructions now, perhaps changed since. */
+  instructionsNow: z.string(),
+});
+export type PendingProposalView = z.infer<typeof pendingProposalViewSchema>;
+
 export const purchaseViewSchema = z.object({
   id: z.string(),
   teammateId: z.string(),

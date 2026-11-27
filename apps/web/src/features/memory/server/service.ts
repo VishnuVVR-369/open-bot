@@ -2,7 +2,12 @@ import "server-only";
 import type { ApiInputs, ApiOutputs, MemoryRunRef } from "@open-bot/api";
 import { eq, inArray } from "drizzle-orm";
 import { memoryContexts, memoryItems, runs } from "@open-bot/db";
-import type { MemoryInput, MemoryItem, MemoryRevision } from "@open-bot/domain";
+import {
+  MEMORY_LIST_LIMIT,
+  type MemoryInput,
+  type MemoryItem,
+  type MemoryRevision,
+} from "@open-bot/domain";
 import { db } from "@/lib/server/db";
 import { memory } from "./store";
 
@@ -17,12 +22,24 @@ export const MEMORY_EXPORT_LIMIT = 10_000;
  */
 export async function listMemories(
   { teammateId, query }: ApiInputs["memory"]["list"],
-  limit = 200,
+  limit = MEMORY_LIST_LIMIT,
 ): Promise<MemoryItem[]> {
-  const items = await memory.list(
-    { teammateId, candidates: true, includeExpired: true, limit, query },
-    { kind: "user" },
+  return withSources(
+    await memory.list(
+      { teammateId, candidates: true, includeExpired: true, limit, query },
+      { kind: "user" },
+    ),
   );
+}
+
+/** One memory you can see, named by the teammate and chat that saved it, like the list. */
+export async function getMemory({ memoryId }: ApiInputs["memory"]["get"]): Promise<MemoryItem> {
+  const [item] = await withSources([await memory.get(memoryId, { kind: "user" })]);
+  return item!;
+}
+
+/** Memories with the teammate and chat of the run that saved each, when one did. */
+async function withSources(items: MemoryItem[]): Promise<MemoryItem[]> {
   const runIds = [...new Set(items.flatMap((i) => (i.source.runId ? [i.source.runId] : [])))];
   const sources = runIds.length
     ? await db

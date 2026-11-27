@@ -36,6 +36,8 @@ On the computer, teammates are the same Linux user, so it is not a security boun
 ## Writing memory
 
 You manage memory on a teammate's Memory tab, and shared memory under Settings → About you.
+The phone has the same: a Memory screen, and Memory and Lessons on a teammate's profile (see [the Android app](/docs/flows/android-app#memory)).
+Both use the `memory` procedures in `packages/api/src/contracts/memory.ts`; `memory.get` reads one memory, for a screen opened by its id.
 Teammates use four tools:
 
 | Tool              | Does                                                                        |
@@ -130,7 +132,7 @@ A thumbs down asks what to do differently:
 - **Keep as a lesson** saves your note as a pinned memory of kind `lesson` for that teammate. It goes into every future run.
 - **Try again with this** also sends the note to the chat as a redo (`messages.redo_of_run_id`), with a prompt that asks for the complete new answer.
 
-Lessons appear on the teammate's Memory tab, linked to the reply that prompted them.
+Lessons appear on the teammate's Memory tab, linked to the reply that prompted them, and under Lessons on the teammate's profile in the phone app (`teammates.lessons`).
 The `lessons` table and `settings.about_me` are compatibility projections kept up to date by the memory service.
 
 ## Optional AI

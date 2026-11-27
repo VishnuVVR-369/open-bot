@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 import { apiHarness, apiTestUrl } from "@/test/api/harness";
 import { randomUUID } from "node:crypto";
 import { BUNDLE_FORMAT, BUNDLE_VERSION } from "@open-bot/domain";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 // Keep the original suite name so full test names remain comparable across the move.
 describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
@@ -135,6 +135,53 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       });
     } finally {
       for (const [path] of calls) answers.delete(path);
+    }
+  });
+
+  it("reads the suggestion waiting from a teammate, with its instructions now", async () => {
+    const s = await import("@open-bot/db");
+    const db = database.db;
+    expect(await api.proposals.pending({ teammateId: ids.teammate })).toBeNull();
+    const [teammate] = await db
+      .select({ instructions: s.teammates.instructions })
+      .from(s.teammates)
+      .where(eq(s.teammates.id, ids.teammate));
+    const [older, newer] = await db
+      .insert(s.instructionProposals)
+      .values([
+        {
+          teammateId: ids.teammate,
+          current: "Be brief.",
+          proposed: "Be brief.\nCite sources.",
+          reason: "You asked for sources twice.",
+          status: "dismissed",
+          createdAt: new Date(Date.now() - 60_000),
+        },
+        {
+          teammateId: ids.teammate,
+          current: "Be brief.",
+          proposed: "Be brief.\nAsk before booking.",
+          reason: "You corrected two bookings.",
+        },
+      ])
+      .returning();
+    try {
+      expect(await api.proposals.pending({ teammateId: ids.teammate })).toEqual({
+        id: newer!.id,
+        teammateId: ids.teammate,
+        current: "Be brief.",
+        proposed: "Be brief.\nAsk before booking.",
+        reason: "You corrected two bookings.",
+        createdAt: newer!.createdAt.toISOString(),
+        instructionsNow: teammate!.instructions,
+      });
+      await expect(api.proposals.pending({ teammateId: randomUUID() })).rejects.toMatchObject({
+        code: "NOT_FOUND",
+      });
+    } finally {
+      await db
+        .delete(s.instructionProposals)
+        .where(inArray(s.instructionProposals.id, [older!.id, newer!.id]));
     }
   });
 

@@ -259,5 +259,6 @@ The approval is stored with a canonical hash of the call, and the retry in that 
 
 A teammate can suggest a rewrite of its own instructions with `propose_instructions`, with a reason.
 The suggestion waits in `instruction_proposals`, and a newer one replaces one you haven't looked at.
-Home lists it under "Needs you", and the teammate's page shows a line-by-line diff to accept or dismiss.
+Home lists it under "Needs you", and the teammate's page shows a line-by-line diff to accept or dismiss, on the web and the phone.
+The phone reads it with `proposals.pending`; the diff is against the instructions as they are now (`instructionsChange` in `packages/domain`), so an edit you made since shows too.
 Every template includes a weekly retro routine that reviews the week, including lessons from your feedback, and may suggest changes this way.

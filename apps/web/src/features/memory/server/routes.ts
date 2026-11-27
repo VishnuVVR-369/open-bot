@@ -4,6 +4,7 @@ import {
   confirmMemory,
   createMemory,
   forgetMemory,
+  getMemory,
   listMemories,
   memoriesForRun,
   memoryHistory,
@@ -15,6 +16,7 @@ import {
 export function memoryRoutes() {
   return {
     list: os.memory.list.handler(({ input }) => listMemories(input)),
+    get: os.memory.get.handler(({ input }) => getMemory(input)),
     history: os.memory.history.handler(({ input }) => memoryHistory(input)),
     forRun: os.memory.forRun.handler(({ input }) => memoriesForRun(input)),
     create: os.memory.create.handler(({ input }) => createMemory(input)),

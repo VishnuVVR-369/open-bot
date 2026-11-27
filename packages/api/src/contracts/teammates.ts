@@ -5,7 +5,12 @@ import {
 } from "@open-bot/domain";
 import { z } from "zod";
 import { base, id, ok } from "../base";
-import { budgetInputSchema, lessonViewSchema, spendingViewSchema } from "../teammates";
+import {
+  budgetInputSchema,
+  lessonViewSchema,
+  pendingProposalViewSchema,
+  spendingViewSchema,
+} from "../teammates";
 import { teammateSummarySchema } from "../views";
 
 /** The biggest teammate file that can be imported, in characters. */
@@ -73,6 +78,11 @@ export const teammatesContract = {
 };
 
 export const proposalsContract = {
+  /**
+   * The instructions a teammate suggests for itself and you haven't decided yet, or null. A
+   * newer suggestion replaces the one waiting, so there's at most one per teammate.
+   */
+  pending: base.input(z.object({ teammateId: id })).output(pendingProposalViewSchema.nullable()),
   /**
    * Take the instructions a teammate suggested for itself; they apply from its next message.
    * Deciding again the same way succeeds; one decided the other way fails with

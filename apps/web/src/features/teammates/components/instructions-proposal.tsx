@@ -1,6 +1,6 @@
 "use client";
 
-import { lineDiff } from "@open-bot/domain";
+import { instructionsChange } from "@open-bot/domain";
 import { Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useTransition } from "react";
@@ -26,11 +26,10 @@ export function InstructionsProposal({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [accepting, startAccepting] = useTransition();
-  const lines = useMemo(
-    () => lineDiff(instructionsNow, proposal.proposed),
-    [instructionsNow, proposal.proposed],
+  const { lines, editedSince } = useMemo(
+    () => instructionsChange(proposal, instructionsNow),
+    [proposal, instructionsNow],
   );
-  const editedSince = instructionsNow !== proposal.current;
 
   return (
     <section
