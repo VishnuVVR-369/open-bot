@@ -46,6 +46,20 @@ export const scopeTeammate = (scope: string): string | null =>
 export const sameMemoryScope = (key: readonly unknown[], teammateId: string | null) =>
   key[0] === "memory" && key[1] === "list" && key[2] === teammateId;
 
+/**
+ * What the memory list shows under its search and scope chips, which stay on screen throughout,
+ * so a slow or failed read of one scope never takes away the way to another.
+ */
+export function memoryListBody(read: {
+  isLoading: boolean;
+  error: unknown;
+  data: readonly unknown[] | undefined;
+}): "loading" | "error" | "list" {
+  if (read.data !== undefined) return "list";
+  if (read.error != null) return "error";
+  return read.isLoading ? "loading" : "list";
+}
+
 /** What the memory form edits. The topic key and expiry are kept as they are, or cleared. */
 export interface MemoryForm {
   content: string;

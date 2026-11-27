@@ -12,6 +12,7 @@ import {
   memoryDraft,
   memoryHref,
   memoryInput,
+  memoryListBody,
   memoryListHref,
   memoryMeta,
   memoryFormProblem,
@@ -243,6 +244,15 @@ describe("the memory list", () => {
     expect(sameMemoryScope(ada, "t1")).toBe(true);
     expect(sameMemoryScope(ada, null)).toBe(false);
     expect(sameMemoryScope(["memory", "get", "t1"], "t1")).toBe(false);
+  });
+
+  it("loads and fails inside the list, so the search and chips stay to switch scope", () => {
+    const offline = new TypeError("Network request failed");
+    expect(memoryListBody({ isLoading: true, error: null, data: undefined })).toBe("loading");
+    expect(memoryListBody({ isLoading: false, error: offline, data: undefined })).toBe("error");
+    // What was read stays through a refresh that failed.
+    expect(memoryListBody({ isLoading: false, error: offline, data: [] })).toBe("list");
+    expect(memoryListBody({ isLoading: false, error: null, data: [] })).toBe("list");
   });
 });
 

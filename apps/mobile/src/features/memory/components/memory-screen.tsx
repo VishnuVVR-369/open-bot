@@ -23,7 +23,14 @@ import { usePullToRefresh } from "@/lib/use-pull-to-refresh";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
 import { useMemories } from "../hooks";
-import { memoryHref, memoryScopes, newMemoryHref, scopeTeammate, SHARED_SCOPE } from "../memory";
+import {
+  memoryHref,
+  memoryListBody,
+  memoryScopes,
+  newMemoryHref,
+  scopeTeammate,
+  SHARED_SCOPE,
+} from "../memory";
 import { MemoryRow } from "./memory-row";
 
 /**
@@ -112,23 +119,27 @@ export default function MemoryScreen() {
     </View>
   );
 
-  if (memories.isLoading)
-    return (
-      <>
-        {header}
-        <Loading />
-      </>
-    );
-  if (memories.error && !memories.data)
-    return (
-      <>
-        {header}
-        <LoadError
-          title="Couldn't load memory"
-          error={memories.error}
-          onRetry={() => void memories.refetch()}
-        />
-      </>
+  // Loading or failing shows in the list, under the search and chips, so you can always switch.
+  const body = memoryListBody(memories);
+  const empty =
+    body === "loading" ? (
+      <Loading />
+    ) : body === "error" ? (
+      <LoadError
+        title="Couldn't load memory"
+        error={memories.error}
+        onRetry={() => void memories.refetch()}
+      />
+    ) : (
+      <Empty
+        icon={<Brain size={28} color={colors.mutedForeground} />}
+        title={query ? "Nothing matches" : "Nothing saved yet"}
+        body={
+          query
+            ? "No memories match that search."
+            : "Add a fact, or ask a teammate to remember something."
+        }
+      />
     );
 
   return (
@@ -149,17 +160,7 @@ export default function MemoryScreen() {
           />
         }
         ListHeaderComponent={top}
-        ListEmptyComponent={
-          <Empty
-            icon={<Brain size={28} color={colors.mutedForeground} />}
-            title={query ? "Nothing matches" : "Nothing saved yet"}
-            body={
-              query
-                ? "No memories match that search."
-                : "Add a fact, or ask a teammate to remember something."
-            }
-          />
-        }
+        ListEmptyComponent={empty}
         ListFooterComponent={
           items.length >= MEMORY_LIST_LIMIT ? (
             <Text variant="caption" muted style={styles.footer}>
