@@ -223,7 +223,7 @@ function AutomationDetails({ automation }: { automation: Automation }) {
                 variant="small"
                 style={{
                   fontWeight: "600",
-                  color: outcome.failed ? colors.destructive : undefined,
+                  color: outcome.failed ? colors.destructive : colors.foreground,
                 }}
               >
                 {outcome.title}
@@ -350,7 +350,12 @@ const styles = StyleSheet.create({
     padding: space(4),
   },
   note: { flexDirection: "row", alignItems: "center", gap: space(2), paddingHorizontal: space(1) },
-  outcome: { borderRadius: radius.lg, padding: space(3), gap: 2 },
+  outcome: {
+    borderRadius: radius.lg,
+    paddingHorizontal: space(4),
+    paddingVertical: space(3),
+    gap: 2,
+  },
   inset: { paddingHorizontal: space(1) },
   detail: { padding: space(4), gap: space(1.5) },
   link: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
