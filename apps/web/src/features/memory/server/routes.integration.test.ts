@@ -93,7 +93,7 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     });
   });
 
-  it("confirms a teammate's suggested memory", async () => {
+  it("confirms a teammate's suggested memory, answering with who saved it like a read", async () => {
     const { memory } = await import("@/features/memory/server");
     const suggested = await memory.save(
       {
@@ -111,6 +111,10 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       id: suggested.id,
       expectedRevision: suggested.revision,
     });
-    expect(confirmed.state).toBe("active");
+    // A change answers with the memory as a read shows it, so the phone can show the answer as is.
+    expect(confirmed).toMatchObject({
+      state: "active",
+      source: { runId: ids.run, teammateId: ids.teammate, chatId: ids.chat },
+    });
   });
 });
