@@ -38,3 +38,31 @@ export function lineDiff(before: string, after: string): DiffLine[] {
   while (j < b.length) lines.push({ type: "added", text: b[j++]! });
   return lines;
 }
+
+/** A diff line, or a run of unchanged lines folded away. */
+export type DiffRow = DiffLine | { type: "folded"; count: number };
+
+/**
+ * A diff with its long unchanged runs folded, keeping `context` lines on each side of a change,
+ * so a small change to long text shows where it is. A diff without changes stays as it is.
+ */
+export function foldDiff(lines: DiffLine[], context = 2): DiffRow[] {
+  const changes = lines.flatMap((line, index) => (line.type === "same" ? [] : [index]));
+  if (changes.length === 0) return lines;
+  const near = (index: number) => changes.some((change) => Math.abs(change - index) <= context);
+  const rows: DiffRow[] = [];
+  let run: DiffLine[] = [];
+  const flush = () => {
+    // Folding a single line saves no room, so it shows.
+    if (run.length === 1) rows.push(run[0]!);
+    else if (run.length > 1) rows.push({ type: "folded", count: run.length });
+    run = [];
+  };
+  lines.forEach((line, index) => {
+    if (line.type === "same" && !near(index)) return void run.push(line);
+    flush();
+    rows.push(line);
+  });
+  flush();
+  return rows;
+}

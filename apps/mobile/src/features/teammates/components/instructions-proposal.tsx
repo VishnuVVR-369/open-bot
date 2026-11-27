@@ -1,9 +1,9 @@
 import type { PendingProposalView } from "@open-bot/api";
-import { instructionsChange } from "@open-bot/domain";
+import { foldDiff, instructionsChange } from "@open-bot/domain";
 import { safe } from "@orpc/client";
 import { Check, Sparkles } from "lucide-react-native";
 import { useMemo, useState } from "react";
-import { ScrollView, StyleSheet, useColorScheme, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, useColorScheme, View } from "react-native";
 import { Button } from "@/components/button";
 import { Text } from "@/components/text";
 import { api } from "@/lib/api";
@@ -61,6 +61,9 @@ function Proposal({
     () => instructionsChange(proposal, proposal.instructionsNow),
     [proposal],
   );
+  // Long unchanged stretches fold, so the change shows first; a tap shows the whole text.
+  const [unfolded, setUnfolded] = useState(false);
+  const rows = useMemo(() => (unfolded ? lines : foldDiff(lines)), [lines, unfolded]);
 
   async function decide(decision: Decision) {
     haptics.tap();
@@ -161,36 +164,56 @@ function Proposal({
         contentContainerStyle={{ paddingVertical: space(2) }}
         testID="proposal-diff"
       >
-        {lines.map((line, index) => (
-          <View
-            key={index}
-            style={[
-              styles.line,
-              line.type === "added" && { backgroundColor: mix(colors.done, colors.surface, 0.12) },
-              line.type === "removed" && {
-                backgroundColor: mix(colors.destructive, colors.surface, 0.1),
-              },
-            ]}
-            accessibilityLabel={`${line.type === "added" ? "Added" : line.type === "removed" ? "Removed" : "Unchanged"}: ${line.text}`}
-          >
-            <Text variant="mono" muted style={styles.mark}>
-              {line.type === "added" ? "+" : line.type === "removed" ? "−" : " "}
-            </Text>
-            <Text
-              variant="mono"
+        {rows.map((line, index) =>
+          line.type === "folded" ? (
+            <Pressable
+              key={index}
+              onPress={() => setUnfolded(true)}
+              accessibilityRole="button"
+              accessibilityLabel={`${line.count} unchanged lines. Show them`}
+              style={({ pressed }) => [
+                styles.folded,
+                { backgroundColor: colors.subtle, opacity: pressed ? 0.7 : 1 },
+              ]}
+              testID="proposal-unfold"
+            >
+              <Text variant="caption" muted>
+                {`${line.count} unchanged lines`}
+              </Text>
+            </Pressable>
+          ) : (
+            <View
+              key={index}
               style={[
-                { flex: 1 },
-                line.type === "added" && { color: colors.done },
+                styles.line,
+                line.type === "added" && {
+                  backgroundColor: mix(colors.done, colors.surface, 0.12),
+                },
                 line.type === "removed" && {
-                  color: colors.destructive,
-                  textDecorationLine: "line-through",
+                  backgroundColor: mix(colors.destructive, colors.surface, 0.1),
                 },
               ]}
+              accessibilityLabel={`${line.type === "added" ? "Added" : line.type === "removed" ? "Removed" : "Unchanged"}: ${line.text}`}
             >
-              {line.text || " "}
-            </Text>
-          </View>
-        ))}
+              <Text variant="mono" muted style={styles.mark}>
+                {line.type === "added" ? "+" : line.type === "removed" ? "−" : " "}
+              </Text>
+              <Text
+                variant="mono"
+                style={[
+                  { flex: 1 },
+                  line.type === "added" && { color: colors.done },
+                  line.type === "removed" && {
+                    color: colors.destructive,
+                    textDecorationLine: "line-through",
+                  },
+                ]}
+              >
+                {line.text || " "}
+              </Text>
+            </View>
+          ),
+        )}
       </ScrollView>
       {problem && (
         <Text variant="small" style={{ color: colors.destructive }} testID="proposal-problem">
@@ -245,6 +268,7 @@ const styles = StyleSheet.create({
   diff: { maxHeight: 280, borderWidth: 1, borderRadius: radius.lg },
   line: { flexDirection: "row", gap: space(2), paddingHorizontal: space(3) },
   mark: { width: 12 },
+  folded: { minHeight: 36, justifyContent: "center", paddingHorizontal: space(3) + 12 + space(2) },
   buttons: { flexDirection: "row", gap: space(3) },
   decided: {
     flexDirection: "row",
