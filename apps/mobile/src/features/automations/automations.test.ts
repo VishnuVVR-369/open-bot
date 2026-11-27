@@ -344,6 +344,18 @@ describe("asking once", () => {
     expect(keys.for("s2", 2000)).toBe("key-4");
   });
 
+  it("knows whether a tap retries an unanswered one", () => {
+    let next = 0;
+    const keys = new RetryKeys(() => `key-${++next}`);
+    expect(keys.retries("s1", 0)).toBe(false);
+    keys.for("s1", 0);
+    expect(keys.retries("s1", 1000)).toBe(true);
+    expect(keys.retries("s2", 1000)).toBe(false);
+    expect(keys.retries("s1", 1000 + RETRY_WINDOW_MS + 1)).toBe(false);
+    keys.done("s1");
+    expect(keys.retries("s1", 2000)).toBe(false);
+  });
+
   it("makes a tap long after a lost answer a new ask, not a retry", () => {
     let next = 0;
     const keys = new RetryKeys(() => `key-${++next}`);
@@ -357,18 +369,25 @@ describe("asking once", () => {
 
   it("says whether this tap started the run, or an earlier one had", () => {
     const brief = { title: "Morning brief" };
-    expect(runNowOutcome(brief, { started: true }, "Ana")).toEqual({
+    expect(runNowOutcome(brief, { started: true }, "Ana", false)).toEqual({
       title: "Started “Morning brief”",
       body: "Ana is on it.",
       failed: false,
     });
-    expect(runNowOutcome(brief, { started: false }, "Ana")).toEqual({
+    expect(runNowOutcome(brief, { started: false }, "Ana", true)).toEqual({
       title: "“Morning brief” was already started",
       body: "Your earlier tap went through, so nothing more started. Ana is on it.",
       failed: false,
     });
+    // One tap, whose request the network sent twice after its connection dropped: this tap
+    // started it, so it says so rather than naming an earlier tap there wasn't.
+    expect(runNowOutcome(brief, { started: false }, "Ana", false)).toEqual({
+      title: "Started “Morning brief”",
+      body: "Ana is on it.",
+      failed: false,
+    });
     // A server from before `started` started one.
-    expect(runNowOutcome(brief, {}, "Ana").title).toBe("Started “Morning brief”");
+    expect(runNowOutcome(brief, {}, "Ana", true).title).toBe("Started “Morning brief”");
   });
 });
 

@@ -237,15 +237,18 @@ export function zoneNote(scheduleZone: string, phoneZone: string): string {
 
 /**
  * What a "Run now" did, said honestly: started by this tap, or by an earlier one whose answer was
- * lost (the server found the run it started), so nothing more started.
+ * lost (the server found the run it started), so nothing more started. `retried` says whether this
+ * tap retried an earlier one: Android's network layer resends a request whose connection dropped,
+ * so a single tap can also be answered `started: false`, and then it was this tap that started it.
  */
 export function runNowOutcome(
   schedule: Pick<ScheduleView, "title">,
   answer: { started?: boolean },
   teammateName: string,
+  retried: boolean,
 ): { title: string; body: string; failed: boolean } {
   // A server from before `started` says nothing: it started a run.
-  if (answer.started === false)
+  if (answer.started === false && retried)
     return {
       title: `“${schedule.title}” was already started`,
       body: `Your earlier tap went through, so nothing more started. ${teammateName} is on it.`,
@@ -413,10 +416,19 @@ export class RetryKeys {
   ) {}
 
   for(name: string, now: number = Date.now()): string {
-    const kept = this.keys.get(name);
-    const key = kept && now - kept.at <= this.windowMs ? kept.key : this.newKey();
+    const key = this.kept(name, now) ?? this.newKey();
     this.keys.set(name, { key, at: now });
     return key;
+  }
+
+  /** Whether the next ask for `name` retries an earlier one that wasn't answered. */
+  retries(name: string, now: number = Date.now()): boolean {
+    return this.kept(name, now) !== null;
+  }
+
+  private kept(name: string, now: number): string | null {
+    const kept = this.keys.get(name);
+    return kept && now - kept.at <= this.windowMs ? kept.key : null;
   }
 
   /** The ask went through, or was refused: the next one is a new ask. */

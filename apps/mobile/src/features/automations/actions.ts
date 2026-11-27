@@ -67,13 +67,14 @@ export interface ActionOutcome {
 /**
  * Runs a schedule now, without changing when it runs next. A retry soon after a failure sends the
  * same run id, so a run whose answer was lost isn't started twice, and the answer says whether
- * this tap started it or an earlier one had.
+ * this tap started it or an earlier one had (a resend of this same tap is still this tap).
  */
 export async function runScheduleNow(
   schedule: Pick<ScheduleView, "id" | "title">,
   teammateName: string,
   runKeys: RetryKeys,
 ): Promise<ActionOutcome> {
+  const retried = runKeys.retries(schedule.id);
   const runId = runKeys.for(schedule.id);
   const result = await safe(api.schedules.runNow({ scheduleId: schedule.id, runId }));
   refresh({ type: "schedule", id: schedule.id });
@@ -86,7 +87,7 @@ export async function runScheduleNow(
   }
   runKeys.done(schedule.id);
   haptics.success();
-  return { ...runNowOutcome(schedule, result.data, teammateName), runId };
+  return { ...runNowOutcome(schedule, result.data, teammateName, retried), runId };
 }
 
 /** Looks at the page, mail or calendar now, and says what it found. */
