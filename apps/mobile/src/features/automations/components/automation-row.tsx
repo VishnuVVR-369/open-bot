@@ -12,7 +12,7 @@ import {
   canTurnOn,
   lastLine,
   stateBadge,
-  keepTimesWhole,
+  keepPartsWhole,
   whenLine,
   type Automation,
 } from "../automations";
@@ -65,7 +65,7 @@ export function AutomationRow({
         {/* All of it in the full list: cut short, it drops "tells you only if…" or a zone. A
             profile's short list keeps two lines, enough for the cadence and the next run. */}
         <Text variant="small" muted numberOfLines={compact ? 2 : undefined}>
-          {keepTimesWhole(whenLine(automation, { computerOnline }))}
+          {keepPartsWhole(whenLine(automation, { computerOnline }))}
         </Text>
         {last && (
           <Text
@@ -73,7 +73,7 @@ export function AutomationRow({
             numberOfLines={2}
             style={{ color: last.failed ? colors.destructive : colors.mutedForeground }}
           >
-            {last.text}
+            {keepPartsWhole(last.text)}
           </Text>
         )}
       </View>

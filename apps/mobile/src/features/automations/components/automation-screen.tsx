@@ -44,7 +44,7 @@ import {
   mainAction,
   stateBadge,
   webOnlyNote,
-  keepTimesWhole,
+  keepPartsWhole,
   whenLine,
   zoneNote,
   type Automation,
@@ -170,14 +170,14 @@ function AutomationDetails({ automation }: { automation: Automation }) {
         <View style={styles.row}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text variant="label">
-              {keepTimesWhole(whenLine(automation, { computerOnline: !computerOffline }))}
+              {keepPartsWhole(whenLine(automation, { computerOnline: !computerOffline }))}
             </Text>
             {last && (
               <Text
                 variant="small"
                 style={{ color: last.failed ? colors.destructive : colors.mutedForeground }}
               >
-                {last.text}
+                {keepPartsWhole(last.text)}
               </Text>
             )}
             {automation.type === "schedule" && (

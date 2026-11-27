@@ -22,7 +22,7 @@ import {
   rebaseForm,
   RETRY_WINDOW_MS,
   editorReturnsToAutomation,
-  keepTimesWhole,
+  keepPartsWhole,
   RetryKeys,
   runNowOutcome,
   stateBadge,
@@ -164,11 +164,11 @@ describe("the automations list", () => {
     ).toBe("me@example.com · 15 minutes before each event");
   });
 
-  it("keeps each time whole on a line", () => {
-    expect(keepTimesWhole("Weekdays at 8:00 AM · next Mon 8:00 PM")).toBe(
-      "Weekdays at 8:00\u00a0AM · next Mon 8:00\u00a0PM",
+  it("keeps each time whole, and each dot with what comes before it", () => {
+    expect(keepPartsWhole("Weekdays at 8:00 AM · next Mon 8:00 PM")).toBe(
+      "Weekdays at 8:00\u00a0AM\u00a0· next Mon 8:00\u00a0PM",
     );
-    expect(keepTimesWhole("Every hour")).toBe("Every hour");
+    expect(keepPartsWhole("Every hour")).toBe("Every hour");
   });
 
   it("puts a schedule's times on its own clock, and names it when the phone's is another", () => {

@@ -198,8 +198,12 @@ export function whenLine(
   return parts.join(" · ");
 }
 
-/** A line with each time kept whole: Android would break "8:00 AM" between the time and AM. */
-export const keepTimesWhole = (line: string) => line.replace(/(\d) (AM|PM)\b/g, "$1\u00a0$2");
+/**
+ * A line that Android wraps only where it reads well: never inside "8:00 AM", and never before a
+ * " · ", which would start the next line with the dot.
+ */
+export const keepPartsWhole = (line: string) =>
+  line.replace(/(\d) (AM|PM)\b/g, "$1\u00a0$2").replaceAll(" · ", "\u00a0· ");
 
 /** How it went last, under the timing: a failed check in red, or its last run. */
 export function lastLine(
