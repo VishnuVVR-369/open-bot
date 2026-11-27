@@ -121,9 +121,21 @@ export function mainAction(
   return { kind: "check", label: "Check now" };
 }
 
-/** "next tomorrow 9:00 AM", or "next Wed 9:00 AM" further out, on `timeZone`'s clock. */
-const nextText = (iso: string, timeZone: string, now: Date) =>
-  `next ${nextRunLabel(iso, timeZone, now).replace(/^(Today|Tomorrow)/, (word) => word.toLowerCase())}`;
+/** "tomorrow 9:00 AM", or "Wed 9:00 AM" further out, on `timeZone`'s clock. */
+const soonText = (iso: string, timeZone: string, now: Date) =>
+  nextRunLabel(iso, timeZone, now).replace(/^(Today|Tomorrow)/, (word) => word.toLowerCase());
+
+/**
+ * When a reminder runs: "Once, today 9:00 AM" when that's today or tomorrow, else its date. It
+ * runs only at that time, so a "next" would say the same thing twice.
+ */
+function onceText(schedule: ScheduleView, now: Date): string {
+  if (schedule.enabled && schedule.nextRunAt) {
+    const soon = soonText(schedule.nextRunAt, schedule.timezone, now);
+    if (/^(today|tomorrow) /.test(soon)) return `Once, ${soon}`;
+  }
+  return scheduleCadence(schedule);
+}
 
 /** Said of a schedule that tells you only when something changed. */
 export const QUIET_TEXT = "tells you only if something changed";
@@ -141,13 +153,14 @@ export function whenLine(
   }: { now?: Date; computerOnline?: boolean; phoneZone?: string } = {},
 ): string {
   if (automation.type === "schedule") {
-    const parts = [scheduleCadence(automation)];
-    if (automation.enabled && automation.nextRunAt)
-      parts.push(
-        runIsHeldBack(automation.nextRunAt, now.getTime(), computerOnline)
-          ? WAITING_FOR_COMPUTER.toLowerCase()
-          : nextText(automation.nextRunAt, automation.timezone, now),
-      );
+    const once = automation.kind === "once";
+    const parts = [once ? onceText(automation, now) : scheduleCadence(automation)];
+    if (automation.enabled && automation.nextRunAt) {
+      if (runIsHeldBack(automation.nextRunAt, now.getTime(), computerOnline))
+        parts.push(WAITING_FOR_COMPUTER.toLowerCase());
+      else if (!once)
+        parts.push(`next ${soonText(automation.nextRunAt, automation.timezone, now)}`);
+    }
     const zone = otherZoneLabel(automation.timezone, phoneZone);
     if (zone) parts.push(zone);
     if (automation.quiet) parts.push(QUIET_TEXT);
@@ -231,9 +244,12 @@ export function webOnlyNote(automation: Automation): string {
 /** The zone a schedule's times are in, and the phone's when they differ, so nothing surprises. */
 export function zoneNote(scheduleZone: string, phoneZone: string): string {
   return scheduleZone === phoneZone
-    ? `Times in ${scheduleZone}`
-    : `Times in ${scheduleZone}. This phone is on ${phoneZone}.`;
+    ? `Times in ${unbroken(scheduleZone)}`
+    : `Times in ${unbroken(scheduleZone)}. This phone is on ${unbroken(phoneZone)}.`;
 }
+
+/** A zone's name kept on one line: Android would break "Asia/Kolkata" after its slash. */
+const unbroken = (zone: string) => zone.replaceAll("/", "/\u2060");
 
 /**
  * What a "Run now" did, said honestly: started by this tap, or by an earlier one whose answer was

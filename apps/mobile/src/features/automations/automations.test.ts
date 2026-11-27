@@ -174,9 +174,27 @@ describe("the automations list", () => {
         timezone: "Asia/Kolkata",
       }),
     );
-    expect(whenLine(reminder, { ...london, now })).toBe(
-      "Once, Mon Nov 30, 9:00 AM · next Mon 9:00 AM · Kolkata time",
+    // It runs only then, so no "next" repeats the time.
+    expect(whenLine(reminder, { ...london, now })).toBe("Once, Mon Nov 30, 9:00 AM · Kolkata time");
+    // On its day, or the day before, it says so.
+    expect(whenLine(reminder, { ...london, now: new Date("2026-11-29T12:00:00Z") })).toBe(
+      "Once, tomorrow 9:00 AM · Kolkata time",
     );
+    expect(
+      whenLine(reminder, {
+        ...london,
+        now: new Date("2026-11-30T01:00:00Z"),
+        computerOnline: false,
+      }),
+    ).toBe("Once, today 9:00 AM · Kolkata time");
+    // Due with the computer off, it's waiting for it.
+    expect(
+      whenLine(reminder, {
+        ...london,
+        now: new Date("2026-11-30T03:31:00Z"),
+        computerOnline: false,
+      }),
+    ).toBe("Once, today 9:00 AM · waiting for the computer · Kolkata time");
     // Near midnight: Sun 22:30 in London is already Mon 04:00 in Kolkata, so its 9:00 is today.
     const late = new Date("2026-11-29T22:30:00Z");
     const routine = asSchedule(
@@ -244,9 +262,10 @@ describe("the automations list", () => {
     expect(webOnlyNote(asTrigger(trigger({ kind: "webhook" })))).toBe(
       "To see or change its URL, test it or change what it does, open Automations in open-bot on a computer.",
     );
-    expect(zoneNote("Europe/Berlin", "Europe/Berlin")).toBe("Times in Europe/Berlin");
+    // A word joiner after each slash keeps a zone's name on one line.
+    expect(zoneNote("Europe/Berlin", "Europe/Berlin")).toBe("Times in Europe/\u2060Berlin");
     expect(zoneNote("Europe/Berlin", "Asia/Kolkata")).toBe(
-      "Times in Europe/Berlin. This phone is on Asia/Kolkata.",
+      "Times in Europe/\u2060Berlin. This phone is on Asia/\u2060Kolkata.",
     );
   });
 });
