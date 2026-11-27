@@ -78,6 +78,26 @@ describe("call errors", () => {
     expect(isRetryable(offline)).toBe(true);
     expect(errorMessage(offline)).toMatch(/Couldn't reach open-bot/);
   });
+
+  it("says it couldn't reach open-bot when Expo's fetch lost the connection", async () => {
+    // The phone's global fetch is Expo's: a dropped connection rejects with its FetchError, not
+    // a TypeError, and the client passes it through.
+    class FetchError extends Error {}
+    const dropped = new FetchError(
+      "fetch failed: java.io.IOException: unexpected end of stream on http://localhost:3000/...",
+    );
+    const api = createApiClient({
+      appUrl: "https://open-bot.test",
+      fetch: () => Promise.reject(dropped),
+    });
+    const error = await api.teammates.list().then(
+      () => expect.unreachable("the call should fail"),
+      (thrown: unknown) => thrown,
+    );
+    expect(errorMessage(error)).toBe("Couldn't reach open-bot. Check your connection.");
+    expect(isRetryable(error)).toBe(true);
+    expect(errorMessage(new Error("fetched the wrong thing"))).toBe("Something went wrong.");
+  });
 });
 
 describe("file errors", () => {
