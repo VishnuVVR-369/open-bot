@@ -96,9 +96,17 @@ export function InstructionsProposal({
           disabled={pending || accepting}
           onClick={() =>
             startAccepting(async () => {
-              const result = await attempt(api.proposals.accept({ proposalId: proposal.id }));
+              // As reviewed: instructions changed since are refused, never overwritten.
+              const result = await attempt(
+                api.proposals.accept({
+                  proposalId: proposal.id,
+                  expectedInstructions: instructionsNow,
+                }),
+              );
               if (!result.ok) {
                 toast.error("Couldn't apply it", { description: result.error });
+                // Shows the change against the instructions as they are now.
+                router.refresh();
                 return;
               }
               toast(`${name} has new instructions`, {

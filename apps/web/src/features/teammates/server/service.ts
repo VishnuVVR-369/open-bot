@@ -107,8 +107,9 @@ export async function setBudget(input: Inputs["setBudget"]): Promise<{ ok: true 
 /** Take a teammate's suggested instructions; they apply from its next message. */
 export async function acceptProposal({
   proposalId,
+  expectedInstructions,
 }: ApiInputs["proposals"]["accept"]): Promise<{ ok: true }> {
-  return worker.proposals.accept({ proposalId });
+  return worker.proposals.accept({ proposalId, expectedInstructions });
 }
 
 export async function dismissProposal({

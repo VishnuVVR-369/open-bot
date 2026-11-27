@@ -9,7 +9,7 @@ import {
   updatedTeammateSchema,
 } from "@open-bot/domain";
 import { z } from "zod";
-import { budgetInputSchema } from "../../teammates";
+import { budgetInputSchema, workerProposalAcceptSchema } from "../../teammates";
 
 export const teammatesContract = {
   /** The same service that creates a teammate when another teammate asks to. */
@@ -90,10 +90,13 @@ export const teammatesContract = {
 };
 
 export const proposalsContract = {
-  /** Take suggested instructions; the same decision again succeeds, the other is a 409. */
+  /**
+   * Take suggested instructions; the same decision again succeeds, the other is a 409, as is one
+   * whose instructions aren't `expectedInstructions` any more or whose teammate was archived.
+   */
   accept: base
     .route({ method: "POST", path: "/internal/proposals/{proposalId}/accept" })
-    .input(z.object({ proposalId: id }))
+    .input(workerProposalAcceptSchema)
     .output(ok),
   dismiss: base
     .route({ method: "POST", path: "/internal/proposals/{proposalId}/dismiss" })

@@ -92,7 +92,11 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
         () => api.teammates.setBudget({ teammateId, budget: 120.5, autoApprove: 20 }),
         { budget: 120.5, autoApprove: 20 },
       ],
-      [`/internal/proposals/${proposalId}/accept`, () => api.proposals.accept({ proposalId }), {}],
+      [
+        `/internal/proposals/${proposalId}/accept`,
+        () => api.proposals.accept({ proposalId, expectedInstructions: "Be brief." }),
+        { expectedInstructions: "Be brief." },
+      ],
       [
         `/internal/proposals/${proposalId}/dismiss`,
         () => api.proposals.dismiss({ proposalId }),
@@ -133,6 +137,12 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
         code: "STATE_CONFLICT",
         message: "That suggestion was already handled.",
       });
+      // Accepting names the instructions you reviewed, so a stale change can't overwrite newer ones.
+      const sent = workerBodies.length;
+      await expect(
+        api.proposals.accept({ proposalId } as Parameters<typeof api.proposals.accept>[0]),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      expect(workerBodies).toHaveLength(sent);
     } finally {
       for (const [path] of calls) answers.delete(path);
     }

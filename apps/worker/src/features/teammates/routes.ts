@@ -44,7 +44,7 @@ export function teammateRoutes(teammates: TeammateService, executor: WorkspaceSy
     },
     proposals: {
       accept: os.proposals.accept.handler(async ({ input }) => {
-        await teammates.acceptProposal(input.proposalId);
+        await teammates.acceptProposal(input.proposalId, input.expectedInstructions);
         return ok;
       }),
       dismiss: os.proposals.dismiss.handler(async ({ input }) => {

@@ -15,6 +15,7 @@ import { ago } from "@/lib/time";
 import { radius, space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 import { usePendingProposal } from "../hooks";
+import { afterConflict } from "../proposals";
 
 type Decision = "accept" | "dismiss";
 
@@ -65,22 +66,41 @@ function Proposal({
     haptics.tap();
     setBusy(decision);
     setProblem(null);
-    const send = decision === "accept" ? api.proposals.accept : api.proposals.dismiss;
-    const result = await safe(send({ proposalId: proposal.id }));
-    void queryClient.invalidateQueries({ queryKey: queryKeys.proposal(proposal.teammateId) });
+    // Accepting names the instructions the change was shown against, so if they changed since,
+    // or the teammate was archived, it's refused instead of overwriting them.
+    const result = await safe(
+      decision === "accept"
+        ? api.proposals.accept({
+            proposalId: proposal.id,
+            expectedInstructions: proposal.instructionsNow,
+          })
+        : api.proposals.dismiss({ proposalId: proposal.id }),
+    );
     void queryClient.invalidateQueries({ queryKey: queryKeys.home });
     if (decision === "accept")
       void queryClient.invalidateQueries({ queryKey: queryKeys.teammates });
+    if (result.error && isStateConflict(result.error)) {
+      haptics.error();
+      // Read what's waiting now: the same suggestion against changed instructions shows its new
+      // diff here to review again; decided elsewhere or replaced, it says so.
+      const fresh = await safe(api.proposals.pending({ teammateId: proposal.teammateId }));
+      if (!fresh.error)
+        queryClient.setQueryData(queryKeys.proposal(proposal.teammateId), fresh.data);
+      else
+        void queryClient.invalidateQueries({ queryKey: queryKeys.proposal(proposal.teammateId) });
+      setBusy(null);
+      if (afterConflict(proposal.id, fresh.error ? undefined : fresh.data) === "review-again")
+        return setProblem(errorMessage(result.error));
+      return onSettled({
+        id: proposal.id,
+        text: errorMessage(result.error),
+        testID: "proposal-handled",
+      });
+    }
+    void queryClient.invalidateQueries({ queryKey: queryKeys.proposal(proposal.teammateId) });
     setBusy(null);
     if (result.error) {
       haptics.error();
-      // Decided the other way meanwhile, or replaced by a newer one: say so, and show what's next.
-      if (isStateConflict(result.error))
-        return onSettled({
-          id: proposal.id,
-          text: errorMessage(result.error),
-          testID: "proposal-handled",
-        });
       setProblem(
         errorMessage(
           result.error,

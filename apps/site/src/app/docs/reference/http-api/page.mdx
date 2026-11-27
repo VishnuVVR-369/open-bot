@@ -135,7 +135,7 @@ A path or input field is removed only once no deployed web app calls it.
 | `POST /internal/teammates/:id/lead`                    | Make this teammate the lead                                            |
 | `POST /internal/teammates/:id/archive`                 | Archive a teammate: stop its runs, pause its automations               |
 | `POST /internal/teammates/:id/budget`                  | Set the monthly budget and auto-approve limit                          |
-| `POST /internal/proposals/:id/accept`, `/dismiss`      | Accept or dismiss suggested instructions                               |
+| `POST /internal/proposals/:id/accept`, `/dismiss`      | Accept (`expectedInstructions`, 409 when stale) or dismiss one         |
 
 ### Approvals and screens
 

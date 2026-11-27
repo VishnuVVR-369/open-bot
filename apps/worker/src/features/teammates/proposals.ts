@@ -1,6 +1,6 @@
 // Instructions a teammate suggests for itself: saving a suggestion and deciding one.
 // The only writer of `instruction_proposals`.
-import { instructionProposals, type Tx } from "@open-bot/db";
+import { instructionProposals, teammates, type Tx } from "@open-bot/db";
 import { and, eq, gt } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { TeammateError } from "./errors";
@@ -47,6 +47,43 @@ export async function decideProposal(tx: Tx, proposalId: string, status: "accept
     409,
     newer ? "A newer suggestion replaced this one." : "That suggestion was already handled.",
   );
+}
+
+/**
+ * Refuses taking a suggestion still waiting unless it's as you reviewed it: the teammate isn't
+ * archived and its instructions are still `expectedInstructions` (when a client sent them). The
+ * teammate's row stays locked until the transaction ends, so an edit or archive can't slip in
+ * before the suggestion is applied. A suggestion already decided is left to `decideProposal`.
+ */
+export async function checkReviewed(
+  tx: Tx,
+  proposalId: string,
+  expectedInstructions: string | undefined,
+): Promise<void> {
+  const [proposal] = await tx
+    .select({ teammateId: suggestedFor })
+    .from(instructionProposals)
+    .where(eq(instructionProposals.id, proposalId));
+  if (!proposal) return;
+  // The teammate first, as every teammate write locks it, then the suggestion.
+  const [teammate] = await tx
+    .select({ instructions: teammates.instructions, archivedAt: teammates.archivedAt })
+    .from(teammates)
+    .where(eq(teammates.id, proposal.teammateId))
+    .for("update");
+  const [waiting] = await tx
+    .select({ status: instructionProposals.status })
+    .from(instructionProposals)
+    .where(eq(instructionProposals.id, proposalId))
+    .for("update");
+  if (waiting?.status !== "pending") return;
+  if (!teammate || teammate.archivedAt)
+    throw new TeammateError(409, "That teammate was archived, so its instructions can't change.");
+  if (expectedInstructions !== undefined && teammate.instructions !== expectedInstructions)
+    throw new TeammateError(
+      409,
+      "The instructions changed since you looked. Review the suggestion again before accepting it.",
+    );
 }
 
 /** A suggestion a teammate makes for its own instructions. */

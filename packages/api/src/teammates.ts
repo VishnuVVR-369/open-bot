@@ -35,6 +35,23 @@ export const pendingProposalViewSchema = proposalViewSchema.extend({
 });
 export type PendingProposalView = z.infer<typeof pendingProposalViewSchema>;
 
+/** The longest instructions a teammate can have, and so the longest you can have reviewed. */
+const instructions = z.string().max(20_000);
+
+/**
+ * Taking a suggestion as you reviewed it. `expectedInstructions` is the teammate's instructions the
+ * change was shown against (`instructionsNow`): if they changed since, or the teammate was
+ * archived, it's refused with `STATE_CONFLICT` instead of overwriting what's there now. The app's
+ * API requires it; the worker's keeps it optional for web apps deployed before it.
+ */
+export const proposalAcceptSchema = z.object({
+  proposalId: id,
+  expectedInstructions: instructions,
+});
+export const workerProposalAcceptSchema = proposalAcceptSchema.partial({
+  expectedInstructions: true,
+});
+
 export const purchaseViewSchema = z.object({
   id: z.string(),
   teammateId: z.string(),

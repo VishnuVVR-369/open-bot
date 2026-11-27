@@ -9,6 +9,7 @@ import {
   budgetInputSchema,
   lessonViewSchema,
   pendingProposalViewSchema,
+  proposalAcceptSchema,
   spendingViewSchema,
 } from "../teammates";
 import { teammateSummarySchema } from "../views";
@@ -86,8 +87,9 @@ export const proposalsContract = {
   /**
    * Take the instructions a teammate suggested for itself; they apply from its next message.
    * Deciding again the same way succeeds; one decided the other way fails with
-   * `STATE_CONFLICT`.
+   * `STATE_CONFLICT`, as does one whose instructions changed since you reviewed it
+   * (`expectedInstructions`) or whose teammate was archived.
    */
-  accept: base.input(z.object({ proposalId: id })).output(ok),
+  accept: base.input(proposalAcceptSchema).output(ok),
   dismiss: base.input(z.object({ proposalId: id })).output(ok),
 };
