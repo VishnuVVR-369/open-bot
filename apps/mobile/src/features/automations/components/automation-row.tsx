@@ -12,6 +12,7 @@ import {
   canTurnOn,
   lastLine,
   stateBadge,
+  keepTimesWhole,
   whenLine,
   type Automation,
 } from "../automations";
@@ -63,7 +64,7 @@ export function AutomationRow({
         </View>
         {/* All of it in the full list: cut short, it drops "tells you only if…" or a zone. */}
         <Text variant="small" muted numberOfLines={compact ? 1 : undefined}>
-          {whenLine(automation, { computerOnline })}
+          {keepTimesWhole(whenLine(automation, { computerOnline }))}
         </Text>
         {last && (
           <Text

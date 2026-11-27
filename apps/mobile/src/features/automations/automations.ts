@@ -178,6 +178,9 @@ export function whenLine(
   return parts.join(" · ");
 }
 
+/** A line with each time kept whole: Android would break "8:00 AM" between the time and AM. */
+export const keepTimesWhole = (line: string) => line.replace(/(\d) (AM|PM)\b/g, "$1\u00a0$2");
+
 /** How it went last, under the timing: a failed check in red, or its last run. */
 export function lastLine(
   automation: Automation,

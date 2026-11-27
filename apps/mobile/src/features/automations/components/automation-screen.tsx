@@ -44,6 +44,7 @@ import {
   mainAction,
   stateBadge,
   webOnlyNote,
+  keepTimesWhole,
   whenLine,
   zoneNote,
   type Automation,
@@ -162,7 +163,7 @@ function AutomationDetails({ automation }: { automation: Automation }) {
         <View style={styles.row}>
           <View style={{ flex: 1, gap: 2 }}>
             <Text variant="label">
-              {whenLine(automation, { computerOnline: !computerOffline })}
+              {keepTimesWhole(whenLine(automation, { computerOnline: !computerOffline }))}
             </Text>
             {last && (
               <Text
