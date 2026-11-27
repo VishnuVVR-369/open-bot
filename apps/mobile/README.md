@@ -97,6 +97,8 @@ It opens the page from a link, checks that it loads, opens Ask and the menu, and
 Pass the teammate's name: `maestro test -e TEAMMATE=<name> maestro/tasks.yaml`.
 `maestro/memory.yaml` adds a shared memory, finds it by searching, edits it, restores its first revision from History and forgets it, then dismisses a teammate's suggested instructions from Home.
 Ask a teammate to suggest a change to its own instructions first, so Home lists it; run it with `maestro test maestro/memory.yaml`.
+These flows need an on-screen keyboard, such as Gboard: with a keyboardless test input method (agent-device installs one), `hideKeyboard` presses Back instead, and an editor asks to discard what was typed.
+Switch back with `adb shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME`.
 To check sharing, send a share with `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'https://example.com'" dev.openbot.mobile.dev`.
 Do it while the app is open (or in the background): the development client's launcher drops a share that cold-starts the app, which a release build doesn't do.
 To try the cold path in a development build, turn on "Don't keep activities" (`adb shell settings put global always_finish_activities 1`), leave the app, share, and turn it off again afterwards.
