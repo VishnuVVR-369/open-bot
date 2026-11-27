@@ -1,9 +1,10 @@
 import { MEMORY_KIND_LABELS, MEMORY_KINDS, type MemoryKind } from "@open-bot/domain";
 import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { radius, space, useColors } from "@/theme";
+import { kindColumns } from "../memory";
 
 /** What kind of memory it is, as one control with the four kinds. */
 export function KindPicker({
@@ -16,6 +17,8 @@ export function KindPicker({
   disabled?: boolean;
 }) {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
+  const columns = kindColumns(fontScale);
   return (
     <View
       style={[styles.track, { backgroundColor: colors.subtle, borderColor: colors.border }]}
@@ -37,6 +40,7 @@ export function KindPicker({
             accessibilityLabel={MEMORY_KIND_LABELS[kind]}
             style={[
               styles.segment,
+              columns === 2 && styles.half,
               selected && { backgroundColor: colors.surface, borderColor: colors.input },
             ]}
             testID={`memory-kind-${kind}`}
@@ -116,13 +120,15 @@ export function Notice({
 const styles = StyleSheet.create({
   track: {
     flexDirection: "row",
+    flexWrap: "wrap",
     borderRadius: radius.xl,
     borderWidth: StyleSheet.hairlineWidth * 2,
     padding: 3,
     gap: 3,
   },
   segment: {
-    flex: 1,
+    flexGrow: 1,
+    flexBasis: 0,
     minHeight: 42,
     alignItems: "center",
     justifyContent: "center",
@@ -131,6 +137,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderColor: "transparent",
   },
+  // Two to a row: wide enough that the gap between them still fits.
+  half: { flexBasis: "45%" },
   notice: {
     flexDirection: "row",
     alignItems: "center",

@@ -346,6 +346,7 @@ export function MemoryEditor({
                     ? `${base.revision} revisions. Restore an earlier one.`
                     : "Every change is kept here."
               }
+              subtitleLines={2}
               onPress={() => router.push(memoryHistoryHref(base.id))}
               testID="memory-history"
             />

@@ -9,6 +9,7 @@ export function ListRow({
   title,
   titleStyle,
   subtitle,
+  subtitleLines = 1,
   aside,
   onPress,
   disabled = false,
@@ -18,6 +19,8 @@ export function ListRow({
   title: string;
   titleStyle?: TextStyle;
   subtitle?: ReactNode;
+  /** How many lines a text subtitle may take before it's cut short. */
+  subtitleLines?: number;
   aside?: ReactNode;
   onPress: () => void;
   /** Shown faded and can't be pressed. */
@@ -46,7 +49,7 @@ export function ListRow({
         </Text>
         {subtitle ? (
           typeof subtitle === "string" ? (
-            <Text variant="small" muted numberOfLines={1}>
+            <Text variant="small" muted numberOfLines={subtitleLines}>
               {subtitle}
             </Text>
           ) : (

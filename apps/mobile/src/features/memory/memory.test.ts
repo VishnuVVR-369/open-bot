@@ -12,6 +12,7 @@ import {
   memoryDraft,
   memoryHref,
   memoryInput,
+  kindColumns,
   memoryListBody,
   memoryListHref,
   memoryMeta,
@@ -289,5 +290,15 @@ describe("a memory's history", () => {
     expect(historyScreenState(read(undefined), read(revisions), isGone)).toEqual({
       kind: "loading",
     });
+  });
+});
+
+describe("kindColumns", () => {
+  it("puts the four kinds in one row, and two rows of two once text is large", () => {
+    // A quarter of the width fits "Preference" at the usual sizes, but not much past them.
+    expect(kindColumns(1)).toBe(4);
+    expect(kindColumns(1.15)).toBe(4);
+    expect(kindColumns(1.35)).toBe(2);
+    expect(kindColumns(2)).toBe(2);
   });
 });

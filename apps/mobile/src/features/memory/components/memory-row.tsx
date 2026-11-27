@@ -1,10 +1,13 @@
 import { isSuggestion, type MemoryItem } from "@open-bot/domain";
 import { Pin } from "lucide-react-native";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { Text } from "@/components/text";
 import { haptics } from "@/lib/haptics";
 import { radius, space, useColors } from "@/theme";
 import { memoryMeta } from "../memory";
+
+/** The caption variant's line height, before the phone's text size scales it. */
+const CAPTION_LINE = 16;
 
 /** A "Suggestion" mark, for a memory a teammate suggested that you haven't confirmed. */
 export function SuggestionBadge() {
@@ -32,6 +35,7 @@ export function MemoryRow({
   onPress: () => void;
 }) {
   const colors = useColors();
+  const { fontScale } = useWindowDimensions();
   const meta = memoryMeta(item, savedBy);
   const suggestion = isSuggestion(item);
   return (
@@ -53,8 +57,13 @@ export function MemoryRow({
     >
       <View style={styles.meta}>
         {suggestion && <SuggestionBadge />}
-        {item.pinned && <Pin size={12} color={colors.mutedForeground} />}
-        <Text variant="caption" muted numberOfLines={1} style={{ flexShrink: 1 }}>
+        {item.pinned && (
+          // As tall as the caption's first line, so the pin stays by it when the line wraps.
+          <View style={[styles.pin, { height: CAPTION_LINE * fontScale }]}>
+            <Pin size={12} color={colors.mutedForeground} />
+          </View>
+        )}
+        <Text variant="caption" muted numberOfLines={2} style={{ flexShrink: 1 }}>
           {meta.join(" · ")}
         </Text>
       </View>
@@ -71,7 +80,8 @@ const styles = StyleSheet.create({
     minHeight: 64,
     justifyContent: "center",
   },
-  meta: { flexDirection: "row", alignItems: "center", gap: space(1.5) },
+  meta: { flexDirection: "row", alignItems: "flex-start", gap: space(1.5) },
+  pin: { justifyContent: "center" },
   badge: {
     borderRadius: radius.full,
     borderWidth: StyleSheet.hairlineWidth * 2,

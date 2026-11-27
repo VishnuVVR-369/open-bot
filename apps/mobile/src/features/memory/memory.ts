@@ -272,3 +272,11 @@ export function revisionSource(revision: Pick<MemoryRevision, "source">): string
       return "From a conversation";
   }
 }
+
+/**
+ * How many memory kinds sit side by side in the type picker: all four, or two rows of two once
+ * the phone's text is large, so a kind's name never gets cut short.
+ */
+export function kindColumns(fontScale: number): 2 | 4 {
+  return fontScale > 1.25 ? 2 : 4;
+}
