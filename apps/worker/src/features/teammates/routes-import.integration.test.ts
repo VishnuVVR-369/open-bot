@@ -5,6 +5,7 @@ import {
   schedules as scheduleRows,
   triggers as triggerRows,
 } from "@open-bot/db";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { teammateRouteHarness } from "./testing-routes";
@@ -163,6 +164,96 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
           worker.teammates.duplicate({ teammateId: ID, name: "Nobody", copyMemory: false }),
         ),
       ).toMatchObject({ status: 404 });
+    });
+
+    it("answers an ask sent again under the same copy id with that copy, and finishes its memory", async () => {
+      const wren = await imported("Wren", { lessons: ["Cite sources."] });
+      await memory.save(
+        {
+          ...owned(wren.teammateId),
+          kind: "fact",
+          content: "Likes tea",
+          key: null,
+          pinned: false,
+          expiresAt: null,
+        },
+        { kind: "user" },
+      );
+      const copyMemory = vi
+        .spyOn(memory, "copyTeammate")
+        .mockRejectedValueOnce(new Error("The memory store is away."));
+      const copyId = randomUUID();
+      const ask = { teammateId: wren.teammateId, name: "Wren 2", copyMemory: true, copyId };
+      // The first ask makes the copy under that id, but its memory doesn't come along.
+      const first = await worker.teammates.duplicate(ask);
+      expect(first).toMatchObject({ teammateId: copyId, memoryCopied: false });
+      // Asked again (its answer was lost, say), it's the same copy, and its memory comes now.
+      const again = await worker.teammates.duplicate(ask);
+      expect(again).toEqual({ ...first, memoryCopied: true });
+      const contents = async () =>
+        (await memory.list({ ...owned(copyId) }, { kind: "user" })).map((m) => m.content).sort();
+      expect(await contents()).toEqual(["Cite sources.", "Likes tea"]);
+      // Once it came along, it isn't copied again, and other words in the ask don't matter.
+      const calls = copyMemory.mock.calls.length;
+      expect(
+        await worker.teammates.duplicate({ ...ask, name: "Someone else", copyMemory: false }),
+      ).toEqual(again);
+      expect(copyMemory.mock.calls.length).toBe(calls);
+      expect((await team()).filter((entry) => entry.name.startsWith("Wren 2"))).toHaveLength(1);
+      expect(await row(copyId)).toMatchObject({ name: "Wren 2", slug: "wren-2" });
+      expect(await db.select().from(chats).where(eq(chats.teammateId, copyId))).toHaveLength(1);
+
+      // Two asks at once, the second sent while the first is still making it: one copy.
+      const twinId = randomUUID();
+      const twins = await Promise.all(
+        [1, 2].map(() => worker.teammates.duplicate({ ...ask, name: "Twin", copyId: twinId })),
+      );
+      expect(twins[0]).toEqual(twins[1]);
+      expect(twins[0]).toMatchObject({ teammateId: twinId, memoryCopied: true });
+      expect((await team()).filter((entry) => entry.name === "Twin")).toHaveLength(1);
+      expect(await memory.list({ ...owned(twinId) }, { kind: "user" })).toHaveLength(2);
+
+      // The original archived since: the copy the first ask made still answers, a new one doesn't.
+      await worker.teammates.archive({ teammateId: wren.teammateId });
+      expect(await worker.teammates.duplicate(ask)).toEqual(again);
+      expect(
+        await failure(worker.teammates.duplicate({ ...ask, copyId: randomUUID() })),
+      ).toMatchObject({ status: 404 });
+      // The copy itself archived since: asking again says so, and doesn't make another.
+      await worker.teammates.archive({ teammateId: copyId });
+      expect(await failure(worker.teammates.duplicate(ask))).toMatchObject({
+        status: 404,
+        message: expect.stringContaining("archived since"),
+      });
+      expect(
+        (await team())
+          .filter((entry) => entry.name.startsWith("Wren 2"))
+          .map((entry) => [entry.id, entry.archived]),
+      ).toEqual([[copyId, true]]);
+      copyMemory.mockRestore();
+    });
+
+    it("refuses a copy id that's another teammate's, or a copy of someone else", async () => {
+      const kite = await imported("Kite");
+      const other = await imported("Other");
+      const copy = await worker.teammates.duplicate({
+        teammateId: other.teammateId,
+        name: "Other 2",
+        copyMemory: false,
+        copyId: randomUUID(),
+      });
+      for (const copyId of [other.teammateId, kite.teammateId, copy.teammateId])
+        expect(
+          await failure(
+            worker.teammates.duplicate({
+              teammateId: kite.teammateId,
+              name: "Kite 2",
+              copyMemory: false,
+              copyId,
+            }),
+          ),
+        ).toMatchObject({ status: 409, message: expect.stringContaining("another teammate") });
+      expect((await team()).filter((entry) => entry.name === "Kite 2")).toEqual([]);
     });
 
     it("gives copies made at once different slugs", async () => {

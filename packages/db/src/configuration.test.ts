@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { configurationRevision, sameJson } from "./configuration";
+import { configurationRevision, sameJson, teammateRevision } from "./configuration";
 
 describe("sameJson", () => {
   // What Postgres gives back for {"name","path","mime","size"}: keys by length, then bytes.
@@ -43,5 +43,50 @@ describe("sameJson", () => {
 
   it("agrees with the configuration revision", () => {
     expect(configurationRevision([stored])).toBe(configurationRevision([sent]));
+  });
+});
+
+describe("teammateRevision", () => {
+  const profile = {
+    name: "Iris",
+    role: "Writer",
+    instructions: "Be brief.",
+    color: "#7C5CFF",
+    emoji: "",
+    autonomy: "risky",
+  };
+  const row = {
+    id: "0b6b7b0e-6a4f-4d3c-9c55-7d1f1e6b2a10",
+    ...profile,
+    isLead: false,
+    monthlyBudgetCents: null,
+    lessonsChangedAt: null,
+    updatedAt: new Date("2026-11-28T10:00:00.000Z"),
+  };
+
+  it("covers the profile only, not the rest of the row", () => {
+    const revision = teammateRevision(row);
+    expect(teammateRevision(profile)).toBe(revision);
+    const changed = {
+      ...row,
+      isLead: true,
+      monthlyBudgetCents: 10_000,
+      lessonsChangedAt: new Date(),
+      updatedAt: new Date(),
+    };
+    expect(teammateRevision(changed)).toBe(revision);
+  });
+
+  it("changes with every profile field", () => {
+    const revision = teammateRevision(profile);
+    for (const [field, value] of Object.entries({
+      name: "Rex",
+      role: "Editor",
+      instructions: "Be thorough.",
+      color: "#2E9BFF",
+      emoji: "🦊",
+      autonomy: "full",
+    }))
+      expect(teammateRevision({ ...profile, [field]: value }), field).not.toBe(revision);
   });
 });

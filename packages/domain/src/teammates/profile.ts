@@ -86,3 +86,37 @@ export const MAX_LESSON_CHARS = 500;
 
 /** How many of its newest lessons a teammate reads. */
 export const MAX_LESSONS = 40;
+
+/**
+ * A name for a copy of a teammate: "Iris 2", or the next number no teammate uses yet. A name
+ * that already ends in a number counts on from its base ("Iris 2" copies as "Iris 3").
+ */
+export function copyName(name: string, taken: readonly string[]): string {
+  const base = name.trim().replace(/\s+\d+$/, "");
+  const used = new Set(taken.map((entry) => entry.trim().toLowerCase()));
+  for (let n = 2; ; n += 1) {
+    const candidate = `${base} ${n}`;
+    if (!used.has(candidate.toLowerCase())) return candidate;
+  }
+}
+
+/**
+ * The last whole character of what was typed: one emoji, even one built from several code points
+ * (a flag, a skin tone, a family joined with zero-width joiners). Where the runtime has no
+ * `Intl.Segmenter` (Hermes on the phone), a pattern for emoji sequences stands in.
+ */
+export function lastGlyph(text: string): string {
+  if (typeof Intl.Segmenter === "function") {
+    const glyphs = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)];
+    return glyphs.at(-1)?.segment ?? "";
+  }
+  return lastGlyphByPattern(text);
+}
+
+const LAST_GLYPH =
+  /(?:\p{Regional_Indicator}{2}|[#*0-9]\uFE0F?\u20E3|\p{Extended_Pictographic}[\uFE0F\p{Emoji_Modifier}\u{E0020}-\u{E007F}]*(?:\u200D\p{Extended_Pictographic}[\uFE0F\p{Emoji_Modifier}]*)*|[^\p{M}]\p{M}*|\p{M}+)$/u;
+
+/** `lastGlyph` without `Intl.Segmenter`; exported for its tests. */
+export function lastGlyphByPattern(text: string): string {
+  return LAST_GLYPH.exec(text)?.[0] ?? "";
+}

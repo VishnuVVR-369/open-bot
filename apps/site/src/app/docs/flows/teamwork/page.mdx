@@ -220,11 +220,24 @@ Every teammate's `AGENTS.md` lists the new one on its next run.
 ### Changing a teammate
 
 `get_teammate` returns a teammate's whole setup: profile, instructions, skills, schedules, page watches, webhooks, the connections it can use, and a **revision**.
-The revision is a hash of the teammate's saved row (`configurationRevision()` in `packages/db/src/configuration.ts`).
+The revision is a hash of the teammate's profile: name, job, instructions, color, emoji and autonomy (`teammateRevision()` in `packages/db/src/configuration.ts`).
+Nothing else moves it, so making another teammate the lead, changing the budget or learning a lesson doesn't refuse an edit made meanwhile.
 
 `update_teammate` takes only the fields that change, with the revision as `expected_revision`.
 `TeammateService.update()` locks the row and refuses the change if the revision moved, so neither you nor a teammate overwrites a change made since it was read.
-The web app's form sends the revision it loaded, the same way.
+The web app's form sends the revision it loaded, the same way, with only the fields you changed (`teammates.update` takes any of them).
+Only what's sent is checked, so a value saved before today's rules, such as an older color, doesn't block a save that leaves it alone.
+The worker also accepts the older revision, a hash of the whole saved row, while it still matches (`TeammateService.isCurrent()`): the web app's form still hands that one out, and a teammate's thread from before may hold one.
+
+### Duplicating a teammate
+
+`teammates.duplicate` makes a new teammate set up like another: the same job, instructions and carefulness, its own copies of the skills and approval rules, and its routines, page watches and reminders, paused.
+Its memory and lessons come along when you ask.
+The client picks the copy's id first (`copyId`), and the worker makes the copy under it, recording its original in `teammate_copies`.
+The same ask sent again, after an answer that never came, waits for the first on the team lock, finds that copy and answers with it, so a retry never makes a second one.
+It finishes what the first ask may not have: the memory is copied again until it once came along (the copy skips notes the new teammate already has), and the workspace is written again.
+An id that's another teammate's, or a copy of someone else, is refused with `CONFLICT`.
+A client without a `copyId` makes a new copy every time, as before.
 
 Later setup goes through the usual tools with a `teammate_id`: `save_skill`, `schedule_task`, `watch_page`, `create_webhook`, `list_automations`, `update_automation` and `cancel_automation`.
 Without a `teammate_id`, they act on the caller, as before.

@@ -7,7 +7,10 @@ import {
   notify,
   ownerTimeZone,
   type Queryable,
+  chats,
   schedules,
+  teammateCopies,
+  teammateRevision,
   triggers,
 } from "@open-bot/db";
 import {
@@ -26,7 +29,7 @@ import {
   type TeammateBundle,
   toCents,
 } from "@open-bot/domain";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import { errorMessage } from "../../logger";
 import type { Teammate } from "../../core/db-types";
@@ -52,6 +55,40 @@ import {
   decideProposal,
   type InstructionProposalInput,
 } from "./proposals";
+
+/** A copy of a teammate: which one it was made from, and whether its memory came along. */
+type CopyRecord = typeof teammateCopies.$inferSelect;
+
+const COPY_ID_TAKEN = "That id is already another teammate's. Duplicate again with a new one.";
+
+/**
+ * The copy of `from` made under `copyId` by an earlier ask, with its chat, or null if there's
+ * none yet. An id another teammate has, or a copy of someone else, is refused.
+ */
+async function madeCopy(
+  tx: Queryable,
+  copyId: string,
+  from: string,
+): Promise<{ teammate: Teammate; chatId: string; copy: CopyRecord } | null> {
+  const [row] = await tx
+    .select({ teammate: teammates, copy: teammateCopies })
+    .from(teammates)
+    .leftJoin(teammateCopies, eq(teammateCopies.teammateId, teammates.id))
+    .where(eq(teammates.id, copyId));
+  if (!row) return null;
+  if (row.copy?.sourceId !== from) throw new TeammateError(409, COPY_ID_TAKEN);
+  if (row.teammate.archivedAt)
+    throw new TeammateError(404, "That copy was made, and has been archived since.");
+  // Its main chat, or the direct chat that took that role over when it was archived.
+  const [chat] = await tx
+    .select({ id: chats.id })
+    .from(chats)
+    .where(and(eq(chats.teammateId, copyId), eq(chats.kind, "direct")))
+    .orderBy(desc(chats.main), asc(chats.createdAt))
+    .limit(1);
+  if (!chat) throw new TeammateError(404, "That copy has no chat any more.");
+  return { teammate: row.teammate, chatId: chat.id, copy: row.copy };
+}
 
 /** The memory a new teammate can start with. */
 export type TeammateMemory = Pick<MemoryService, "copyTeammate" | "addLessons">;
@@ -91,9 +128,26 @@ export class TeammateService {
     private readonly syncWorkspace: (teammate: Teammate) => Promise<void>,
   ) {}
 
-  /** A teammate's revision, from everything saved on it. */
+  /** A teammate's revision: its profile, so other changes to it don't refuse an edit. */
   static revision(teammate: Teammate): string {
-    return configurationRevision(teammate);
+    return teammateRevision(teammate);
+  }
+
+  /**
+   * Whether an edit made from `revision` is still current. A revision of the whole row, as the
+   * worker handed out before revisions covered only the profile, still counts while it matches,
+   * so a web app or a teammate's thread from before then isn't refused at every save.
+   *
+   * TODO(2026-12-15): drop the whole-row check. By then "teammates on the phone" (#209) has been
+   * deployed for over a week, so no web app hands out whole-row revisions and open web forms and
+   * teammates' threads have read the teammate again. If #209 deploys later, move the date to a
+   * week after its deploy.
+   */
+  static isCurrent(teammate: Teammate, revision: string): boolean {
+    return (
+      TeammateService.revision(teammate) === revision ||
+      configurationRevision(teammate) === revision
+    );
   }
 
   templates() {
@@ -309,7 +363,7 @@ export class TeammateService {
         .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)))
         .for("update");
       if (!current) throw new TeammateError(404, "That teammate no longer exists or is archived.");
-      if (expectedRevision && TeammateService.revision(current) !== expectedRevision)
+      if (expectedRevision && !TeammateService.isCurrent(current, expectedRevision))
         throw new TeammateError(
           409,
           "This teammate was changed since it was loaded. Reload it and try again.",
@@ -345,28 +399,36 @@ export class TeammateService {
 
   /**
    * Adds a teammate with this profile and these parts, with its direct chat, in one transaction:
-   * routines and watches start paused, so nothing runs twice or by surprise. `copiedFrom` is still
-   * on the team when the copy is made, or the copy is refused.
+   * routines and watches start paused, so nothing runs twice or by surprise. A copy's original
+   * (`copy.from`) is still on the team when the copy is made, or the copy is refused. A copy asked
+   * for under an id (`copy.id`) that a copy of the same original already has is that copy, made
+   * by an earlier ask whose answer was lost: it's answered with, and nothing is added.
    */
   private async addTeammate(
     profile: Pick<Teammate, "name" | "role" | "instructions" | "color" | "emoji" | "autonomy">,
     parts: TeammateParts,
-    copiedFrom?: string,
-  ): Promise<{ teammate: Teammate; chatId: string }> {
+    copy?: { from: string; id?: string; copyMemory: boolean },
+  ): Promise<{ teammate: Teammate; chatId: string; copy?: CopyRecord }> {
     const timezone = await ownerTimeZone(this.ctx.db);
     // Its lessons live in memory: saved in the same transaction as the rest.
     return this.ctx.db.transaction(async (tx) => {
       await lockUntilCommit(tx, LOCKS.team);
+      // Under the team lock, so an ask sent again while the first is still adding the copy waits
+      // for it and finds it here.
+      if (copy?.id) {
+        const made = await madeCopy(tx, copy.id, copy.from);
+        if (made) return made;
+      }
       const team = await tx
         .select({ id: teammates.id, slug: teammates.slug, archivedAt: teammates.archivedAt })
         .from(teammates);
       // Archiving takes the team lock too, so the original is still on the team if it's here now.
-      if (copiedFrom && !team.some((row) => row.id === copiedFrom && !row.archivedAt))
+      if (copy && !team.some((row) => row.id === copy.from && !row.archivedAt))
         throw new TeammateError(404, "That teammate no longer exists.");
       const { slug, first } = newTeammateSlot(team, profile.name);
       const [teammate] = await tx
         .insert(teammates)
-        .values({ ...profile, slug, isLead: first })
+        .values({ ...profile, ...(copy?.id ? { id: copy.id } : {}), slug, isLead: first })
         .returning();
       const id = teammate!.id;
       const chatId = await addChat(tx, {
@@ -379,9 +441,14 @@ export class TeammateService {
       await addPausedRoutines(tx, id, parts.routines, timezone);
       await addPausedWatches(tx, id, parts.watches);
       await addApprovalRules(tx, id, parts.allowed);
-      if (copiedFrom) await copyUpcomingReminders(tx, copiedFrom, id);
+      if (copy) await copyUpcomingReminders(tx, copy.from, id);
       await this.memory.addLessons(id, parts.lessons, tx);
-      return { teammate: teammate!, chatId };
+      if (!copy) return { teammate: teammate!, chatId };
+      const [record] = await tx
+        .insert(teammateCopies)
+        .values({ teammateId: id, sourceId: copy.from, copyMemory: copy.copyMemory })
+        .returning();
+      return { teammate: teammate!, chatId, copy: record! };
     });
   }
 
@@ -403,30 +470,49 @@ export class TeammateService {
    * A new teammate set up like another: the same job, instructions and carefulness, its own copies
    * of the skills and approval rules, and the routines, page watches and reminders still to come,
    * paused. Memory and lessons come along with `copyMemory`.
+   *
+   * `copyId` is the id the copy is made under, chosen by the app before asking, so asking again
+   * after a lost answer is safe: it answers with the copy the first ask made, as that ask chose
+   * it (its name, and whether memory comes along), and finishes what that ask may not have (its
+   * memory, its workspace). An id that's another teammate's, or a copy of someone else's, is
+   * refused. Without one (an app from before it), every ask makes a new copy.
    */
-  async duplicate(id: string, name: string, copyMemory: boolean) {
-    const source = await this.requireTeammate(id);
+  async duplicate(id: string, name: string, copyMemory: boolean, copyId?: string) {
+    if (copyId === id) throw new TeammateError(409, COPY_ID_TAKEN);
+    // An ask sent again may find its original archived since: the copy it made still answers.
+    const source = await (copyId ? this.findTeammate(id) : this.requireTeammate(id));
     const { lessons: learned, ...parts } = await teammateParts(this.ctx.db, id);
     const { role, instructions, color, emoji, autonomy } = source;
     const created = await this.addTeammate(
       { name, role, instructions, color, emoji, autonomy },
       { ...parts, lessons: copyMemory ? learned : [] },
-      id,
+      { from: id, id: copyId, copyMemory },
     );
-    let memoryCopied = !copyMemory;
-    if (copyMemory)
-      memoryCopied = await this.memory.copyTeammate(id, created.teammate.id).then(
-        () => true,
-        (error: unknown) => {
-          this.ctx.log.warn("teammate copied, but its memory wasn't", {
-            teammateId: created.teammate.id,
-            error: errorMessage(error),
-          });
-          return false;
-        },
-      );
+    const copy = created.copy!;
+    // Copied again on a retry until it once worked: the copy skips what the new teammate already
+    // holds, under both teammates' memory locks, so a retry racing the first ask adds nothing twice.
+    let memoryCopied = !copy.copyMemory || copy.memoryCopiedAt !== null;
+    if (!memoryCopied) memoryCopied = await this.copyMemory(id, copy.teammateId);
     await this.welcome(created.teammate);
     return { teammateId: created.teammate.id, chatId: created.chatId, memoryCopied };
+  }
+
+  /** Copies a teammate's memory to its copy, and notes it did; false if it couldn't. */
+  private async copyMemory(from: string, to: string): Promise<boolean> {
+    try {
+      await this.memory.copyTeammate(from, to);
+      await this.ctx.db
+        .update(teammateCopies)
+        .set({ memoryCopiedAt: new Date() })
+        .where(eq(teammateCopies.teammateId, to));
+      return true;
+    } catch (error) {
+      this.ctx.log.warn("teammate copied, but its memory wasn't", {
+        teammateId: to,
+        error: errorMessage(error),
+      });
+      return false;
+    }
   }
 
   /** A new teammate from an exported file; its routines and page watches start paused. */

@@ -130,7 +130,7 @@ A path or input field is removed only once no deployed web app calls it.
 | `POST /internal/teammates/:id`                         | Change profile fields, with `expected_revision` (409 when stale)       |
 | `POST /internal/teammates/:id/sync` ☀                  | Rewrite a teammate's workspace after an edit                           |
 | `GET /internal/teammates/:id/export`                   | A teammate's bundle and slug, for the export download                  |
-| `POST /internal/teammates/:id/duplicate`               | Copy a teammate, its memory, skills and paused automations             |
+| `POST /internal/teammates/:id/duplicate`               | Copy a teammate under `copyId`, so a retry finds the same copy         |
 | `POST /internal/teammates/import`                      | Add a teammate from a bundle; its automations start paused             |
 | `POST /internal/teammates/:id/lead`                    | Make this teammate the lead                                            |
 | `POST /internal/teammates/:id/archive`                 | Archive a teammate: stop its runs, pause its automations               |

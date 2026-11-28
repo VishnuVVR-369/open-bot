@@ -56,6 +56,7 @@ export const TABLE_OWNERS = {
       "lessons are rebuilt from memory in the memory write's transaction",
     ),
   },
+  teammate_copies: { owner: `${WORKER}features/teammates/service.ts` },
   instruction_proposals: { owner: `${WORKER}features/teammates/proposals.ts` },
   skills: { owner: `${WORKER}features/skills/service.ts` },
   schedules: { owner: `${WORKER}features/automations/schedules.ts` },

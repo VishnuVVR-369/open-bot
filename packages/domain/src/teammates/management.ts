@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { autonomySchema, TEAMMATE_COLORS } from "./profile";
+import { autonomySchema, lastGlyph, TEAMMATE_COLORS } from "./profile";
 import { skillInputSchema } from "../skills/skills";
 import { DAILY_CHECK_IN, pickStarters, TEAMMATE_TEMPLATES, templateSkills } from "./templates";
 
@@ -10,10 +10,19 @@ export const teammateProfileSchema = z.object({
     .trim()
     .min(1, "Give your teammate a name.")
     .max(40, "Keep the name under 40 characters."),
-  role: z.string().trim().min(1, "Describe their job in a few words.").max(80),
-  instructions: z.string().max(20_000),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
-  emoji: z.string().max(8),
+  role: z
+    .string()
+    .trim()
+    .min(1, "Describe their job in a few words.")
+    .max(80, "Keep the job under 80 characters."),
+  instructions: z.string().max(20_000, "Keep the instructions under 20,000 characters."),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Pick one of the colors."),
+  // One whole character: an emoji, however many code points it's built from (a family, a flag,
+  // skin tones), or an initial. The cap only bounds what's checked; no single emoji comes near it.
+  emoji: z
+    .string()
+    .max(64, "Pick a single emoji.")
+    .refine((emoji) => emoji === "" || lastGlyph(emoji) === emoji, "Pick a single emoji."),
   autonomy: autonomySchema,
 });
 

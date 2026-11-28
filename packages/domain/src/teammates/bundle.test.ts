@@ -59,13 +59,29 @@ describe("teammateBundleSchema", () => {
 
   it("accepts only a teammate the profile form could save", () => {
     const profile = { ...minimal.teammate, instructions: "", color: "#123456", autonomy: "full" };
-    for (const emoji of ["🦊", "👩🏽‍💻", "x".repeat(8)])
-      expect(
-        teammateBundleSchema.safeParse({ ...minimal, teammate: { ...profile, emoji } }).success,
-      ).toBe(teammateProfileSchema.safeParse({ ...profile, emoji }).success);
-    // Longer than the form allows, so it couldn't be edited after an import.
-    const long = { ...minimal, teammate: { ...profile, emoji: "x".repeat(9) } };
-    expect(teammateBundleSchema.safeParse(long).success).toBe(false);
+    for (const emoji of ["🦊", "👩🏽‍💻", "👨‍👩‍👧‍👦", ""]) {
+      const bundle = teammateBundleSchema.parse({ ...minimal, teammate: { ...profile, emoji } });
+      expect(bundle.teammate.emoji).toBe(emoji);
+      expect(teammateProfileSchema.safeParse(bundle.teammate).success).toBe(true);
+    }
+  });
+
+  it("imports a file from before one glyph was the rule, keeping its last glyph", () => {
+    const profile = { ...minimal.teammate, instructions: "", color: "#123456", autonomy: "full" };
+    for (const [old, kept] of [
+      ["🤖✨", "✨"],
+      ["AB", "B"],
+      [" R ", "R"],
+    ]) {
+      const bundle = teammateBundleSchema.parse({
+        ...minimal,
+        teammate: { ...profile, emoji: old },
+      });
+      expect(bundle.teammate.emoji).toBe(kept);
+      expect(teammateProfileSchema.safeParse(bundle.teammate).success).toBe(true);
+    }
+    const huge = { ...minimal, teammate: { ...profile, emoji: "x".repeat(65) } };
+    expect(teammateBundleSchema.safeParse(huge).success).toBe(false);
   });
 
   it("refuses bad parts", () => {

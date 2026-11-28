@@ -6,6 +6,7 @@ import {
   TEAMMATE_COLORS,
   type TeammateSetupKind,
   describeCron,
+  lastGlyph,
   TEAMMATE_TEMPLATES,
 } from "@open-bot/domain";
 import { MAX_TEAMMATE_FILE } from "@open-bot/api";
@@ -39,14 +40,20 @@ export interface TeammateFormValues {
 const savedAt = new Map<string, number>();
 const SAVED_FOR_MS = 5000;
 
-/** The last character typed, whole: one emoji, even one built from several code points. */
-function lastGlyph(text: string) {
-  const glyphs = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(text)];
-  return glyphs.at(-1)?.segment ?? "";
-}
-
 function sameValues(a: TeammateFormValues, b: TeammateFormValues) {
   return (Object.keys(a) as (keyof TeammateFormValues)[]).every((key) => a[key] === b[key]);
+}
+
+/**
+ * The fields changed since `baseline`, which is all a save sends: one left as it was is neither
+ * sent nor checked, so a value saved before today's rules (an older color) doesn't block a save.
+ */
+function changedValues(values: TeammateFormValues, baseline: TeammateFormValues) {
+  return Object.fromEntries(
+    Object.entries(values).filter(
+      ([key, value]) => baseline[key as keyof TeammateFormValues] !== value,
+    ),
+  ) as Partial<TeammateFormValues>;
 }
 
 /**
@@ -189,7 +196,7 @@ export function TeammateForm({
         const result = await attempt(
           api.teammates.update({
             teammateId: editing.teammateId,
-            profile: values,
+            profile: changedValues(values, baseline),
             revision: editing.revision,
           }),
         );

@@ -1,5 +1,6 @@
 import {
   teammateProfileSchema as profileSchema,
+  teammateProfileChangesSchema,
   createdTeammateSchema,
   updatedTeammateSchema,
 } from "@open-bot/domain";
@@ -38,21 +39,41 @@ export const teammatesContract = {
     )
     .output(createdTeammateSchema),
   /**
-   * Save the profile. `revision` is the teammate as you loaded it: a change made since, by you
-   * elsewhere or by a teammate, fails with `STATE_CONFLICT` instead of being overwritten.
+   * Save the profile: the fields you changed, or all of them (as clients from before sent it).
+   * Only what's sent is checked, so a field saved before today's rules (an older color) doesn't
+   * stop a save that leaves it as it is. `revision` is the profile as you loaded it: a change to
+   * it made since, by you elsewhere or by a teammate, fails with `STATE_CONFLICT` instead of being
+   * overwritten. Changes to the rest of the teammate (its budget, the lead) don't.
    */
   update: base
     .input(
-      z.object({ teammateId: id, profile: profileSchema, revision: z.string().min(1).max(128) }),
+      z.object({
+        teammateId: id,
+        profile: teammateProfileChangesSchema,
+        revision: z.string().min(1).max(128),
+      }),
     )
     .output(updatedTeammateSchema),
   /**
    * A new teammate set up like another: the same job, instructions and carefulness, their own
    * skills and approval rules, and their routines and page watches, paused. Webhooks and chats
    * stay with the original. Memory and lessons come along with `copyMemory`.
+   *
+   * `copyId` is a fresh id for the copy, kept for retries: the copy is made under it, so sending
+   * the same ask again after an answer that never came answers with the copy the first ask made
+   * (named and with memory as that ask chose) instead of making another. `memoryCopied` then says
+   * whether its memory really came along. An id another teammate already has, or a copy of a
+   * different teammate, fails with `CONFLICT`. It's optional for clients from before it.
    */
   duplicate: base
-    .input(z.object({ teammateId: id, name: profileSchema.shape.name, copyMemory: z.boolean() }))
+    .input(
+      z.object({
+        teammateId: id,
+        name: profileSchema.shape.name,
+        copyMemory: z.boolean(),
+        copyId: id.optional(),
+      }),
+    )
     .output(z.object({ teammateId: z.string(), chatId: z.string(), memoryCopied: z.boolean() })),
   /** A new teammate from an exported file; its routines and page watches start paused. */
   import: base

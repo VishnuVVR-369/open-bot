@@ -206,4 +206,72 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       answers.clear();
     }
   });
+
+  it("sends only the profile fields given, checking only those", async () => {
+    const path = `/internal/teammates/${ids.teammate}`;
+    answers.set(path, {
+      status: 200,
+      body: { teammateId: ids.teammate, revision: "next", workspaceSynced: true },
+    });
+    try {
+      await api.teammates.update({
+        teammateId: ids.teammate,
+        profile: { role: "Editor" },
+        revision: "r1",
+      });
+      expect(workerBodies.findLast((body) => body.path === path)?.body).toEqual({
+        changes: { role: "Editor" },
+        expected_revision: "r1",
+      });
+      // Nothing to change, or a field against the rules, never reaches the worker.
+      const sent = workerBodies.length;
+      for (const profile of [{}, { emoji: "🦊🐙" }, { color: "teal" }])
+        await expect(
+          api.teammates.update({ teammateId: ids.teammate, profile, revision: "r1" }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      expect(workerBodies).toHaveLength(sent);
+    } finally {
+      answers.clear();
+    }
+  });
+
+  it("duplicates under the client's copy id, and says an id taken is a conflict", async () => {
+    const path = `/internal/teammates/${ids.teammate}/duplicate`;
+    const copyId = randomUUID();
+    answers.set(path, {
+      status: 200,
+      body: { teammateId: copyId, chatId: randomUUID(), memoryCopied: false },
+    });
+    try {
+      const ask = { teammateId: ids.teammate, name: "Scout 2", copyMemory: true, copyId };
+      expect(await api.teammates.duplicate(ask)).toMatchObject({
+        teammateId: copyId,
+        memoryCopied: false,
+      });
+      expect(workerBodies.findLast((body) => body.path === path)?.body).toEqual({
+        name: "Scout 2",
+        copyMemory: true,
+        copyId,
+      });
+      // A client from before copy ids still duplicates.
+      await api.teammates.duplicate({
+        teammateId: ids.teammate,
+        name: "Scout 3",
+        copyMemory: false,
+      });
+      expect(workerBodies.findLast((body) => body.path === path)?.body).toEqual({
+        name: "Scout 3",
+        copyMemory: false,
+      });
+      const message = "That id is already another teammate's. Duplicate again with a new one.";
+      answers.set(path, { status: 409, body: { error: message } });
+      await expect(api.teammates.duplicate(ask)).rejects.toMatchObject({
+        code: "CONFLICT",
+        status: 409,
+        message,
+      });
+    } finally {
+      answers.clear();
+    }
+  });
 });

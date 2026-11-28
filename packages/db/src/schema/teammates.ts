@@ -31,6 +31,24 @@ export const teammates = pgTable(
 );
 
 /**
+ * A teammate made as a copy of another, under the id the app chose for it before asking, so the
+ * same ask sent again after a lost answer finds this copy instead of making a second one.
+ * `memoryCopiedAt` is when the original's memory came along: null with `copyMemory` means it
+ * hasn't yet (it failed, or the first ask is still copying it), so a retry copies it again.
+ */
+export const teammateCopies = pgTable("teammate_copies", {
+  teammateId: uuid("teammate_id")
+    .primaryKey()
+    .references(() => teammates.id, { onDelete: "cascade" }),
+  sourceId: uuid("source_id")
+    .notNull()
+    .references(() => teammates.id, { onDelete: "cascade" }),
+  copyMemory: boolean("copy_memory").notNull(),
+  memoryCopiedAt: timestamp("memory_copied_at", { withTimezone: true }),
+  createdAt: createdAt(),
+});
+
+/**
  * Helper chats hold a swarm helper's work; they don't show in your chat lists. A teammate's inbox chat
  * is where the emails it gets arrive.
  */

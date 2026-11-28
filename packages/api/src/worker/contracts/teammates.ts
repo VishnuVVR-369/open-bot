@@ -41,7 +41,9 @@ export const teammatesContract = {
     ),
   /**
    * A new teammate set up like another; its routines, watches and reminders start paused.
-   * Memory and lessons come along with `copyMemory`.
+   * Memory and lessons come along with `copyMemory`. The copy is made under `copyId`, so the same
+   * ask sent again answers with that copy instead of making another; an id another teammate has,
+   * or a copy of someone else, is refused with 409. Optional for web apps from before it.
    */
   duplicate: base
     .route({ method: "POST", path: "/internal/teammates/{teammateId}/duplicate" })
@@ -50,6 +52,7 @@ export const teammatesContract = {
         teammateId: id,
         name: teammateProfileSchema.shape.name,
         copyMemory: z.boolean(),
+        copyId: id.optional(),
       }),
     )
     .output(z.object({ teammateId: z.string(), chatId: z.string(), memoryCopied: z.boolean() })),

@@ -104,3 +104,45 @@ describe("teammate management contracts", () => {
     );
   });
 });
+
+describe("a teammate's emoji and color", () => {
+  const profile = {
+    name: "Iris",
+    role: "Writer",
+    instructions: "",
+    color: "#7C5CFF",
+    emoji: "",
+    autonomy: "risky",
+  };
+  const problem = (patch: Record<string, string>) => {
+    const parsed = teammateProfileSchema.safeParse({ ...profile, ...patch });
+    return parsed.success ? null : parsed.error.issues[0]?.message;
+  };
+
+  it.each(["", "🦊", "I", "👍🏽", "🇮🇳", "❤️", "👨‍👩‍👧‍👦", "🧑🏽‍🤝‍🧑🏿", "👩🏻‍❤️‍💋‍👨🏼", "🏴󠁧󠁢󠁳󠁣󠁴󠁿"])(
+    "takes %j, one whole character however long",
+    (emoji) => {
+      expect(problem({ emoji })).toBeNull();
+    },
+  );
+
+  it.each(["🦊🐙", "ab", "🇮🇳🇬🇧", "👍 "])("refuses %j as more than one", (emoji) => {
+    expect(problem({ emoji })).toBe("Pick a single emoji.");
+  });
+
+  it("judges the same on the phone, which has no Intl.Segmenter", () => {
+    const segmenter = Intl.Segmenter;
+    Object.defineProperty(Intl, "Segmenter", { value: undefined, configurable: true });
+    try {
+      for (const emoji of ["🦊", "👨‍👩‍👧‍👦", "🧑🏽‍🤝‍🧑🏿", "🏴󠁧󠁢󠁳󠁣󠁴󠁿", "I"]) expect(problem({ emoji })).toBeNull();
+      for (const emoji of ["🦊🐙", "ab"]) expect(problem({ emoji })).toBe("Pick a single emoji.");
+    } finally {
+      Object.defineProperty(Intl, "Segmenter", { value: segmenter, configurable: true });
+    }
+  });
+
+  it("says what's wrong with a color outside the palette's form", () => {
+    expect(problem({ color: "teal" })).toBe("Pick one of the colors.");
+    expect(problem({ color: "#2E9BFF" })).toBeNull();
+  });
+});
