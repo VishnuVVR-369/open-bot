@@ -1,6 +1,7 @@
 import pg from "pg";
 import { expect, test } from "./fixtures";
 import {
+  apiFor,
   e2eStack,
   teammateIdOf,
   createTeammate,
@@ -118,6 +119,44 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
   await expect(page.getByTestId("skill").filter({ hasText: `/${skill}` })).toContainText(
     `Only ${name} 2`,
   );
+});
+
+test("a duplicate whose answer is lost makes one copy, and opening the dialog again makes another", async ({
+  page,
+}) => {
+  const name = uniqueName("Nell");
+  await createTeammate(page, name, "copy editor");
+  const id = await teammateIdOf(page, name);
+  const copies = async () =>
+    (await apiFor(page).teammates.list()).filter((entry) => entry.name.startsWith(`${name} `));
+  await page.goto(`/teammates/${id}`);
+  await page.getByTestId("duplicate-teammate").click();
+  await expect(page.getByTestId("duplicate-name")).toHaveValue(`${name} 2`);
+  // The copy is made, but its answer never arrives.
+  let lost = 0;
+  await page.route("**/api/rpc/teammates/duplicate", async (route) => {
+    await route.fetch();
+    lost++;
+    await route.abort("connectionreset");
+  });
+  await page.getByTestId("duplicate-confirm").click();
+  await expect(page.getByText("Couldn't duplicate the teammate")).toBeVisible();
+  expect(lost).toBe(1);
+  await page.unroute("**/api/rpc/teammates/duplicate");
+
+  // Asked again from the same dialog: the server answers with the copy it made.
+  await page.getByTestId("duplicate-confirm").click();
+  await page.waitForURL(/\/chats\//);
+  await expect(page.getByText(`${name} 2 is ready`)).toBeVisible();
+  expect((await copies()).map((entry) => entry.name)).toEqual([`${name} 2`]);
+
+  // A new ask, opened again: a second copy under its own id, not the first one again.
+  await page.goto(`/teammates/${id}`);
+  await page.getByTestId("duplicate-teammate").click();
+  await expect(page.getByTestId("duplicate-name")).toHaveValue(`${name} 3`);
+  await page.getByTestId("duplicate-confirm").click();
+  await page.waitForURL(/\/chats\//);
+  expect((await copies()).map((entry) => entry.name).sort()).toEqual([`${name} 2`, `${name} 3`]);
 });
 
 test("start from a template with starter automations", async ({ page }) => {

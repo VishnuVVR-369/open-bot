@@ -2,8 +2,11 @@ import { ORPCError } from "@orpc/client";
 import { isUnauthorized } from "./errors";
 import { goToSignIn } from "./sign-in";
 
-/** What a write answered: its data, or a message to show. */
-export type Result<T> = { ok: true; data: T } | { ok: false; error: string };
+/**
+ * What a write answered: its data, or a message to show. `refused` says the server answered no
+ * (a 4xx), so nothing was done; otherwise the answer may have been lost on the way.
+ */
+export type Result<T> = { ok: true; data: T } | { ok: false; error: string; refused?: boolean };
 
 export const UNREACHABLE = "Couldn't reach open-bot. Check your connection and try again.";
 
@@ -22,8 +25,12 @@ export async function attempt<T>(
     return { ok: true, data: await call };
   } catch (error) {
     if (isUnauthorized(error)) signedOut();
-    return { ok: false, error: message(error) };
+    return { ok: false, error: message(error), refused: refused(error) };
   }
+}
+
+function refused(error: unknown): boolean {
+  return error instanceof ORPCError && error.status >= 400 && error.status < 500;
 }
 
 function message(error: unknown): string {

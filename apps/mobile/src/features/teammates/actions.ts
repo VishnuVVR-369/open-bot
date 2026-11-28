@@ -2,7 +2,7 @@ import type { TeammateSummary } from "@open-bot/api";
 import { safe } from "@orpc/client";
 import { Alert } from "react-native";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/errors";
+import { errorMessage, isRetryable } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryClient, queryKeys } from "@/lib/query";
 import { archivingTeammates } from "./archiving";
@@ -88,7 +88,13 @@ export function confirmArchive(
 }
 
 export type DuplicateOutcome =
-  { ok: true; teammateId: string; memoryCopied: boolean } | { ok: false; message: string };
+  | { ok: true; teammateId: string; memoryCopied: boolean }
+  /**
+   * `refused`: the server answered no (the id taken, the teammate archived), so nothing was made
+   * and asking again needs a new id. Otherwise the answer may have been lost: ask again with the
+   * same one.
+   */
+  | { ok: false; message: string; refused: boolean };
 
 /** What a duplicate asks for: the copy's name, whether memory comes along, and its id. */
 export interface DuplicateAsk {
@@ -110,7 +116,11 @@ export async function duplicateTeammate(ask: DuplicateAsk): Promise<DuplicateOut
   void queryClient.invalidateQueries({ queryKey: queryKeys.allMemory });
   if (result.error) {
     haptics.error();
-    return { ok: false, message: errorMessage(result.error, "Couldn't duplicate the teammate.") };
+    return {
+      ok: false,
+      message: errorMessage(result.error, "Couldn't duplicate the teammate."),
+      refused: !isRetryable(result.error),
+    };
   }
   haptics.success();
   return { ok: true, teammateId: result.data.teammateId, memoryCopied: result.data.memoryCopied };

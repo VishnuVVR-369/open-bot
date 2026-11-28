@@ -29,6 +29,7 @@ describe("duplicating a teammate", () => {
     expect(await duplicateTeammate(ask)).toEqual({
       ok: false,
       message: expect.any(String),
+      refused: false,
     });
     // The server answers the second ask with the copy the first made, and says its memory didn't
     // come along: the phone says what it was told, not a guess.
@@ -49,6 +50,21 @@ describe("duplicating a teammate", () => {
     expect(await duplicateTeammate(ask)).toEqual({
       ok: false,
       message: "That id is already another teammate's.",
+      refused: true,
     });
+  });
+
+  it("says a refusal made nothing, so the next ask takes a new id, and a failed server didn't say", async () => {
+    state.duplicate
+      .mockRejectedValueOnce(
+        new ORPCError("NOT_FOUND", {
+          status: 404,
+          defined: true,
+          message: "That copy was made, and has been archived since.",
+        }),
+      )
+      .mockRejectedValueOnce(new ORPCError("INTERNAL_SERVER_ERROR", { status: 500 }));
+    expect(await duplicateTeammate(ask)).toMatchObject({ ok: false, refused: true });
+    expect(await duplicateTeammate(ask)).toMatchObject({ ok: false, refused: false });
   });
 });

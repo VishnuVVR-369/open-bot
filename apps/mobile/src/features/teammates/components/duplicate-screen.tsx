@@ -38,10 +38,10 @@ export default function DuplicateTeammateScreen() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [footer, setFooter] = useState(0);
-  // One copy per screen: every ask from it, a retry after a lost answer included, names the same
-  // id, so the server answers a retry with the copy the first ask made instead of a second one.
-  const copyId = useRef<string | null>(null);
-  copyId.current ??= Crypto.randomUUID();
+  // One copy per ask: a retry after a lost answer names the same id, so the server answers it with
+  // the copy the first ask made instead of a second one. That copy has the first ask's name, kept
+  // here for what the screen says. A refusal means nothing was made, so the next ask is a new one.
+  const sent = useRef<{ copyId: string; name: string } | null>(null);
 
   // The suggested name, once the team is known; what you type then stays.
   useEffect(() => {
@@ -74,26 +74,31 @@ export default function DuplicateTeammateScreen() {
     if (!teammate || !canSave) return;
     setBusy(true);
     setProblem(null);
+    const ask = (sent.current ??= { copyId: Crypto.randomUUID(), name: value.trim() });
     const outcome = await duplicateTeammate({
       teammateId: teammate.id,
       name: value.trim(),
       copyMemory,
-      copyId: copyId.current!,
+      copyId: ask.copyId,
     });
     if (!outcome.ok) {
+      if (outcome.refused) sent.current = null;
       setBusy(false);
       setProblem(outcome.message);
       return;
     }
+    sent.current = null;
+    // Left meanwhile: the copy is on the team, and the app stays where you went.
+    if (!navigation.isFocused()) {
+      setBusy(false);
+      return;
+    }
     if (!outcome.memoryCopied)
       Alert.alert(
-        `${value.trim()} is ready, without ${teammate.name}'s memory`,
+        `${ask.name} is ready, without ${teammate.name}'s memory`,
         "The computer couldn't copy it. You can add what they should know in their Memory.",
       );
-    // Left meanwhile: the copy is on the team, and the app stays where you went. Back here, the
-    // same ask opens that copy, since it names the same id.
-    if (navigation.isFocused()) router.replace(`/teammates/${outcome.teammateId}`);
-    else setBusy(false);
+    router.replace(`/teammates/${outcome.teammateId}`);
   }
 
   return (
