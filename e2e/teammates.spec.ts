@@ -1,5 +1,14 @@
+import pg from "pg";
 import { expect, test } from "./fixtures";
-import { teammateIdOf, createTeammate, testLabel, testSlug, uniqueName, worker } from "./helpers";
+import {
+  e2eStack,
+  teammateIdOf,
+  createTeammate,
+  testLabel,
+  testSlug,
+  uniqueName,
+  worker,
+} from "./helpers";
 
 test("create, edit and archive a teammate", async ({ page }) => {
   const name = uniqueName("Tess");
@@ -23,6 +32,31 @@ test("create, edit and archive a teammate", async ({ page }) => {
   await page.getByRole("button", { name: `Archive ${name}` }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("navigation", { name: "Main" }).getByText(name)).toHaveCount(0);
+});
+
+test("a change besides the profile doesn't refuse a profile edit", async ({ page }) => {
+  const name = uniqueName("Rae");
+  await createTeammate(page, name, "qa assistant");
+  const teammateId = await teammateIdOf(page, name);
+  await page.goto(`/teammates/${teammateId}`);
+  await page.getByLabel("Job").fill("release manager");
+
+  // The budget and lessons change behind the open form, with no event to refresh it: only the
+  // profile counts as a change made meanwhile, so the form's save still goes through.
+  const pool = new pg.Pool({ connectionString: e2eStack().databaseUrl });
+  try {
+    await pool.query(
+      "update teammates set monthly_budget_cents = 500, lessons_changed_at = now() where id = $1",
+      [teammateId],
+    );
+  } finally {
+    await pool.end();
+  }
+
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByTestId("save-bar")).toContainText("Saved");
+  await page.reload();
+  await expect(page.getByLabel("Job")).toHaveValue("release manager");
 });
 
 test("create a group chat", async ({ page }) => {
