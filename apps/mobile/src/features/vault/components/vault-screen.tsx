@@ -122,6 +122,9 @@ function Vault() {
                         router.push(budgetHref(teammate.id));
                       }}
                       accessibilityRole="button"
+                      accessibilityLabel={
+                        data ? `${teammate.name}, ${budgetSummary(data)}` : teammate.name
+                      }
                       android_ripple={{ color: colors.muted }}
                       style={[
                         styles.row,

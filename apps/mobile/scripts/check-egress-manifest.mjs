@@ -43,9 +43,9 @@ for (const permission of [
   );
 
 // Blocked in app.config.ts: no library may bring them back (expo-screen-capture asks for the
-// media and screenshot ones, for a screenshot listener the app doesn't use).
+// media and screenshot ones, for a screenshot listener the app doesn't use). SYSTEM_ALERT_WINDOW
+// is blocked too, but a debug build's own manifest adds it back for React Native's dev overlay.
 for (const permission of [
-  "SYSTEM_ALERT_WINDOW",
   "READ_EXTERNAL_STORAGE",
   "WRITE_EXTERNAL_STORAGE",
   "READ_MEDIA_IMAGES",
