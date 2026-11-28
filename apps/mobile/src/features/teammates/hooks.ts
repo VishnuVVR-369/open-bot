@@ -4,3 +4,10 @@ import { queryKeys } from "@/lib/query";
 
 export const useTeammates = () =>
   useQuery({ queryKey: queryKeys.teammates, queryFn: () => api.teammates.list() });
+
+/** The instructions a teammate suggests for itself and you haven't decided, or null. */
+export const usePendingProposal = (teammateId: string) =>
+  useQuery({
+    queryKey: queryKeys.proposal(teammateId),
+    queryFn: () => api.proposals.pending({ teammateId }),
+  });

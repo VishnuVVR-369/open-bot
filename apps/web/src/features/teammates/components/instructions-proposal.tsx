@@ -1,6 +1,6 @@
 "use client";
 
-import { lineDiff } from "@open-bot/domain";
+import { instructionsChange } from "@open-bot/domain";
 import { Loader2, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useMemo, useTransition } from "react";
@@ -26,11 +26,10 @@ export function InstructionsProposal({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [accepting, startAccepting] = useTransition();
-  const lines = useMemo(
-    () => lineDiff(instructionsNow, proposal.proposed),
-    [instructionsNow, proposal.proposed],
+  const { lines, editedSince } = useMemo(
+    () => instructionsChange(proposal, instructionsNow),
+    [proposal, instructionsNow],
   );
-  const editedSince = instructionsNow !== proposal.current;
 
   return (
     <section
@@ -97,9 +96,17 @@ export function InstructionsProposal({
           disabled={pending || accepting}
           onClick={() =>
             startAccepting(async () => {
-              const result = await attempt(api.proposals.accept({ proposalId: proposal.id }));
+              // As reviewed: instructions changed since are refused, never overwritten.
+              const result = await attempt(
+                api.proposals.accept({
+                  proposalId: proposal.id,
+                  expectedInstructions: instructionsNow,
+                }),
+              );
               if (!result.ok) {
                 toast.error("Couldn't apply it", { description: result.error });
+                // Shows the change against the instructions as they are now.
+                router.refresh();
                 return;
               }
               toast(`${name} has new instructions`, {

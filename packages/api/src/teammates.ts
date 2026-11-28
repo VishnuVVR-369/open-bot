@@ -27,6 +27,31 @@ export const proposalViewSchema = z.object({
 });
 export type ProposalView = z.infer<typeof proposalViewSchema>;
 
+/** The suggestion waiting for you from one teammate, with the instructions as they are now. */
+export const pendingProposalViewSchema = proposalViewSchema.extend({
+  teammateId: z.string(),
+  /** What accepting it replaces: the teammate's instructions now, perhaps changed since. */
+  instructionsNow: z.string(),
+});
+export type PendingProposalView = z.infer<typeof pendingProposalViewSchema>;
+
+/** The longest instructions a teammate can have, and so the longest you can have reviewed. */
+const instructions = z.string().max(20_000);
+
+/**
+ * Taking a suggestion as you reviewed it. `expectedInstructions` is the teammate's instructions the
+ * change was shown against (`instructionsNow`): if they changed since, or the teammate was
+ * archived, it's refused with `STATE_CONFLICT` instead of overwriting what's there now. The app's
+ * API requires it; the worker's keeps it optional for web apps deployed before it.
+ */
+export const proposalAcceptSchema = z.object({
+  proposalId: id,
+  expectedInstructions: instructions,
+});
+export const workerProposalAcceptSchema = proposalAcceptSchema.partial({
+  expectedInstructions: true,
+});
+
 export const purchaseViewSchema = z.object({
   id: z.string(),
   teammateId: z.string(),

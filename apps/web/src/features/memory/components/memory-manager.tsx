@@ -16,7 +16,19 @@ import {
 } from "lucide-react";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { type MemoryItem } from "@open-bot/domain";
+import {
+  forgetMemoryQuestion,
+  isSuggestion,
+  MEMORY_CONTENT_MAX,
+  MEMORY_CONTENT_MIN,
+  MEMORY_KEY_MAX,
+  MEMORY_KIND_LABELS,
+  MEMORY_KINDS,
+  MEMORY_LIST_LIMIT,
+  memoryExpired,
+  memorySourceLabel,
+  type MemoryItem,
+} from "@open-bot/domain";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -51,26 +63,6 @@ import { api, orpc } from "@/lib/client/rpc";
 import { useMemories, useMemoryHistory } from "../hooks";
 import { useAppState } from "@/features/app-shell";
 
-/** Who saved a memory, by name when a teammate did. */
-function sourceLabel(item: MemoryItem, teammate: string | null) {
-  if (item.source.type === "feedback") return "From your feedback";
-  if (item.source.type === "import") return "Imported";
-  if (item.source.type === "user") return "Saved by you";
-  const verb =
-    item.state === "candidate" || item.source.type === "extraction" ? "Suggested" : "Saved";
-  if (teammate) return `${verb} by ${teammate}`;
-  return item.source.type === "extraction"
-    ? `${verb} from a conversation`
-    : `${verb} by a teammate`;
-}
-
-const KIND_LABEL: Record<MemoryItem["kind"], string> = {
-  fact: "Fact",
-  preference: "Preference",
-  lesson: "Lesson",
-  note: "Note",
-};
-
 function MemoryRow({
   item,
   savedBy,
@@ -88,8 +80,8 @@ function MemoryRow({
   onHistory: () => void;
   onForget: () => void;
 }) {
-  const suggestion = item.state === "candidate";
-  const expired = item.expiresAt !== null && new Date(item.expiresAt) <= new Date();
+  const suggestion = isSuggestion(item);
+  const expired = memoryExpired(item);
   return (
     <article
       data-testid="memory-item"
@@ -102,9 +94,9 @@ function MemoryRow({
               Suggestion
             </span>
           )}
-          <span>{KIND_LABEL[item.kind]}</span>
+          <span>{MEMORY_KIND_LABELS[item.kind]}</span>
           <span aria-hidden>·</span>
-          <span>{sourceLabel(item, savedBy)}</span>
+          <span>{memorySourceLabel(item, savedBy)}</span>
           {item.pinned && (
             <>
               <span aria-hidden>·</span>
@@ -291,9 +283,9 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
           ))}
         </div>
       )}
-      {items?.length === 200 && (
+      {items?.length === MEMORY_LIST_LIMIT && (
         <p className="text-xs text-muted-foreground">
-          Showing the newest 200 memories. Search to find older ones.
+          Showing the newest {MEMORY_LIST_LIMIT} memories. Search to find older ones.
         </p>
       )}
       <Dialog
@@ -381,8 +373,8 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
                   value={draft.content}
                   onChange={(event) => setDraft({ ...draft, content: event.target.value })}
                   required
-                  minLength={3}
-                  maxLength={8000}
+                  minLength={MEMORY_CONTENT_MIN}
+                  maxLength={MEMORY_CONTENT_MAX}
                   className="min-h-32"
                   placeholder="One durable fact or preference…"
                 />
@@ -398,7 +390,7 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
                     }
                     className="h-9 rounded-md border bg-background px-3 text-sm"
                   >
-                    {["fact", "preference", "lesson", "note"].map((kind) => (
+                    {MEMORY_KINDS.map((kind) => (
                       <option key={kind} value={kind}>
                         {kind}
                       </option>
@@ -421,7 +413,7 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
                   id="memory-key"
                   value={draft.key}
                   onChange={(event) => setDraft({ ...draft, key: event.target.value })}
-                  maxLength={120}
+                  maxLength={MEMORY_KEY_MAX}
                   placeholder="career.work_arrangement"
                 />
               </div>
@@ -452,7 +444,10 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
                   )}
                 </div>
               )}
-              <Button disabled={pending || draft.content.trim().length < 3} type="submit">
+              <Button
+                disabled={pending || draft.content.trim().length < MEMORY_CONTENT_MIN}
+                type="submit"
+              >
                 {pending && <Loader2 className="animate-spin" />} Save memory
               </Button>
             </form>
@@ -516,12 +511,9 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>
-              {forget?.state === "candidate" ? "Dismiss this suggestion?" : "Forget this memory?"}
-            </AlertDialogTitle>
+            <AlertDialogTitle>{forget && forgetMemoryQuestion(forget).title}</AlertDialogTitle>
             <AlertDialogDescription>
-              Saved versions and search results will be removed. Original conversations remain.
-              Running tasks will stop so they can restart with current facts.
+              {forget && forgetMemoryQuestion(forget).body}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -548,10 +540,8 @@ export function MemoryManager({ teammateId, name }: { teammateId: string | null;
             >
               {pending ? (
                 <Loader2 className="animate-spin" />
-              ) : forget?.state === "candidate" ? (
-                "Dismiss suggestion"
               ) : (
-                "Forget memory"
+                forget && forgetMemoryQuestion(forget).action
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

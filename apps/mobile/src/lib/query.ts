@@ -63,6 +63,16 @@ export const queryKeys = {
   scheduleRuns: (scheduleId: string) => ["schedules", "runs", scheduleId] as const,
   triggers: ["triggers", "list"] as const,
   triggerRuns: (triggerId: string) => ["triggers", "runs", triggerId] as const,
+  // The "memory" event refreshes every memory read; "lessons" a teammate's lessons, and
+  // "teammates" the suggested instructions waiting on you.
+  allMemory: ["memory"] as const,
+  memories: (teammateId: string | null, query: string) =>
+    ["memory", "list", teammateId, query] as const,
+  memory: (memoryId: string) => ["memory", "get", memoryId] as const,
+  memoryHistory: (memoryId: string) => ["memory", "history", memoryId] as const,
+  runMemory: (runId: string) => ["memory", "forRun", runId] as const,
+  lessons: (teammateId: string) => ["teammates", "lessons", teammateId] as const,
+  proposal: (teammateId: string) => ["proposals", "pending", teammateId] as const,
   /** Short-lived, so never shared with the lists the "pages" event refreshes. */
   pageLink: (versionId: string, theme: string) => ["page-link", versionId, theme] as const,
 };

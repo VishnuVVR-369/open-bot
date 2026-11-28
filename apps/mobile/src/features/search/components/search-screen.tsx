@@ -4,6 +4,7 @@ import { router, Stack, useNavigation } from "expo-router";
 import type { NativeStackNavigationProp } from "expo-router/native-stack";
 import {
   Bell,
+  Brain,
   CalendarClock,
   FileText,
   House,
@@ -69,6 +70,12 @@ const PAGES: AppPlace[] = [
     href: "/automations",
     icon: CalendarClock,
     keywords: "schedules routines reminders watches webhooks gmail calendar triggers check-in",
+  },
+  {
+    title: "Memory",
+    href: "/memory",
+    icon: Brain,
+    keywords: "remember facts preferences lessons suggestions forget history",
   },
   {
     title: "Settings",

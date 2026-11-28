@@ -1,6 +1,12 @@
 import type { TeammateSummary } from "@open-bot/api";
 import { Users } from "lucide-react-native";
-import { StyleSheet, View } from "react-native";
+import {
+  type LayoutChangeEvent,
+  type StyleProp,
+  StyleSheet,
+  View,
+  type ViewStyle,
+} from "react-native";
 import { TeammateAvatar } from "@/features/teammates/components/teammate-avatar";
 import { Empty } from "@/components/states";
 import { useColors } from "@/theme";
@@ -9,14 +15,19 @@ import { useColors } from "@/theme";
 export function ChatEmpty({
   teammate,
   isGroup,
+  style,
+  onLayout,
 }: {
   /** The teammate of a chat that isn't a group. */
   teammate: TeammateSummary | undefined;
   isGroup: boolean;
+  /** Set by the inverted list, which turns its empty state back the right way up with it. */
+  style?: StyleProp<ViewStyle>;
+  onLayout?: (event: LayoutChangeEvent) => void;
 }) {
   const colors = useColors();
   return (
-    <View style={styles.empty}>
+    <View style={[styles.empty, style]} onLayout={onLayout}>
       <Empty
         icon={
           teammate ? (
@@ -44,7 +55,7 @@ export function ChatEmpty({
 }
 
 const styles = StyleSheet.create({
-  // No transform: the inverted list already flips its empty state back (both axes on Android),
-  // and a transform here would replace that flip and leave the text mirrored.
+  // No transform: the inverted list flips its empty state back through `style` (both axes on
+  // Android), and a transform here would replace that flip and leave the text mirrored.
   empty: { flex: 1 },
 });

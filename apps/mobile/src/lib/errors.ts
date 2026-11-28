@@ -48,6 +48,14 @@ export function isNotFound(error: unknown): boolean {
   return isGone(error) || callError(error)?.code === "BAD_REQUEST";
 }
 
+/**
+ * The server refused because what you acted on changed since you loaded it (`STATE_CONFLICT`):
+ * reload it, rather than sending the same thing again.
+ */
+export function isStateConflict(error: unknown): boolean {
+  return callError(error)?.code === "STATE_CONFLICT";
+}
+
 export function isUnauthorized(error: unknown): boolean {
   return callError(error)?.code === "UNAUTHORIZED";
 }

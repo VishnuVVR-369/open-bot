@@ -14,6 +14,8 @@ export class MemoryError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    /** `reused-id`: a client id already names a different memory, so this isn't a retry of it. */
+    readonly reason?: "reused-id",
   ) {
     super(message);
   }

@@ -47,6 +47,8 @@ function toRpcError(error: unknown): ORPCError<string, unknown> {
   }
   if (error instanceof z.ZodError)
     return new ORPCError("BAD_REQUEST", { message: error.issues.map((i) => i.message).join(". ") });
+  if (error instanceof MemoryError && error.reason === "reused-id")
+    return new ORPCError("CONFLICT", { status: 409, message: error.message });
   if (error instanceof WorkerError || error instanceof MemoryError) {
     const code = STATUS_CODES[error.status] ?? "INTERNAL_SERVER_ERROR";
     // A 409 here is a state conflict (STATE_CONFLICT), never a reused id (CONFLICT).

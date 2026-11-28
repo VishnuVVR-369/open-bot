@@ -1,0 +1,132 @@
+appId: dev.openbot.mobile.dev
+name: Add, search, edit, restore and forget a memory, and decide suggested instructions
+# Run against a signed-in development app with a teammate's suggested instructions waiting:
+#   maestro test maestro/memory.yaml
+# To get a suggestion, ask a teammate in chat to suggest a change to its own instructions; Home
+# then lists "<name> suggests new instructions". The flow dismisses it, so the instructions stay.
+# A memory row is read as one control (what it says, then its type and who saved it), so rows are
+# matched by the start of their label. Edits only tap (type, Prioritize): where a tap puts the
+# cursor in a filled field varies by device, so the flow types into empty fields only.
+---
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://memory
+- extendedWaitUntil:
+    visible:
+      id: new-memory
+    timeout: 20000
+
+# Add a shared memory.
+- tapOn:
+    id: new-memory
+- extendedWaitUntil:
+    visible:
+      id: memory-content-input
+    timeout: 5000
+- tapOn:
+    id: memory-content-input
+- inputText: Prefers aisle seats on long flights (Maestro)
+- hideKeyboard
+- tapOn:
+    id: memory-save
+- extendedWaitUntil:
+    visible:
+      id: memory-search
+    timeout: 10000
+
+# Find it by searching.
+- tapOn:
+    id: memory-search
+- inputText: aisle seats
+- hideKeyboard
+- extendedWaitUntil:
+    visible: "Prefers aisle seats on long flights \\(Maestro\\).*"
+    timeout: 10000
+
+# Edit it: a preference, prioritized.
+- waitForAnimationToEnd
+- tapOn: "Prefers aisle seats on long flights \\(Maestro\\).*"
+- extendedWaitUntil:
+    visible:
+      id: memory-kind-preference
+    timeout: 5000
+- tapOn:
+    id: memory-kind-preference
+- tapOn:
+    id: memory-pinned
+- tapOn:
+    id: memory-save
+- extendedWaitUntil:
+    visible: "Prefers aisle seats on long flights \\(Maestro\\), Preference, Saved by you, Pinned, Revision 2.*"
+    timeout: 10000
+
+# Its history: restore the first revision, which comes back as revision 3.
+- waitForAnimationToEnd
+- tapOn: "Prefers aisle seats on long flights \\(Maestro\\).*"
+# The editor's top shows first; History may be below the fold, so scroll to it from there.
+- extendedWaitUntil:
+    visible:
+      id: memory-content-input
+    timeout: 5000
+- scrollUntilVisible:
+    element:
+      id: memory-history
+- tapOn:
+    id: memory-history
+- extendedWaitUntil:
+    visible:
+      id: restore-1
+    timeout: 10000
+- tapOn:
+    id: restore-1
+- extendedWaitUntil:
+    visible: Restored revision 1 as the newest.
+    timeout: 10000
+- back
+# The memory screen follows the restored revision: a fact again, not prioritized.
+- extendedWaitUntil:
+    visible: ".*Fact · Saved by you · Revision 3.*"
+    timeout: 10000
+
+# Forget it, after confirming.
+- scrollUntilVisible:
+    element:
+      id: memory-forget
+- tapOn:
+    id: memory-forget
+- extendedWaitUntil:
+    visible: Forget this memory\?
+    timeout: 5000
+- tapOn: Forget memory
+- extendedWaitUntil:
+    visible:
+      id: memory-search
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible: "Prefers aisle seats on long flights \\(Maestro\\).*"
+    timeout: 10000
+
+# Suggested instructions: Home opens the teammate, which shows what would change.
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://
+- extendedWaitUntil:
+    visible:
+      id: proposal
+    timeout: 20000
+- tapOn:
+    id: proposal
+- extendedWaitUntil:
+    visible:
+      id: instructions-proposal
+    timeout: 10000
+- assertVisible:
+    id: proposal-diff
+- tapOn:
+    id: proposal-dismiss
+- extendedWaitUntil:
+    visible:
+      id: proposal-dismissed
+    timeout: 10000

@@ -46,7 +46,12 @@ import { type MemoryService } from "@open-bot/memory";
 import { assignConnection, connectionSummaries, type ConnectionSummary } from "./connections";
 import { TeammateError } from "./errors";
 import { teammateParts, type TeammateParts } from "./parts";
-import { addProposal, decideProposal, type InstructionProposalInput } from "./proposals";
+import {
+  addProposal,
+  checkReviewed,
+  decideProposal,
+  type InstructionProposalInput,
+} from "./proposals";
 
 /** The memory a new teammate can start with. */
 export type TeammateMemory = Pick<MemoryService, "copyTeammate" | "addLessons">;
@@ -526,9 +531,16 @@ export class TeammateService {
     await addProposal(this.ctx, input);
   }
 
-  /** Takes a teammate's suggested instructions; they apply from its next message. */
-  async acceptProposal(proposalId: string): Promise<void> {
+  /**
+   * Takes a teammate's suggested instructions; they apply from its next message. A suggestion
+   * still waiting is taken only as you reviewed it: with the teammate's instructions still
+   * `expectedInstructions` (when given) and the teammate not archived, checked with its row
+   * locked, so an edit or archive meanwhile waits or refuses this. Taking one already taken
+   * succeeds again and changes nothing.
+   */
+  async acceptProposal(proposalId: string, expectedInstructions?: string): Promise<void> {
     const updated = await this.ctx.db.transaction(async (tx) => {
+      await checkReviewed(tx, proposalId, expectedInstructions);
       const proposal = await decideProposal(tx, proposalId, "accepted");
       if (!proposal) return null;
       const [teammate] = await tx

@@ -122,6 +122,11 @@ function App() {
                 name="automations/[kind]/[automationId]/edit"
                 options={{ title: "Edit" }}
               />
+              <Stack.Screen name="memory/index" options={{ title: "Memory" }} />
+              <Stack.Screen name="memory/new" options={{ title: "New memory" }} />
+              <Stack.Screen name="memory/lessons" options={{ title: "Lessons" }} />
+              <Stack.Screen name="memory/[memoryId]/index" options={{ title: "Memory" }} />
+              <Stack.Screen name="memory/[memoryId]/history" options={{ title: "History" }} />
               <Stack.Screen name="share" options={{ title: "Share with a teammate" }} />
             </Stack.Protected>
             <Stack.Protected guard={!signedIn}>
