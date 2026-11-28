@@ -187,7 +187,7 @@ function TeammateEditor({ view, gone: archived }: { view: TeammateProfileView; g
     setRebased(true);
   }
 
-  const clash = clashText(name, clashes);
+  const clash = clashText(draft);
   const canSave = online && !busy && changed && !invalid && !gone;
   return (
     <View style={{ flex: 1 }}>
@@ -238,18 +238,20 @@ function TeammateEditor({ view, gone: archived }: { view: TeammateProfileView; g
             emoji={form.emoji}
             size="profile"
           />
-          <View style={{ flex: 1, gap: space(3) }}>
-            <ColorPicker
-              value={form.color}
-              onChange={(color) => set({ color })}
-              disabled={busy || gone}
-            />
+          <View style={{ flex: 1 }}>
+            <Field label="Emoji">
+              <EmojiField
+                value={form.emoji}
+                onChange={(emoji) => set({ emoji })}
+                disabled={busy || gone}
+              />
+            </Field>
           </View>
         </View>
-        <Field label="Emoji">
-          <EmojiField
-            value={form.emoji}
-            onChange={(emoji) => set({ emoji })}
+        <Field label="Color">
+          <ColorPicker
+            value={form.color}
+            onChange={(color) => set({ color })}
             disabled={busy || gone}
           />
         </Field>

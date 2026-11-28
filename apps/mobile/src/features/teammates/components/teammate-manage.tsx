@@ -1,6 +1,6 @@
 import type { TeammateSummary } from "@open-bot/api";
 import { router } from "expo-router";
-import { Archive, Copy, Crown } from "lucide-react-native";
+import { Archive, ChevronRight, Copy, Crown } from "lucide-react-native";
 import { useState, type ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { ListRow } from "@/components/list-row";
@@ -13,7 +13,7 @@ import { confirmArchive, confirmMakeLead } from "../actions";
 
 /**
  * Who leads, and the teammate's own lifecycle: make them the lead, duplicate them, or archive
- * them, as the web's profile has it. Writes wait while the phone is offline.
+ * them, as the web's profile has it. They need the phone online.
  */
 export function TeammateManage({
   teammate,
@@ -50,7 +50,7 @@ export function TeammateManage({
                 ? `${lead.name} leads now. The lead answers group messages that don't mention anyone.`
                 : "Nobody leads now. The lead answers group messages that don't mention anyone."
             }
-            subtitleLines={3}
+            subtitleLines={4}
             onPress={() => confirmMakeLead(teammate, lead)}
             disabled={!online || archiving}
             testID="teammate-make-lead"
@@ -61,7 +61,8 @@ export function TeammateManage({
           leading={<RowIcon icon={<Copy size={18} color={colors.foreground} />} />}
           title={`Duplicate ${name}`}
           subtitle="A new teammate set up the same way, with its automations off."
-          subtitleLines={2}
+          subtitleLines={4}
+          aside={<ChevronRight size={18} color={colors.mutedForeground} />}
           onPress={() => router.push(`/teammates/${teammate.id}/duplicate`)}
           disabled={!online || archiving}
           testID="teammate-duplicate-open"
@@ -74,7 +75,7 @@ export function TeammateManage({
           title={`Archive ${name}`}
           titleStyle={{ color: colors.destructive }}
           subtitle="Stops their work and automations. Their files stay on the computer."
-          subtitleLines={2}
+          subtitleLines={4}
           aside={archiving ? <ActivityIndicator size="small" color={colors.destructive} /> : null}
           onPress={() =>
             confirmArchive(teammate, {
@@ -92,7 +93,7 @@ export function TeammateManage({
       </Card>
       {!online && (
         <Text variant="caption" muted style={styles.inset}>
-          You're offline. These wait until you're back.
+          You're offline. You can do these once you're back.
         </Text>
       )}
     </Section>
@@ -131,6 +132,6 @@ const styles = StyleSheet.create({
     paddingVertical: space(3),
     minHeight: 64,
   },
-  divider: { height: StyleSheet.hairlineWidth, marginLeft: space(4) + 40 + space(3) },
+  divider: { height: StyleSheet.hairlineWidth },
   icon: { width: 40, height: 40, borderRadius: 12, alignItems: "center", justifyContent: "center" },
 });

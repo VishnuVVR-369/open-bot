@@ -94,8 +94,8 @@ describe("following the profile as it changes elsewhere", () => {
     const rebased = rebaseProfile(draft, view({ instructions: "Theirs." }, "r2"));
     expect(rebased.form.instructions).toBe("Mine.");
     expect(rebased.clashes).toEqual(["instructions"]);
-    expect(clashText("Iris", rebased.clashes)).toBe(
-      "Responsibilities also changed elsewhere while you were editing Iris. Saving replaces that change with yours.",
+    expect(clashText(rebased)).toBe(
+      "The responsibilities were also changed elsewhere while you were editing. Saving replaces them with yours.",
     );
     const given = takeTheirs(rebased, "instructions");
     expect(given.form.instructions).toBe("Theirs.");
@@ -119,10 +119,17 @@ describe("following the profile as it changes elsewhere", () => {
     expect(profileChanged(agreed)).toBe(false);
   });
 
-  it("names several clashing fields together", () => {
-    expect(clashText("Iris", [])).toBeNull();
-    expect(clashText("Iris", ["name", "role", "autonomy"])).toBe(
-      "Name, job and when they ask you first also changed elsewhere while you were editing Iris. Saving replaces those changes with yours.",
+  it("says what a short field was changed to, and names several together", () => {
+    const start = { ...PROFILE, role: "Analyst", autonomy: "full" as const };
+    expect(clashText({ start, clashes: [] })).toBeNull();
+    expect(clashText({ start, clashes: ["role"] })).toBe(
+      "The job was also changed elsewhere, to “Analyst”, while you were editing. Saving replaces it with yours.",
+    );
+    expect(clashText({ start, clashes: ["autonomy"] })).toBe(
+      "The setting for when they ask you first was also changed elsewhere, to Works on its own, while you were editing. Saving replaces it with yours.",
+    );
+    expect(clashText({ start, clashes: ["name", "role", "instructions"] })).toBe(
+      "The name, job and responsibilities were also changed elsewhere while you were editing. Saving replaces them with yours.",
     );
   });
 });

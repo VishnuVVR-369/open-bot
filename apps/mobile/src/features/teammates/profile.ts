@@ -1,5 +1,5 @@
 import type { TeammateProfileView, TeammateSummary } from "@open-bot/api";
-import { teammateProfileSchema, type TeammateProfile } from "@open-bot/domain";
+import { AUTONOMY_OPTIONS, teammateProfileSchema, type TeammateProfile } from "@open-bot/domain";
 
 /**
  * Editing a teammate's profile on the phone: the form, what changed in it, and how it follows the
@@ -26,7 +26,7 @@ export const FIELD_LABELS: Record<ProfileField, string> = {
   instructions: "responsibilities",
   color: "color",
   emoji: "emoji",
-  autonomy: "when they ask you first",
+  autonomy: "setting for when they ask you first",
 };
 
 /** The longest name and job, as the shared profile rules have them. */
@@ -121,19 +121,35 @@ export function profileUpdate(teammateId: string, draft: ProfileDraft) {
   };
 }
 
-/** "Name and job", in the editor's words. */
+/** "name and job", in the editor's words. */
 function listFields(fields: readonly ProfileField[]): string {
   const labels = fields.map((field) => FIELD_LABELS[field]);
   if (labels.length <= 1) return labels[0] ?? "";
   return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
 }
 
-/** What the editor says about clashing fields: saving replaces what was written elsewhere. */
-export function clashText(name: string, clashes: readonly ProfileField[]): string | null {
+/** What a field was saved as elsewhere, when it's short enough to say. */
+function savedValue(field: ProfileField, saved: ProfileForm): string | null {
+  if (field === "name" || field === "role") return `“${saved[field].trim()}”`;
+  if (field === "autonomy")
+    return AUTONOMY_OPTIONS.find((option) => option.value === saved.autonomy)?.label ?? null;
+  return null;
+}
+
+/**
+ * What the editor says about clashing fields: what they were changed to elsewhere, when that's
+ * short, and that saving replaces it with yours.
+ */
+export function clashText(draft: Pick<ProfileDraft, "start" | "clashes">): string | null {
+  const { clashes, start } = draft;
   if (clashes.length === 0) return null;
-  const fields = listFields(clashes);
-  const capital = fields.charAt(0).toUpperCase() + fields.slice(1);
-  return `${capital} also changed elsewhere while you were editing ${name}. Saving replaces ${clashes.length === 1 ? "that change" : "those changes"} with yours.`;
+  if (clashes.length > 1)
+    return `The ${listFields(clashes)} were also changed elsewhere while you were editing. Saving replaces them with yours.`;
+  const field = clashes[0]!;
+  const value = savedValue(field, start);
+  const to = value ? `, to ${value},` : "";
+  const verb = field === "instructions" ? "were" : "was";
+  return `The ${FIELD_LABELS[field]} ${verb} also changed elsewhere${to} while you were editing. Saving replaces ${field === "instructions" ? "them" : "it"} with yours.`;
 }
 
 /**

@@ -81,38 +81,41 @@ export function ColorPicker({
       {TEAMMATE_COLORS.map((color, index) => {
         const selected = color.toLowerCase() === value.toLowerCase();
         return (
-          <Pressable
-            key={color}
-            onPress={() => {
-              if (selected || disabled) return;
-              haptics.tap();
-              onChange(color);
-            }}
-            hitSlop={4}
-            accessibilityRole="radio"
-            accessibilityState={{ selected, disabled }}
-            accessibilityLabel={`Color ${index + 1} of ${TEAMMATE_COLORS.length}`}
-            style={[
-              styles.swatchRing,
-              { borderColor: selected ? color : "transparent" },
-              disabled && { opacity: 0.6 },
-            ]}
-            testID={`teammate-color-${index}`}
-          >
-            <View style={[styles.swatch, { backgroundColor: color }]}>
-              {selected && <Check size={16} color="#FFFFFF" strokeWidth={3} />}
-            </View>
-          </Pressable>
+          <View key={color} style={styles.cell}>
+            <Pressable
+              onPress={() => {
+                if (selected || disabled) return;
+                haptics.tap();
+                onChange(color);
+              }}
+              hitSlop={4}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, disabled }}
+              accessibilityLabel={`Color ${index + 1} of ${TEAMMATE_COLORS.length}`}
+              style={[
+                styles.swatchRing,
+                { borderColor: selected ? color : "transparent" },
+                disabled && { opacity: 0.6 },
+              ]}
+              testID={`teammate-color-${index}`}
+            >
+              <View style={[styles.swatch, { backgroundColor: color }]}>
+                {selected && <Check size={16} color="#FFFFFF" strokeWidth={3} />}
+              </View>
+            </Pressable>
+          </View>
         );
       })}
       {/* A color from before the palette (or set by a teammate) still shows as picked. */}
       {!TEAMMATE_COLORS.some((color) => color.toLowerCase() === value.toLowerCase()) && (
-        <View
-          style={[styles.swatchRing, { borderColor: value }]}
-          accessibilityLabel="Its color now"
-        >
-          <View style={[styles.swatch, { backgroundColor: value }]}>
-            <Check size={16} color="#FFFFFF" strokeWidth={3} />
+        <View style={styles.cell}>
+          <View
+            style={[styles.swatchRing, { borderColor: value }]}
+            accessibilityLabel="Its color now"
+          >
+            <View style={[styles.swatch, { backgroundColor: value }]}>
+              <Check size={16} color="#FFFFFF" strokeWidth={3} />
+            </View>
           </View>
         </View>
       )}
@@ -139,6 +142,9 @@ export function EmojiField({
         editable={!disabled}
         accessibilityLabel="Emoji"
         style={styles.emojiBox}
+        inputStyle={styles.emoji}
+        // A picture sized to its box, like the avatar beside it, not text to read.
+        allowFontScaling={false}
         textAlign="center"
         selectTextOnFocus
         testID="teammate-emoji-input"
@@ -161,7 +167,7 @@ export function EmojiField({
         </Pressable>
       ) : (
         <Text variant="small" muted style={{ flex: 1 }}>
-          Leave it empty to show the name's initial.
+          Type one emoji, or leave it empty to show the name's initial.
         </Text>
       )}
     </View>
@@ -193,12 +199,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dot: { width: 6, height: 6, borderRadius: 3 },
-  swatches: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    rowGap: space(2),
-  },
+  // One even row: each color in an equal cell, never wrapping, and not spread across a wide
+  // landscape screen.
+  swatches: { flexDirection: "row", maxWidth: 440 },
+  cell: { flex: 1, alignItems: "center" },
   swatchRing: {
     width: SWATCH + (RING + AIR) * 2,
     height: SWATCH + (RING + AIR) * 2,
@@ -216,4 +220,5 @@ const styles = StyleSheet.create({
   },
   emojiRow: { flexDirection: "row", alignItems: "center", gap: space(3) },
   emojiBox: { width: 56, flexGrow: 0, flexShrink: 0 },
+  emoji: { fontSize: 24, paddingHorizontal: 0 },
 });

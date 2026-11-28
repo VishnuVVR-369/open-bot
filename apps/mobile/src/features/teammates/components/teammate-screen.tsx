@@ -86,7 +86,13 @@ function Action({
       {icon}
       <Text
         variant="small"
-        style={{ fontWeight: "600", color: primary ? colors.primaryForeground : colors.foreground }}
+        // Three side by side: past this a word no longer fits on a line.
+        maxFontSizeMultiplier={1.5}
+        style={{
+          fontWeight: "600",
+          textAlign: "center",
+          color: primary ? colors.primaryForeground : colors.foreground,
+        }}
       >
         {label}
       </Text>
@@ -459,6 +465,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: space(1),
+    // Room around the label, so a large font wraps it inside the button instead of over the icon.
+    paddingHorizontal: space(1),
+    paddingVertical: space(2.5),
     overflow: "hidden",
   },
   about: { padding: space(4), gap: space(1) },

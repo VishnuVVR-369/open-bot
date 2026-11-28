@@ -8,6 +8,7 @@ import {
   type StyleProp,
   type TextInputInstance,
   type TextInputProps,
+  type TextStyle,
   type ViewStyle,
 } from "react-native";
 import { fonts, radius, space, useColors } from "@/theme";
@@ -19,6 +20,7 @@ import { fonts, radius, space, useColors } from "@/theme";
  */
 export function TextField({
   style,
+  inputStyle,
   mono,
   invalid,
   multiline,
@@ -31,6 +33,8 @@ export function TextField({
 }: Omit<TextInputProps, "style"> & {
   /** For the box: a taller multiline field, say. */
   style?: StyleProp<ViewStyle>;
+  /** For the text itself, after the field's own: a bigger emoji, say. */
+  inputStyle?: StyleProp<TextStyle>;
   mono?: boolean;
   invalid?: boolean;
   password?: boolean;
@@ -79,6 +83,7 @@ export function TextField({
             fontFamily: mono ? fonts.mono : fonts.sans,
             fontSize: mono ? 14 : 16,
           },
+          inputStyle,
         ]}
       />
       {password && (
