@@ -56,7 +56,7 @@ The web app issues them only to a signed-in session, and they say what they're f
 
 The web app encrypts when you save, and the worker decrypts only at the moment of use.
 No procedure returns a vault secret, so neither the web app nor the Android app can show one.
-The Android app's vault also asks for your fingerprint or the phone's PIN each time it opens, locks again in the background, and keeps its screens out of screenshots and the recent apps preview (see [The Android app](/docs/flows/android-app#vault)).
+The Android app's vault also asks for your fingerprint or the phone's PIN each time it opens, locks again in the background, hides a locked screen from TalkBack, and keeps its screens out of screenshots and the recent apps preview (see [The Android app](/docs/flows/android-app#vault)).
 Losing `ENCRYPTION_KEY` makes these unreadable, so back it up with the database.
 
 The OpenAI API key never reaches the computer.

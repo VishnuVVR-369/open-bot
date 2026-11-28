@@ -237,7 +237,9 @@ The vault holds the logins and cards your teammates use without ever seeing them
 Open it from Settings, by searching for Vault, or from Spending on a teammate's profile.
 Opening it asks for your fingerprint or the phone's PIN every time, even right after you unlocked the app.
 It stays open while you move between its screens, and locks again when you leave the last of them, when the app goes to the background, or after five minutes.
+Leaving counts once no vault screen has been in front for a second, so a chat opened from a purchase leaves the vault even though the budget screen is still under it.
 A locked vault covers the screen, and nothing on it can be changed until you open it again; what you were typing stays.
+What's under the cover is hidden from TalkBack and takes no touches, and the header doesn't name the item.
 A phone without a screen lock can't open the vault, and the screen says to set one up.
 
 The list shows each login with its username and site, and each card with its brand and last four digits, with who may use it and when it was last used.
@@ -251,13 +253,18 @@ Leaving with unsaved changes asks first, and while the phone is offline nothing 
 
 Budgets lists each teammate with what they spent this month.
 Tap one to choose whether they may pay for things, their monthly budget and the amount approved without asking, and to see their purchases; a purchase opens the chat it was made in.
-Saving names the budget you opened (`teammates.setBudget`'s `expected`), so one changed on the web meanwhile is refused (`STATE_CONFLICT`), and the screen shows the new one to check before you save again.
+Saving names the budget your changes started from (`teammates.setBudget`'s `expected`), so a budget saved on the web meanwhile is refused (`STATE_CONFLICT`) rather than overwritten.
+While you edit, a field you haven't touched follows a budget changed elsewhere.
+When it changed a field you changed too, to something else, the screen says what it was changed to ("Changed elsewhere to $80 a month"), keeps your value, and waits until you use theirs or keep yours before saving.
+The web's Spending tab works the same way, with the same rules (`packages/domain/src/vault/budget.ts`).
 The `vault` and `purchases` app events refresh both.
 
 What you type into the vault lives only on the screen you type it on: it is never kept as a draft or cached, and it is cleared once saved and when you leave.
-The vault's screens are kept out of screenshots, screen recordings and the recent apps preview (Android's `FLAG_SECURE`), and their fields turn off autofill and the keyboard's suggestions.
+While a vault screen is in front, the app is kept out of screenshots, screen recordings and the recent apps preview (Android's `FLAG_SECURE`, set by the app's own `modules/secure-screen`, which needs no permission), and the fields turn off autofill and the keyboard's suggestions.
+A password you show uses the visible-password keyboard, which learns nothing.
 The list and budgets the phone read are dropped when you leave the vault.
-A save that gets no answer says so; for a new item, check the list before adding it again, since the first one may have been saved.
+A new item is sent under an id the phone makes for it (`vault.create`).
+When its save gets no answer, the form stays as it was sent and Try again sends it unchanged, with the same id, so it is never added twice.
 
 ## Phone connection
 
