@@ -8,6 +8,7 @@ import {
   Mail,
   MessageCircle,
   Monitor,
+  Pencil,
   ShieldAlert,
   ShieldCheck,
   SquarePen,
@@ -42,7 +43,9 @@ import { TeammateMemory } from "@/features/memory/components/teammate-memory";
 import { TaskSection } from "@/features/tasks/components/task-section";
 import { useTasks } from "@/features/tasks/hooks";
 import { teammateTasks } from "@/features/tasks/tasks";
+import { HeaderButton } from "@/features/home/components/header-actions";
 import { InstructionsProposalSection } from "@/features/teammates/components/instructions-proposal";
+import { TeammateManage } from "@/features/teammates/components/teammate-manage";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
@@ -272,7 +275,23 @@ export default function TeammateScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottom }]}
         testID="teammate-profile"
       >
-        <Stack.Screen options={{ title: "" }} />
+        <Stack.Screen
+          options={{
+            title: "",
+            headerRight: () => (
+              <HeaderButton
+                label="Edit profile"
+                onPress={() => {
+                  haptics.tap();
+                  router.push(`/teammates/${teammate.id}/edit`);
+                }}
+                testID="profile-edit"
+              >
+                <Pencil size={21} color={colors.foreground} />
+              </HeaderButton>
+            ),
+          }}
+        />
         <View style={styles.hero}>
           {/* Who they are, compact: the face beside the name, so what to do comes right after. */}
           <View style={styles.identity}>
@@ -401,6 +420,8 @@ export default function TeammateScreen() {
             </Card>
           </Section>
         )}
+
+        <TeammateManage teammate={teammate} team={allTeammates} />
       </ScrollView>
     </View>
   );

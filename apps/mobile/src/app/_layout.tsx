@@ -100,6 +100,14 @@ function App() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="chats/[chatId]" options={{ title: "" }} />
               <Stack.Screen name="teammates/[teammateId]" options={{ title: "" }} />
+              <Stack.Screen
+                name="teammates/[teammateId]/edit"
+                options={{ title: "Edit profile" }}
+              />
+              <Stack.Screen
+                name="teammates/[teammateId]/duplicate"
+                options={{ title: "Duplicate" }}
+              />
               <Stack.Screen name="approvals/[approvalId]" options={{ title: "Approval" }} />
               <Stack.Screen name="screens/[screenId]" options={{ title: "Computer" }} />
               <Stack.Screen name="settings" options={{ title: "Settings" }} />

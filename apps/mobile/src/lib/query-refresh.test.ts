@@ -74,6 +74,7 @@ const queries = [
   [["run-memory", "a"], queryKeys.runMemory("a")],
   [["lessons", "a"], queryKeys.lessons("a")],
   [["proposal", "a"], queryKeys.proposal("a")],
+  [["teammate-profile", "a"], queryKeys.teammateProfile("a")],
 ] as const;
 
 async function invalidated(keys: readonly (readonly unknown[])[], side: 0 | 1) {
@@ -132,6 +133,8 @@ describe("shared event refresh migration", () => {
                             ["chat", "a"],
                             ["chat", "b"],
                             ["proposal", "a"],
+                            // The profile you edit follows changes made elsewhere.
+                            ["teammate-profile", "a"],
                           ]
                         : [];
       expect(added).toEqual(expected.map((key) => JSON.stringify(key)));

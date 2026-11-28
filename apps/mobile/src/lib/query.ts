@@ -73,6 +73,8 @@ export const queryKeys = {
   runMemory: (runId: string) => ["memory", "forRun", runId] as const,
   lessons: (teammateId: string) => ["teammates", "lessons", teammateId] as const,
   proposal: (teammateId: string) => ["proposals", "pending", teammateId] as const,
+  // The "teammates" event, sent for every change to a teammate's profile, refreshes it.
+  teammateProfile: (teammateId: string) => ["teammates", "profile", teammateId] as const,
   /** Short-lived, so never shared with the lists the "pages" event refreshes. */
   pageLink: (versionId: string, theme: string) => ["page-link", versionId, theme] as const,
 };

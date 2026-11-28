@@ -11,3 +11,10 @@ export const usePendingProposal = (teammateId: string) =>
     queryKey: queryKeys.proposal(teammateId),
     queryFn: () => api.proposals.pending({ teammateId }),
   });
+
+/** A teammate's profile to edit, with the revision a save sends back. */
+export const useTeammateProfile = (teammateId: string) =>
+  useQuery({
+    queryKey: queryKeys.teammateProfile(teammateId),
+    queryFn: () => api.teammates.profile({ teammateId }),
+  });
