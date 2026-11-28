@@ -219,6 +219,17 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       expect(
         await failure(worker.teammates.duplicate({ ...ask, copyId: randomUUID() })),
       ).toMatchObject({ status: 404 });
+      // The copy itself archived since: asking again says so, and doesn't make another.
+      await worker.teammates.archive({ teammateId: copyId });
+      expect(await failure(worker.teammates.duplicate(ask))).toMatchObject({
+        status: 404,
+        message: expect.stringContaining("archived since"),
+      });
+      expect(
+        (await team())
+          .filter((entry) => entry.name.startsWith("Wren 2"))
+          .map((entry) => [entry.id, entry.archived]),
+      ).toEqual([[copyId, true]]);
       copyMemory.mockRestore();
     });
 

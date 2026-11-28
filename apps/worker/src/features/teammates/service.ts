@@ -138,9 +138,10 @@ export class TeammateService {
    * worker handed out before revisions covered only the profile, still counts while it matches,
    * so a web app or a teammate's thread from before then isn't refused at every save.
    *
-   * TODO(2026-11-28): drop the whole-row check once every deployed web app hands out profile
-   * revisions (the release after "teammates on the phone") and a week has passed since, so open
-   * web forms and teammates' threads have read the teammate again.
+   * TODO(2026-12-15): drop the whole-row check. By then "teammates on the phone" (#209) has been
+   * deployed for over a week, so no web app hands out whole-row revisions and open web forms and
+   * teammates' threads have read the teammate again. If #209 deploys later, move the date to a
+   * week after its deploy.
    */
   static isCurrent(teammate: Teammate, revision: string): boolean {
     return (

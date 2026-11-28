@@ -1,7 +1,7 @@
 import { ruleKindSchema } from "../approvals/rules";
 import { z } from "zod";
 import { teammateProfileSchema } from "./management";
-import { MAX_LESSON_CHARS } from "./profile";
+import { lastGlyph, MAX_LESSON_CHARS } from "./profile";
 import { MAX_WATCH_MINUTES, MIN_WATCH_MINUTES } from "../automations/triggers";
 import { SKILL_NAME_PATTERN } from "../skills/skills";
 import { DAILY_CHECK_IN } from "./templates";
@@ -37,7 +37,13 @@ export const teammateBundleSchema = z.object({
   // The profile's own rules, so an imported teammate can always be saved from the form.
   teammate: teammateProfileSchema.extend({
     instructions: teammateProfileSchema.shape.instructions.default(""),
-    emoji: teammateProfileSchema.shape.emoji.default(""),
+    // Before one glyph was the rule, any 8 code units were saved ("🤖✨", "AB"), and files from then
+    // still import: the last glyph is kept, so the teammate can be saved from the form.
+    emoji: z
+      .string()
+      .max(64, "Pick a single emoji.")
+      .transform((emoji) => lastGlyph(emoji.trim()))
+      .default(""),
     color: teammateProfileSchema.shape.color.optional(),
     autonomy: teammateProfileSchema.shape.autonomy.default("risky"),
   }),
