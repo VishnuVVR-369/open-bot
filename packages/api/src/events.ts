@@ -25,6 +25,7 @@ export const APP_EVENT_REFRESHES: Record<AppEventType, readonly ProcedurePath[]>
   // A teammate's suggested instructions come and go with this event too.
   teammates: [
     ["teammates", "list"],
+    ["teammates", "profile"],
     ["chats", "list"],
     ["proposals", "pending"],
   ],
