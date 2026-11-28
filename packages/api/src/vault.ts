@@ -41,3 +41,27 @@ export const vaultItemInputSchema = z.object({
   secret: z.partialRecord(z.enum(VAULT_SECRET_FIELDS), z.string().max(500)),
 });
 export type VaultItemInput = z.infer<typeof vaultItemInputSchema>;
+
+/**
+ * A change to a saved login or card, and nothing else: what's left out stays as it is, so an edit
+ * made elsewhere meanwhile to another field isn't undone. A secret field given empty keeps what's
+ * saved, except the username, which can't be emptied.
+ */
+export const vaultItemPatchSchema = z
+  .object({
+    itemId: id,
+    name: vaultItemInputSchema.shape.name.optional(),
+    /** A login's site; refused for a card. */
+    domain: z.string().max(300).optional(),
+    teammateIds: teammateAccessSchema.optional(),
+    secret: vaultItemInputSchema.shape.secret.optional(),
+  })
+  .refine(
+    (patch) =>
+      patch.name !== undefined ||
+      patch.domain !== undefined ||
+      patch.teammateIds !== undefined ||
+      (patch.secret !== undefined && Object.keys(patch.secret).length > 0),
+    { message: "Say what to change." },
+  );
+export type VaultItemPatch = z.infer<typeof vaultItemPatchSchema>;

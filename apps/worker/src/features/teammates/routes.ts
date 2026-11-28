@@ -34,7 +34,12 @@ export function teammateRoutes(teammates: TeammateService, executor: WorkspaceSy
         return ok;
       }),
       setBudget: os.teammates.setBudget.handler(async ({ input }) => {
-        await teammates.setBudget(input.teammateId, input.budget, input.autoApprove);
+        await teammates.setBudget(
+          input.teammateId,
+          input.budget,
+          input.autoApprove,
+          input.expected,
+        );
         return ok;
       }),
       sync: os.teammates.sync.handler(async ({ input }) => {

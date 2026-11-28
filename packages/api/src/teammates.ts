@@ -93,4 +93,14 @@ export const budgetInputSchema = z.object({
     .number({ error: "Give the amount in dollars, like 20." })
     .min(0, "Give the amount in dollars, like 20.")
     .max(MAX_BUDGET_DOLLARS, "Keep the amount under $100,000."),
+  /**
+   * The budget as you saw it, in cents. When given, a budget changed since (on the web, say) is
+   * refused with `STATE_CONFLICT` instead of being overwritten.
+   */
+  expected: z
+    .object({
+      budgetCents: z.number().int().nonnegative().nullable(),
+      autoApproveCents: z.number().int().nonnegative(),
+    })
+    .optional(),
 });

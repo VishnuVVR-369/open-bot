@@ -7,6 +7,7 @@ const ok = { ok: true } as const;
 export function vaultRoutes(vault: VaultService) {
   return {
     save: os.vault.save.handler(({ input }) => vault.saveItem(input)),
+    patch: os.vault.patch.handler(({ input }) => vault.patchItem(input)),
     remove: os.vault.remove.handler(async ({ input }) => {
       await vault.removeItem(input.itemId);
       return ok;
