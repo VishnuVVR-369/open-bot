@@ -1,0 +1,129 @@
+appId: dev.openbot.mobile.dev
+name: Open the vault past the fingerprint, add, edit and delete a login, and set a budget and back
+# Run against a signed-in development app, with a teammate that has no budget yet:
+#   maestro test -e TEAMMATE=<teammate name> [-e PIN=<the phone's PIN>] maestro/vault.yaml
+# The vault asks for the phone's PIN (1111 on the emulator, see flows/vault-unlock.yaml). Its
+# screens block screenshots, so Maestro's own screenshots of them come out black; it reads the
+# screen through accessibility, which still works.
+# The login is made up. A row is read as one control (name, username, site, who may use it, when
+# it was used), so rows are matched by their whole label or its start. Edits type into empty
+# fields only: where a tap puts the cursor in a filled one varies by device.
+---
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://vault
+- runFlow: flows/vault-unlock.yaml
+- extendedWaitUntil:
+    visible:
+      id: vault-screen
+    timeout: 20000
+
+# Add a login.
+- tapOn:
+    id: vault-add-login
+- extendedWaitUntil:
+    visible:
+      id: vault-name-input
+    timeout: 5000
+- tapOn:
+    id: vault-name-input
+- inputText: Maestro Example
+- tapOn:
+    id: vault-site-input
+- inputText: https://www.example.com/login
+- tapOn:
+    id: vault-username-input
+- inputText: maestro@example.com
+- tapOn:
+    id: vault-password-input
+- inputText: made-up-pass-1
+- hideKeyboard
+- tapOn:
+    id: vault-save
+- extendedWaitUntil:
+    visible: "Maestro Example, maestro@example.com, example.com, Every teammate, Not used yet"
+    timeout: 10000
+
+# Edit it: a new password, and only the teammate may use it. Leaving with changes asks first.
+- waitForAnimationToEnd
+- tapOn: "Maestro Example,.*"
+- extendedWaitUntil:
+    visible:
+      id: vault-password-input
+    timeout: 5000
+- tapOn:
+    id: vault-password-input
+- inputText: made-up-pass-2
+- hideKeyboard
+- back
+- extendedWaitUntil:
+    visible: Discard your changes\?
+    timeout: 5000
+- tapOn: Keep editing
+- scrollUntilVisible:
+    element:
+      id: vault-everyone
+- tapOn:
+    id: vault-everyone
+- tapOn: ${TEAMMATE}
+- tapOn:
+    id: vault-save
+- extendedWaitUntil:
+    visible: "Maestro Example, maestro@example.com, example.com, Only ${TEAMMATE}, Not used yet"
+    timeout: 10000
+
+# Delete it, after confirming.
+- waitForAnimationToEnd
+- tapOn: "Maestro Example,.*"
+- scrollUntilVisible:
+    element:
+      id: vault-delete
+- tapOn:
+    id: vault-delete
+- extendedWaitUntil:
+    visible: Delete Maestro Example\?
+    timeout: 5000
+- tapOn: Delete
+- extendedWaitUntil:
+    visible:
+      id: vault-screen
+    timeout: 10000
+- extendedWaitUntil:
+    notVisible: "Maestro Example,.*"
+    timeout: 10000
+
+# The teammate's budget: give them $25 a month, then take it away again.
+- scrollUntilVisible:
+    element:
+      text: "${TEAMMATE}, No budget, so they can't pay for things"
+- tapOn: "${TEAMMATE}, No budget, so they can't pay for things"
+- extendedWaitUntil:
+    visible:
+      id: budget-enabled
+    timeout: 10000
+- tapOn:
+    id: budget-enabled
+- tapOn:
+    id: budget-amount
+- inputText: "25"
+- hideKeyboard
+- tapOn:
+    id: budget-save
+- extendedWaitUntil:
+    visible:
+      id: budget-spent
+    timeout: 10000
+- assertVisible: "\\$0 of \\$25"
+- tapOn:
+    id: budget-enabled
+- tapOn:
+    id: budget-save
+- extendedWaitUntil:
+    notVisible:
+      id: budget-spent
+    timeout: 10000
+- back
+- extendedWaitUntil:
+    visible: "${TEAMMATE}, No budget, so they can't pay for things"
+    timeout: 10000
