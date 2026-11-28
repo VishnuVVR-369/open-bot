@@ -12,12 +12,19 @@ import { Text } from "@/components/text";
 import { TextField } from "@/components/text-field";
 import { Notice } from "@/features/memory/components/memory-parts";
 import { api } from "@/lib/api";
-import { errorMessage, isGone, isStateConflict } from "@/lib/errors";
+import { isGone } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { useOnline } from "@/lib/network";
 import { queryClient, queryKeys } from "@/lib/query";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { radius, space, useColors } from "@/theme";
+import {
+  afterRefusal,
+  cacheAfterSave,
+  canSaveProfile,
+  followProfile,
+  saveRefusal,
+} from "../editor";
 import { useTeammateProfile } from "../hooks";
 import {
   clashText,
@@ -27,9 +34,9 @@ import {
   profileDraft,
   profileProblem,
   profileUpdate,
-  rebaseProfile,
   REBASED_TEXT,
   ROLE_MAX,
+  savedProfile,
   takeTheirs,
   type ProfileDraft,
   type ProfileForm,
@@ -96,13 +103,13 @@ function TeammateEditor({ view, gone: archived }: { view: TeammateProfileView; g
   const [discarded, setDiscarded] = useState(false);
   const gone = archived || goneHere;
   const changed = profileChanged(draft);
-  const invalid = profileProblem(form);
+  const invalid = profileProblem(draft);
   const name = start.name;
 
   // A fresher copy (it changed on the web, say): what you haven't touched follows it. Not while a
   // save is on its way: the form is frozen, and the save's own answer comes next.
   useEffect(() => {
-    if (!busy) setDraft((current) => rebaseProfile(current, view));
+    setDraft((current) => followProfile(current, view, busy));
   }, [view, busy]);
 
   // Back to the profile once a save went through, after the guard below has let go, and only
@@ -147,19 +154,19 @@ function TeammateEditor({ view, gone: archived }: { view: TeammateProfileView; g
     const result = await safe(api.teammates.update(sent));
     if (result.error) {
       haptics.error();
-      if (isGone(result.error)) {
-        setGoneHere(true);
-        setBusy(false);
-      } else if (isStateConflict(result.error)) await followRefusal();
-      else {
-        setProblem(errorMessage(result.error, "Couldn't save the profile."));
-        setBusy(false);
-      }
+      const refusal = saveRefusal(result.error);
+      if (refusal.kind === "changed") return followRefusal();
+      if (refusal.kind === "gone") setGoneHere(true);
+      else setProblem(refusal.problem);
+      setBusy(false);
       return;
     }
     // What was sent is saved: the form starts from it, at the revision the save answered with.
-    const saved = { teammateId, profile: sent.profile, revision: result.data.revision };
-    queryClient.setQueryData(queryKeys.teammateProfile(teammateId), saved);
+    const saved = savedProfile(draft, sent, result.data.revision);
+    const key = queryKeys.teammateProfile(teammateId);
+    const cache = cacheAfterSave(queryClient.getQueryData(key), sent.revision, saved);
+    if ("write" in cache) queryClient.setQueryData(key, cache.write);
+    else if (cache.refetch) void queryClient.invalidateQueries({ queryKey: key });
     void queryClient.invalidateQueries({ queryKey: queryKeys.teammates });
     setDraft(profileDraft(saved));
     setRebased(false);
@@ -177,18 +184,19 @@ function TeammateEditor({ view, gone: archived }: { view: TeammateProfileView; g
         staleTime: 0,
       }),
     );
+    const read = fresh.error
+      ? { ok: false as const, error: fresh.error }
+      : { ok: true as const, view: fresh.data };
+    const next = afterRefusal(draft, read);
     setBusy(false);
-    if (fresh.error) {
-      if (isGone(fresh.error)) setGoneHere(true);
-      else setProblem(errorMessage(fresh.error, "Couldn't load the latest version."));
-      return;
-    }
-    setDraft((current) => rebaseProfile(current, fresh.data));
-    setRebased(true);
+    setDraft(next.draft);
+    if (next.rebased) setRebased(true);
+    if (next.gone) setGoneHere(true);
+    if (next.problem) setProblem(next.problem);
   }
 
   const clash = clashText(draft);
-  const canSave = online && !busy && changed && !invalid && !gone;
+  const canSave = canSaveProfile({ online, saving: busy, changed, problem: invalid, gone });
   return (
     <View style={{ flex: 1 }}>
       <Stack.Screen options={{ title: "Edit profile" }} />

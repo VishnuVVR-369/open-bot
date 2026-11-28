@@ -10,19 +10,23 @@ export function HeaderButton({
   label,
   onPress,
   children,
+  disabled,
   testID,
 }: {
   label: string;
   onPress: () => void;
   children: ReactNode;
+  disabled?: boolean;
   testID?: string;
 }) {
   const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={label}
+      accessibilityState={{ disabled: Boolean(disabled) }}
       android_ripple={{ color: colors.muted, borderless: true, radius: 22 }}
       style={styles.button}
       testID={testID}

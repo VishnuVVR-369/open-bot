@@ -4,7 +4,7 @@ import { copyName } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,6 +42,9 @@ export function DuplicateTeammateDialog({
   const [name, setName] = useState("");
   const [copyMemory, setCopyMemory] = useState(true);
   const [pending, startTransition] = useTransition();
+  // The copy's id, kept until a copy is made: asking again after an answer that never came names
+  // the same id, so the server answers with the copy the first ask made instead of a second one.
+  const copyId = useRef<string | null>(null);
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -55,13 +58,20 @@ export function DuplicateTeammateDialog({
 
   function submit() {
     startTransition(async () => {
+      copyId.current ??= crypto.randomUUID();
       const result = await attempt(
-        api.teammates.duplicate({ teammateId: teammate.id, name, copyMemory }),
+        api.teammates.duplicate({
+          teammateId: teammate.id,
+          name,
+          copyMemory,
+          copyId: copyId.current,
+        }),
       );
       if (!result.ok) {
         toast.error("Couldn't duplicate the teammate", { description: result.error });
         return;
       }
+      copyId.current = null;
       await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
       setOpen(false);
       if (result.data.memoryCopied) {

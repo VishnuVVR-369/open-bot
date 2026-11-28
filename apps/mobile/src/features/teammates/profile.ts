@@ -106,19 +106,40 @@ export function editProfile(draft: ProfileDraft, patch: Partial<ProfileForm>): P
   };
 }
 
-/** Why the form can't be saved, in the shared profile rules' words, or null when it can. */
-export function profileProblem(form: ProfileForm): string | null {
-  const parsed = teammateProfileSchema.safeParse(form);
+/** The fields you changed, as the server trims them: all a save sends. */
+function changes(draft: Pick<ProfileDraft, "start" | "form">): Partial<ProfileForm> {
+  const { form } = draft;
+  const trimmedForm = { ...form, name: form.name.trim(), role: form.role.trim() };
+  return Object.fromEntries(
+    changedFields(draft).map((field) => [field, trimmedForm[field]]),
+  ) as Partial<ProfileForm>;
+}
+
+/**
+ * Why the form can't be saved, in the shared profile rules' words, or null when it can. Only what
+ * you changed is checked: a field left as it was saved (a color from before today's palette, say)
+ * is neither sent nor judged, so it never blocks a save.
+ */
+export function profileProblem(draft: Pick<ProfileDraft, "start" | "form">): string | null {
+  const parsed = teammateProfileSchema.partial().safeParse(changes(draft));
   return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Check the profile.");
 }
 
-/** What `teammates.update` takes: the whole profile, as the server trims it, and its revision. */
+/**
+ * What `teammates.update` takes: the fields you changed, as the server trims them, and the
+ * revision they're based on, which the server holds every other field to.
+ */
 export function profileUpdate(teammateId: string, draft: ProfileDraft) {
-  return {
-    teammateId,
-    profile: { ...draft.form, name: draft.form.name.trim(), role: draft.form.role.trim() },
-    revision: draft.revision,
-  };
+  return { teammateId, profile: changes(draft), revision: draft.revision };
+}
+
+/** The profile as a save left it: where it started, with what was sent on top. */
+export function savedProfile(
+  draft: Pick<ProfileDraft, "start">,
+  sent: { teammateId: string; profile: Partial<ProfileForm> },
+  revision: string,
+): TeammateProfileView {
+  return { teammateId: sent.teammateId, profile: { ...draft.start, ...sent.profile }, revision };
 }
 
 /** "name and job", in the editor's words. */
@@ -166,23 +187,6 @@ export function archiveText(teammate: Pick<TeammateSummary, "name" | "isLead">):
     ? ` ${name} is the lead, so nobody will lead until you choose another teammate: group messages that don't mention anyone go to the chat's first member.`
     : "";
   return `${name} stops what they're doing, their automations turn off, and their chats are archived. Their workspace stays on the computer.${lead}`;
-}
-
-/**
- * After a duplicate got no answer: the copy it may have made, found as a teammate named as asked
- * who wasn't on the team before, so trying again doesn't make a second one. Null if there's none.
- */
-export function madeCopy(
-  before: readonly Pick<TeammateSummary, "id">[],
-  after: readonly Pick<TeammateSummary, "id" | "name">[],
-  name: string,
-): string | null {
-  const known = new Set(before.map((teammate) => teammate.id));
-  const wanted = name.trim().toLowerCase();
-  return (
-    after.find((teammate) => !known.has(teammate.id) && teammate.name.toLowerCase() === wanted)
-      ?.id ?? null
-  );
 }
 
 /** What making a teammate the lead changes, said before it does. */

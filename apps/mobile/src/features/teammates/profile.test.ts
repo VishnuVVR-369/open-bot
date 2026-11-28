@@ -5,12 +5,12 @@ import {
   clashText,
   editProfile,
   leadText,
-  madeCopy,
   profileChanged,
   profileDraft,
   profileProblem,
   profileUpdate,
   rebaseProfile,
+  savedProfile,
   takeTheirs,
   type ProfileForm,
 } from "./profile";
@@ -42,28 +42,52 @@ describe("a teammate's profile form", () => {
     ]);
   });
 
-  it("sends the whole profile, trimmed, with the revision it started from", () => {
-    const draft = editProfile(profileDraft(view({}, "r7")), { name: "  Nova ", role: " Editor" });
+  it("sends what you changed, trimmed, with the revision it started from", () => {
+    const draft = editProfile(profileDraft(view({}, "r7")), {
+      name: "  Nova ",
+      role: " Editor",
+      emoji: "🦊",
+    });
     expect(profileUpdate("t1", draft)).toEqual({
       teammateId: "t1",
-      profile: { ...PROFILE, name: "Nova", role: "Editor" },
+      profile: { name: "Nova", role: "Editor", emoji: "🦊" },
       revision: "r7",
+    });
+    // What it saved: where it started, with that on top.
+    const sent = profileUpdate("t1", draft);
+    expect(savedProfile(draft, sent, "r8")).toEqual({
+      teammateId: "t1",
+      profile: { ...PROFILE, name: "Nova", role: "Editor", emoji: "🦊" },
+      revision: "r8",
     });
   });
 
   it("says what's wrong in the shared rules' words", () => {
-    expect(profileProblem(PROFILE)).toBeNull();
-    expect(profileProblem({ ...PROFILE, name: "  " })).toBe("Give your teammate a name.");
-    expect(profileProblem({ ...PROFILE, role: "" })).toBe("Describe their job in a few words.");
-    expect(profileProblem({ ...PROFILE, name: "x".repeat(41) })).toBe(
-      "Keep the name under 40 characters.",
-    );
-    expect(profileProblem({ ...PROFILE, role: "x".repeat(81) })).toBe(
-      "Keep the job under 80 characters.",
-    );
-    expect(profileProblem({ ...PROFILE, instructions: "x".repeat(20_001) })).toBe(
+    const problem = (patch: Partial<ProfileForm>) =>
+      profileProblem(editProfile(profileDraft(view()), patch));
+    expect(problem({})).toBeNull();
+    expect(problem({ name: "  " })).toBe("Give your teammate a name.");
+    expect(problem({ role: "" })).toBe("Describe their job in a few words.");
+    expect(problem({ name: "x".repeat(41) })).toBe("Keep the name under 40 characters.");
+    expect(problem({ role: "x".repeat(81) })).toBe("Keep the job under 80 characters.");
+    expect(problem({ instructions: "x".repeat(20_001) })).toBe(
       "Keep the instructions under 20,000 characters.",
     );
+    expect(problem({ emoji: "🦊🐙" })).toBe("Pick a single emoji.");
+    expect(problem({ emoji: "👨‍👩‍👧‍👦" })).toBeNull();
+    expect(problem({ color: "teal" })).toBe("Pick one of the colors.");
+  });
+
+  it("neither judges nor sends a field left as it was saved, like a color from before", () => {
+    const legacy = profileDraft(view({ color: "#abc", emoji: "🦊🐙" }));
+    const draft = editProfile(legacy, { role: "Editor" });
+    expect(profileProblem(draft)).toBeNull();
+    expect(profileUpdate("t1", draft).profile).toEqual({ role: "Editor" });
+    // Picking a color from the palette is a change like any other.
+    expect(profileUpdate("t1", editProfile(draft, { color: "#2E9BFF" })).profile).toEqual({
+      role: "Editor",
+      color: "#2E9BFF",
+    });
   });
 });
 
@@ -85,8 +109,12 @@ describe("following the profile as it changes elsewhere", () => {
       form: { ...PROFILE, instructions: "Cite sources.", emoji: "🦊", role: "Editor" },
       clashes: [],
     });
-    // What it saves keeps the change from elsewhere, so nothing is overwritten.
-    expect(profileUpdate("t1", rebased).profile.instructions).toBe("Cite sources.");
+    // What it saves is only yours, on the new revision, so the change from elsewhere stays.
+    expect(profileUpdate("t1", rebased)).toEqual({
+      teammateId: "t1",
+      profile: { role: "Editor" },
+      revision: "r2",
+    });
   });
 
   it("marks a field you changed that was changed there too, until you give it up", () => {
@@ -145,32 +173,6 @@ describe("archiving a teammate", () => {
     expect(archiveText({ name: "Iris", isLead: true })).toContain(
       "Iris is the lead, so nobody will lead until you choose another teammate",
     );
-  });
-});
-
-describe("a duplicate whose answer was lost", () => {
-  const before = [{ id: "iris" }, { id: "old-copy" }];
-  it("is found as a new teammate with the name asked for", () => {
-    const after = [
-      { id: "iris", name: "Iris" },
-      { id: "old-copy", name: "Iris 2" },
-      { id: "new", name: "Iris 2" },
-    ];
-    expect(madeCopy(before, after, " iris 2 ")).toBe("new");
-  });
-
-  it("isn't found when nobody new has that name", () => {
-    expect(
-      madeCopy(
-        before,
-        [
-          { id: "iris", name: "Iris" },
-          { id: "old-copy", name: "Iris 2" },
-        ],
-        "Iris 2",
-      ),
-    ).toBeNull();
-    expect(madeCopy(before, [{ id: "other", name: "Kit" }], "Iris 2")).toBeNull();
   });
 });
 

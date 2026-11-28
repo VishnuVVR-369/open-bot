@@ -48,6 +48,24 @@ describe("making a teammate the lead", () => {
     expect(client.getQueryData(queryKeys.teammates)).toEqual(team());
   });
 
+  it("puts back only the badge, keeping what else came in meanwhile", async () => {
+    const client = new QueryClient();
+    client.setQueryData(queryKeys.teammates, team());
+    const error = await setLeadOptimistically(client, "kit", async () => {
+      // A rename and a new teammate arrive while the write is on its way.
+      client.setQueryData<TeammateSummary[]>(queryKeys.teammates, (current) => [
+        ...current!.map((entry) => (entry.id === "iris" ? { ...entry, name: "Iris B" } : entry)),
+        teammate("nova", false),
+      ]);
+      return { error: new Error("Couldn't reach open-bot.") };
+    });
+    expect(error).toBeInstanceOf(Error);
+    expect(leads(client)).toEqual(["iris"]);
+    expect(
+      client.getQueryData<TeammateSummary[]>(queryKeys.teammates)?.map((entry) => entry.name),
+    ).toEqual(["Iris B", "kit", "nova"]);
+  });
+
   it("calls off a read from before the tap, so its answer can't move the badge back", async () => {
     const client = new QueryClient();
     client.setQueryData(queryKeys.teammates, team());

@@ -1,7 +1,7 @@
 import type { TeammateSummary } from "@open-bot/api";
-import { router } from "expo-router";
+import { router, useNavigation } from "expo-router";
 import { Archive, ChevronRight, Copy, Crown } from "lucide-react-native";
-import { useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 import { ListRow } from "@/components/list-row";
 import { Card, Section } from "@/components/section";
@@ -10,6 +10,7 @@ import { useOnline } from "@/lib/network";
 import { space, useColors } from "@/theme";
 import { mix } from "@/theme/mix";
 import { confirmArchive, confirmMakeLead } from "../actions";
+import { useArchiving } from "../archiving";
 
 /**
  * Who leads, and the teammate's own lifecycle: make them the lead, duplicate them, or archive
@@ -24,7 +25,8 @@ export function TeammateManage({
 }) {
   const colors = useColors();
   const online = useOnline();
-  const [archiving, setArchiving] = useState(false);
+  const navigation = useNavigation();
+  const archiving = useArchiving(teammate.id);
   const lead = team.find((entry) => entry.isLead);
   const { name } = teammate;
   return (
@@ -79,11 +81,10 @@ export function TeammateManage({
           aside={archiving ? <ActivityIndicator size="small" color={colors.destructive} /> : null}
           onPress={() =>
             confirmArchive(teammate, {
-              onStart: () => setArchiving(true),
+              // Its chats are archived too, so back to Home rather than to one of them; only from
+              // the profile, though: wherever you went meanwhile, you stay.
               onDone: (archived) => {
-                if (!archived) setArchiving(false);
-                // Its chats are archived too, so back to Home rather than to one of them.
-                else router.dismissTo("/");
+                if (archived && navigation.isFocused()) router.dismissTo("/");
               },
             })
           }

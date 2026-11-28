@@ -1,7 +1,8 @@
 import { copyName } from "@open-bot/domain";
-import { router, Stack, useLocalSearchParams } from "expo-router";
+import * as Crypto from "expo-crypto";
+import { router, Stack, useLocalSearchParams, useNavigation } from "expo-router";
 import { CloudOff, Users } from "lucide-react-native";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button } from "@/components/button";
@@ -27,6 +28,7 @@ export default function DuplicateTeammateScreen() {
   const insets = useSafeAreaInsets();
   const keyboard = useKeyboardHeight();
   const online = useOnline();
+  const navigation = useNavigation();
   const { teammateId } = useLocalSearchParams<{ teammateId: string }>();
   const teammates = useTeammates();
   const team = teammates.data;
@@ -36,6 +38,10 @@ export default function DuplicateTeammateScreen() {
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [footer, setFooter] = useState(0);
+  // One copy per screen: every ask from it, a retry after a lost answer included, names the same
+  // id, so the server answers a retry with the copy the first ask made instead of a second one.
+  const copyId = useRef<string | null>(null);
+  copyId.current ??= Crypto.randomUUID();
 
   // The suggested name, once the team is known; what you type then stays.
   useEffect(() => {
@@ -68,7 +74,12 @@ export default function DuplicateTeammateScreen() {
     if (!teammate || !canSave) return;
     setBusy(true);
     setProblem(null);
-    const outcome = await duplicateTeammate(teammate.id, value.trim(), copyMemory);
+    const outcome = await duplicateTeammate({
+      teammateId: teammate.id,
+      name: value.trim(),
+      copyMemory,
+      copyId: copyId.current!,
+    });
     if (!outcome.ok) {
       setBusy(false);
       setProblem(outcome.message);
@@ -79,7 +90,10 @@ export default function DuplicateTeammateScreen() {
         `${value.trim()} is ready, without ${teammate.name}'s memory`,
         "The computer couldn't copy it. You can add what they should know in their Memory.",
       );
-    router.replace(`/teammates/${outcome.teammateId}`);
+    // Left meanwhile: the copy is on the team, and the app stays where you went. Back here, the
+    // same ask opens that copy, since it names the same id.
+    if (navigation.isFocused()) router.replace(`/teammates/${outcome.teammateId}`);
+    else setBusy(false);
   }
 
   return (

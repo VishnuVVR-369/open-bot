@@ -2,11 +2,12 @@ import type { TeammateSummary } from "@open-bot/api";
 import { safe } from "@orpc/client";
 import { Alert } from "react-native";
 import { api } from "@/lib/api";
-import { errorMessage, isRetryable } from "@/lib/errors";
+import { errorMessage } from "@/lib/errors";
 import { haptics } from "@/lib/haptics";
 import { queryClient, queryKeys } from "@/lib/query";
+import { archivingTeammates } from "./archiving";
 import { setLeadOptimistically } from "./optimistic";
-import { archiveText, leadText, madeCopy } from "./profile";
+import { archiveText, leadText } from "./profile";
 
 /** Reads the team, and what lists it, again from the server. */
 function refreshTeam() {
@@ -50,12 +51,13 @@ export function confirmMakeLead(
 }
 
 /**
- * Asks, saying what stops and what stays, then archives the teammate. `onStart` and `onDone` let
- * the screen show it's on its way and leave once it's done.
+ * Asks, saying what stops and what stays, then archives the teammate. While it's on its way,
+ * `useArchiving` says so to every screen showing them; `onDone` lets the screen leave once it's
+ * done.
  */
 export function confirmArchive(
   teammate: Pick<TeammateSummary, "id" | "name" | "isLead">,
-  { onStart, onDone }: { onStart: () => void; onDone: (archived: boolean) => void },
+  { onDone }: { onDone: (archived: boolean) => void },
 ) {
   haptics.warning();
   Alert.alert(`Archive ${teammate.name}?`, archiveText(teammate), [
@@ -64,8 +66,9 @@ export function confirmArchive(
       text: "Archive",
       style: "destructive",
       onPress: async () => {
-        onStart();
+        archivingTeammates.set(teammate.id, true);
         const result = await safe(api.teammates.archive({ teammateId: teammate.id }));
+        archivingTeammates.set(teammate.id, false);
         if (result.error) {
           haptics.error();
           Alert.alert(`Couldn't archive ${teammate.name}`, errorMessage(result.error));
@@ -87,32 +90,28 @@ export function confirmArchive(
 export type DuplicateOutcome =
   { ok: true; teammateId: string; memoryCopied: boolean } | { ok: false; message: string };
 
-/**
- * Makes a new teammate set up like this one. When the answer is lost, the team is read again: a
- * new teammate with that name is the copy, so trying again never makes a second one.
- */
-export async function duplicateTeammate(
-  teammateId: string,
-  name: string,
-  copyMemory: boolean,
-): Promise<DuplicateOutcome> {
-  const before = queryClient.getQueryData<TeammateSummary[]>(queryKeys.teammates) ?? [];
-  const result = await safe(api.teammates.duplicate({ teammateId, name, copyMemory }));
+/** What a duplicate asks for: the copy's name, whether memory comes along, and its id. */
+export interface DuplicateAsk {
+  teammateId: string;
+  name: string;
+  copyMemory: boolean;
+  /**
+   * The id the copy is made under, chosen before asking and kept by the screen: asked again with
+   * it after a lost answer, the server answers with the copy the first ask made (and whether its
+   * memory really came along) instead of making a second one.
+   */
+  copyId: string;
+}
+
+/** Makes a new teammate set up like this one. Safe to ask again with the same `copyId`. */
+export async function duplicateTeammate(ask: DuplicateAsk): Promise<DuplicateOutcome> {
+  const result = await safe(api.teammates.duplicate(ask));
   refreshTeam();
   void queryClient.invalidateQueries({ queryKey: queryKeys.allMemory });
-  if (!result.error) {
-    haptics.success();
-    return { ok: true, teammateId: result.data.teammateId, memoryCopied: result.data.memoryCopied };
+  if (result.error) {
+    haptics.error();
+    return { ok: false, message: errorMessage(result.error, "Couldn't duplicate the teammate.") };
   }
-  if (isRetryable(result.error) && before.length > 0) {
-    const team = await safe(api.teammates.list());
-    const copy = team.data ? madeCopy(before, team.data, name) : null;
-    if (copy) {
-      haptics.success();
-      // Whether its memory came along isn't known; it's there if the copy managed it.
-      return { ok: true, teammateId: copy, memoryCopied: true };
-    }
-  }
-  haptics.error();
-  return { ok: false, message: errorMessage(result.error, "Couldn't duplicate the teammate.") };
+  haptics.success();
+  return { ok: true, teammateId: result.data.teammateId, memoryCopied: result.data.memoryCopied };
 }

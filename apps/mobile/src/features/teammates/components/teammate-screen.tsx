@@ -46,6 +46,7 @@ import { teammateTasks } from "@/features/tasks/tasks";
 import { HeaderButton } from "@/features/home/components/header-actions";
 import { InstructionsProposalSection } from "@/features/teammates/components/instructions-proposal";
 import { TeammateManage } from "@/features/teammates/components/teammate-manage";
+import { useArchiving } from "@/features/teammates/archiving";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
@@ -204,6 +205,7 @@ export default function TeammateScreen() {
   const { data: tasks } = useTasks();
   const newChat = useNewDirectChat();
   const computerOffline = useComputerOffline();
+  const archiving = useArchiving(teammateId);
   const teammate = teammates.data?.find((candidate) => candidate.id === teammateId);
 
   if (teammates.isLoading) return <Loading />;
@@ -287,13 +289,14 @@ export default function TeammateScreen() {
             headerRight: () => (
               <HeaderButton
                 label="Edit profile"
+                disabled={archiving}
                 onPress={() => {
                   haptics.tap();
                   router.push(`/teammates/${teammate.id}/edit`);
                 }}
                 testID="profile-edit"
               >
-                <Pencil size={21} color={colors.foreground} />
+                <Pencil size={21} color={archiving ? colors.mutedForeground : colors.foreground} />
               </HeaderButton>
             ),
           }}
