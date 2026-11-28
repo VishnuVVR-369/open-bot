@@ -15,7 +15,7 @@ export {
   type OwnerSettings,
 } from "./settings";
 export { apiKeySpendMicros } from "./usage";
-export { configurationRevision, sameJson } from "./configuration";
+export { configurationRevision, sameJson, teammateRevision } from "./configuration";
 export { databaseError, errorFields, errorMessage, withoutValues } from "./errors";
 export { schema };
 

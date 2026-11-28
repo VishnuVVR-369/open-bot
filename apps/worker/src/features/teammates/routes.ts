@@ -22,7 +22,7 @@ export function teammateRoutes(teammates: TeammateService, executor: WorkspaceSy
       ),
       export: os.teammates.export.handler(({ input }) => teammates.exportBundle(input.teammateId)),
       duplicate: os.teammates.duplicate.handler(({ input }) =>
-        teammates.duplicate(input.teammateId, input.name, input.copyMemory),
+        teammates.duplicate(input.teammateId, input.name, input.copyMemory, input.copyId),
       ),
       import: os.teammates.import.handler(({ input }) => teammates.importBundle(input.bundle)),
       setLead: os.teammates.setLead.handler(async ({ input }) => {

@@ -330,6 +330,13 @@
       "when": 1795809103790,
       "tag": "0046_schedule_check_in",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1795856560308,
+      "tag": "0047_teammate_copies",
+      "breakpoints": true
     }
   ]
 }

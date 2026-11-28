@@ -20,7 +20,7 @@ import {
 import { and, asc, desc, eq, gte, inArray, isNull, ne, sql } from "drizzle-orm";
 import { ApiError } from "@/lib/server/api/errors";
 import { db } from "@/lib/server/db";
-import { worker } from "@/lib/server/worker";
+import { worker, WorkerError } from "@/lib/server/worker";
 import type { LessonView, ProposalView, PurchaseView, SpendingView } from "@/lib/types";
 
 /**
@@ -61,8 +61,16 @@ export async function duplicateTeammate({
   teammateId,
   name,
   copyMemory,
+  copyId,
 }: Inputs["duplicate"]): Promise<Outputs["duplicate"]> {
-  return worker.teammates.duplicate({ teammateId, name, copyMemory });
+  try {
+    return await worker.teammates.duplicate({ teammateId, name, copyMemory, copyId });
+  } catch (error) {
+    // Its only refusal of that kind: the id is another teammate's, not a change since.
+    if (error instanceof WorkerError && error.status === 409)
+      throw new ApiError("CONFLICT", error.message);
+    throw error;
+  }
 }
 
 /** The first thing wrong with an exported file, in words. */

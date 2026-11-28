@@ -239,7 +239,7 @@ export class TeammateTools implements TeammateTargets {
   async update(session: RunSession, callId: string, args: Record<string, unknown>) {
     const input = updateTeammateSchema.parse(args);
     const current = await this.teammates.requireTeammate(input.teammate_id);
-    if (TeammateService.revision(current) !== input.expected_revision)
+    if (!TeammateService.isCurrent(current, input.expected_revision))
       throw new TeammateError(
         409,
         "This teammate changed since you read it. Get it again, then retry.",

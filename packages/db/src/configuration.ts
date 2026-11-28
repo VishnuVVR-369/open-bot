@@ -33,3 +33,29 @@ export function configurationRevision(value: unknown): string {
 export function sameJson(a: unknown, b: unknown): boolean {
   return canonicalJson(a) === canonicalJson(b);
 }
+
+/** What a teammate's revision covers: the profile the owner and the teammates edit. */
+interface TeammateProfileFields {
+  name: string;
+  role: string;
+  instructions: string;
+  color: string;
+  emoji: string;
+  autonomy: string;
+}
+
+/**
+ * A teammate's revision: its profile only, so a save from a stale copy is refused when someone
+ * changed the profile meanwhile, and not when something else on the row did (its budget, being
+ * made the lead, a lesson it learned). The worker checks it, and the web app hands it out.
+ */
+export function teammateRevision({
+  name,
+  role,
+  instructions,
+  color,
+  emoji,
+  autonomy,
+}: TeammateProfileFields): string {
+  return configurationRevision({ name, role, instructions, color, emoji, autonomy });
+}

@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { TEAMMATE_COLORS, newTeammateSlot, nextTeammateColor } from "./profile";
+import {
+  copyName,
+  lastGlyph,
+  lastGlyphByPattern,
+  newTeammateSlot,
+  nextTeammateColor,
+  TEAMMATE_COLORS,
+} from "./profile";
 
 describe("a new teammate's place on the team", () => {
   it("takes the next free slug, archived teammates' included", () => {
@@ -24,5 +31,45 @@ describe("a new teammate's color", () => {
     const everyColorOnce = [...TEAMMATE_COLORS];
     expect(nextTeammateColor([...everyColorOnce, TEAMMATE_COLORS[0]])).toBe(TEAMMATE_COLORS[1]);
     expect(nextTeammateColor(["#000000"])).toBe(TEAMMATE_COLORS[0]);
+  });
+});
+
+describe("a copy's name", () => {
+  it("takes the next number nobody uses", () => {
+    expect(copyName("Iris", ["Iris"])).toBe("Iris 2");
+    expect(copyName("Iris", ["Iris", "iris 2", "Iris 3"])).toBe("Iris 4");
+    expect(copyName("Iris 2", ["Iris", "Iris 2"])).toBe("Iris 3");
+    expect(copyName("  Iris ", ["Iris"])).toBe("Iris 2");
+  });
+});
+
+describe("the last character typed", () => {
+  const cases: [string, string][] = [
+    ["", ""],
+    ["a", "a"],
+    ["ab", "b"],
+    ["🦊", "🦊"],
+    ["🦊🐙", "🐙"],
+    ["x👍🏽", "👍🏽"],
+    ["🇮🇳", "🇮🇳"],
+    ["a🇬🇧🇮🇳", "🇮🇳"],
+    ["👩‍💻", "👩‍💻"],
+    ["🦊👨‍👩‍👧", "👨‍👩‍👧"],
+    ["❤️", "❤️"],
+    ["1️⃣", "1️⃣"],
+    ["🏴󠁧󠁢󠁳󠁣󠁴󠁿", "🏴󠁧󠁢󠁳󠁣󠁴󠁿"],
+    ["x👨‍👩‍👧‍👦", "👨‍👩‍👧‍👦"],
+    ["🧑🏽‍🤝‍🧑🏿", "🧑🏽‍🤝‍🧑🏿"],
+    ["👩🏻‍❤️‍💋‍👨🏼", "👩🏻‍❤️‍💋‍👨🏼"],
+    ["é", "é"],
+    ["ae\u0301", "e\u0301"],
+  ];
+
+  it.each(cases)("of %j is %j, whole", (text, glyph) => {
+    expect(lastGlyph(text)).toBe(glyph);
+  });
+
+  it.each(cases)("of %j is %j without Intl.Segmenter too", (text, glyph) => {
+    expect(lastGlyphByPattern(text)).toBe(glyph);
   });
 });

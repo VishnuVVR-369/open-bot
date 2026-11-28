@@ -1,5 +1,6 @@
 "use client";
 
+import { copyName } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -21,13 +22,6 @@ import { Switch } from "@/components/ui/switch";
 import { useAppState } from "@/features/app-shell";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
-
-/** "Iris 2", or the next number no teammate uses yet. */
-function copyName(name: string, taken: string[]): string {
-  const base = name.replace(/\s+\d+$/, "");
-  const used = new Set(taken.map((n) => n.toLowerCase()));
-  for (let i = 2; ; i += 1) if (!used.has(`${base} ${i}`.toLowerCase())) return `${base} ${i}`;
-}
 
 /** Make a new teammate set up like this one. Open it with `trigger`, or control it with `open`. */
 export function DuplicateTeammateDialog({
