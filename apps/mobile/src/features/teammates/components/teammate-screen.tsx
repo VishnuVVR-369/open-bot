@@ -43,6 +43,7 @@ import { TaskSection } from "@/features/tasks/components/task-section";
 import { useTasks } from "@/features/tasks/hooks";
 import { teammateTasks } from "@/features/tasks/tasks";
 import { InstructionsProposalSection } from "@/features/teammates/components/instructions-proposal";
+import { TeammateSpending } from "@/features/vault/components/teammate-spending";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
@@ -379,6 +380,8 @@ export default function TeammateScreen() {
         </Section>
 
         <TeammateMemory teammateId={teammate.id} name={teammate.name} />
+
+        <TeammateSpending teammateId={teammate.id} name={teammate.name} />
 
         {theirs.length > 0 && (
           <Section title="Conversations">

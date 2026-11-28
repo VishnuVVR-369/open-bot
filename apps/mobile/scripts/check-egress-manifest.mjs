@@ -42,6 +42,23 @@ for (const permission of [
     `missing permission ${permission}`,
   );
 
+// Blocked in app.config.ts: no library may bring them back (expo-screen-capture asks for the
+// media and screenshot ones, for a screenshot listener the app doesn't use).
+for (const permission of [
+  "SYSTEM_ALERT_WINDOW",
+  "READ_EXTERNAL_STORAGE",
+  "WRITE_EXTERNAL_STORAGE",
+  "READ_MEDIA_IMAGES",
+  "READ_MEDIA_VIDEO",
+  "READ_MEDIA_AUDIO",
+  "READ_MEDIA_VISUAL_USER_SELECTED",
+  "DETECT_SCREEN_CAPTURE",
+])
+  check(
+    !xml.includes(`<uses-permission android:name="android.permission.${permission}"`),
+    `blocked permission ${permission} is in the manifest`,
+  );
+
 const service = component("service", "dev.openbot.egress.EgressService");
 check(
   has(service, 'android:foregroundServiceType="specialUse"'),

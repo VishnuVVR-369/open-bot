@@ -20,6 +20,7 @@ import {
   Smartphone,
   ShieldCheck,
   Sun,
+  Vault,
   Vibrate,
 } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -312,6 +313,15 @@ export default function Settings() {
               onPress={() => router.push("/approval-rules")}
               aside={<ChevronRight size={18} color={colors.mutedForeground} />}
               testID="settings-approval-rules"
+            />
+            <Separator inset={SETTINGS_INSET} />
+            <SettingsRow
+              icon={(color) => <Vault size={18} color={color} />}
+              title="Vault"
+              subtitle="Logins, cards and budgets teammates use. Opens with your fingerprint"
+              onPress={() => router.push("/vault")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="settings-vault"
             />
           </Card>
         </Section>

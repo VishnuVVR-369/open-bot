@@ -15,6 +15,7 @@ import {
   Settings,
   ShieldCheck,
   TextSearch,
+  Vault,
 } from "lucide-react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -76,6 +77,12 @@ const PAGES: AppPlace[] = [
     href: "/memory",
     icon: Brain,
     keywords: "remember facts preferences lessons suggestions forget history",
+  },
+  {
+    title: "Vault",
+    href: "/vault",
+    icon: Vault,
+    keywords: "logins passwords cards payment budget spending purchases",
   },
   {
     title: "Settings",

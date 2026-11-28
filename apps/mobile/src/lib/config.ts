@@ -16,3 +16,10 @@ export const SCHEME = "openbot";
  * without Firebase. Release builds leave out the module that does it (`__DEV__`).
  */
 export const E2E_NOTIFICATIONS = process.env.EXPO_PUBLIC_E2E_NOTIFICATIONS === "1";
+
+/**
+ * Development builds only: let screenshots and recordings capture the vault's screens, which
+ * otherwise block them (FLAG_SECURE), so a UI review can shoot them. Release builds ignore it.
+ */
+export const ALLOW_SCREEN_CAPTURE =
+  typeof __DEV__ !== "undefined" && __DEV__ && process.env.EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE === "1";

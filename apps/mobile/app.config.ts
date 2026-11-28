@@ -50,7 +50,10 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     permissions: ["android.permission.CAMERA", "android.permission.RECORD_AUDIO"],
     // Expo adds these by default; the app never draws over other apps or reads shared storage.
     // Photos and files are picked with Android's pickers, which need no storage permission.
+    // expo-screen-capture asks for the media and screenshot ones for its screenshot listener,
+    // which the app doesn't use: it only keeps the vault out of screenshots (FLAG_SECURE).
     blockedPermissions: [
+      "android.permission.DETECT_SCREEN_CAPTURE",
       "android.permission.SYSTEM_ALERT_WINDOW",
       "android.permission.READ_EXTERNAL_STORAGE",
       "android.permission.WRITE_EXTERNAL_STORAGE",
