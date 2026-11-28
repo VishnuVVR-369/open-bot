@@ -2,6 +2,7 @@ import "server-only";
 import { os } from "@/lib/server/api/rpc";
 import { worker } from "@/lib/server/worker";
 import { listVaultItems } from "./queries";
+import { createVaultItem, patchVaultItem } from "./service";
 
 /**
  * Logins and cards, as the browser and the phone ask (`contract.vault`). The worker owns the
@@ -10,7 +11,9 @@ import { listVaultItems } from "./queries";
 export function vaultRoutes() {
   return {
     list: os.vault.list.handler(() => listVaultItems()),
+    create: os.vault.create.handler(({ input }) => createVaultItem(input)),
     save: os.vault.save.handler(({ input }) => worker.vault.save(input)),
+    patch: os.vault.patch.handler(({ input }) => patchVaultItem(input)),
     remove: os.vault.remove.handler(({ input }) => worker.vault.remove({ itemId: input.itemId })),
   };
 }

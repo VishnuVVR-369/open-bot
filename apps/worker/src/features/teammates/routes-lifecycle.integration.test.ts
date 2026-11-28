@@ -6,7 +6,7 @@ import { rpcEnabled, rpcHarness, failure, ID } from "../../testing/rpc";
 
 describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
   const h = rpcHarness();
-  const { pool, db, ctx, worker } = h;
+  const { pool, db, ctx, worker, racedWhileLocked } = h;
 
   describe("teammate writes", () => {
     const { owned, imported, row, leads } = teammateRouteHarness(h);
@@ -120,6 +120,41 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       await budget(null, 0);
       const [none] = await db.select().from(teammateRows).where(eq(teammateRows.id, teammateId));
       expect(none!.monthlyBudgetCents).toBeNull();
+    });
+
+    it("refuses a budget changed since you saw it, even when the change lands meanwhile", async () => {
+      const { teammateId } = await imported("Careful spender");
+      await worker.teammates.setBudget({ teammateId, budget: 50, autoApprove: 10 });
+      const seen = { budgetCents: 5000, autoApproveCents: 1000 };
+      // Changed on the web: the phone's budget from before it is refused, not saved over it.
+      await worker.teammates.setBudget({ teammateId, budget: 80, autoApprove: 10 });
+      expect(
+        await failure(
+          worker.teammates.setBudget({ teammateId, budget: 60, autoApprove: 0, expected: seen }),
+        ),
+      ).toEqual({ status: 409, message: "The budget changed since you opened it." });
+      const read = async () =>
+        (await db.select().from(teammateRows).where(eq(teammateRows.id, teammateId)))[0]!;
+      expect(await read()).toMatchObject({ monthlyBudgetCents: 8000, autoApproveCents: 1000 });
+
+      // Two saves from the same budget at once: the first one wins and the second is refused.
+      const fresh = { budgetCents: 8000, autoApproveCents: 1000 };
+      const save = (budget: number) =>
+        worker.teammates.setBudget({ teammateId, budget, autoApprove: 0, expected: fresh }).then(
+          () => "saved" as const,
+          (error: unknown) => failure(Promise.reject(error)),
+        );
+      const results = await racedWhileLocked(
+        "select 1 from teammates where id = $1 for update",
+        () => [save(90), save(70)],
+        [teammateId],
+      );
+      expect(results.filter((result) => result === "saved")).toHaveLength(1);
+      expect(results).toContainEqual({
+        status: 409,
+        message: "The budget changed since you opened it.",
+      });
+      expect([9000, 7000]).toContain((await read()).monthlyBudgetCents);
     });
   });
 });

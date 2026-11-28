@@ -52,6 +52,37 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
     }
   });
 
+  it("passes the budget you saw to the worker, and says when it changed since", async () => {
+    const path = `/internal/teammates/${ids.teammate}/budget`;
+    const expected = { budgetCents: 5000, autoApproveCents: 0 };
+    try {
+      answers.set(path, { status: 200, body: { ok: true } });
+      await api.teammates.setBudget({
+        teammateId: ids.teammate,
+        budget: 60,
+        autoApprove: 5,
+        expected,
+      });
+      expect(workerBodies.findLast((b) => b.path === path)?.body).toEqual({
+        budget: 60,
+        autoApprove: 5,
+        expected,
+      });
+      answers.set(path, {
+        status: 409,
+        body: { error: "The budget changed since you opened it.", code: "CONFLICT" },
+      });
+      await expect(
+        api.teammates.setBudget({ teammateId: ids.teammate, budget: 60, autoApprove: 5, expected }),
+      ).rejects.toMatchObject({
+        code: "STATE_CONFLICT",
+        message: "The budget changed since you opened it.",
+      });
+    } finally {
+      answers.clear();
+    }
+  });
+
   it("passes teammate changes to the worker, which owns them, after checking a file", async () => {
     await expect(api.teammates.import({ file: "{" })).rejects.toMatchObject({
       code: "BAD_REQUEST",

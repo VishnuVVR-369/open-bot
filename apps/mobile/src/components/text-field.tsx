@@ -11,11 +11,12 @@ import {
   type ViewStyle,
 } from "react-native";
 import { fonts, radius, space, useColors } from "@/theme";
+import { passwordKeyboard } from "./password-keyboard";
 
 /**
  * A text box in the app's one style, the sign-in screen's: a bordered field that turns ink while
- * you type in it. `password` hides what's typed, with an eye to show it; `trailing` sits at the
- * end, inside the border.
+ * you type in it. `password` hides what's typed, with an eye to show it; `leading` and `trailing`
+ * sit at its start and end, inside the border.
  */
 export function TextField({
   style,
@@ -23,6 +24,7 @@ export function TextField({
   invalid,
   multiline,
   password,
+  leading,
   trailing,
   ref,
   onFocus,
@@ -34,6 +36,8 @@ export function TextField({
   mono?: boolean;
   invalid?: boolean;
   password?: boolean;
+  /** Sits at the start, inside the border, like a $ before an amount. */
+  leading?: ReactNode;
   trailing?: ReactNode;
   ref?: Ref<TextInputInstance>;
 }) {
@@ -52,6 +56,7 @@ export function TextField({
         style,
       ]}
     >
+      {leading}
       <TextInput
         ref={ref}
         placeholderTextColor={colors.mutedForeground}
@@ -63,6 +68,7 @@ export function TextField({
         autoCapitalize={password ? "none" : undefined}
         autoCorrect={password ? false : undefined}
         {...props}
+        keyboardType={passwordKeyboard(props.keyboardType, Boolean(password), shown)}
         onFocus={(event) => {
           setFocused(true);
           onFocus?.(event);

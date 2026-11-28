@@ -73,6 +73,12 @@ export const queryKeys = {
   runMemory: (runId: string) => ["memory", "forRun", runId] as const,
   lessons: (teammateId: string) => ["teammates", "lessons", teammateId] as const,
   proposal: (teammateId: string) => ["proposals", "pending", teammateId] as const,
+  // The "vault" event refreshes the list; "purchases" (a purchase, or a budget saved) every
+  // teammate's spending. Leaving the vault forgets both (`forgetVault` in the vault feature).
+  allVault: ["vault"] as const,
+  vault: ["vault", "list"] as const,
+  allSpending: ["teammates", "spending"] as const,
+  spending: (teammateId: string) => ["teammates", "spending", teammateId] as const,
   /** Short-lived, so never shared with the lists the "pages" event refreshes. */
   pageLink: (versionId: string, theme: string) => ["page-link", versionId, theme] as const,
 };

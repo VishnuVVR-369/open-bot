@@ -1,0 +1,31 @@
+appId: dev.openbot.mobile.dev
+---
+# The vault asks for a fingerprint or the phone's PIN on the way in. Maestro can't touch the
+# sensor, so it takes the PIN way (the emulator's is 1111). On a phone whose prompt shows the PIN
+# pad straight away there's no "Use PIN" to tap.
+- extendedWaitUntil:
+    visible:
+      id: vault-locked
+    timeout: 20000
+- runFlow:
+    when:
+      notVisible: Use PIN
+    commands:
+      - runFlow:
+          when:
+            visible:
+              id: vault-unlock
+          commands:
+            - tapOn:
+                id: vault-unlock
+- runFlow:
+    when:
+      visible: Use PIN
+    commands:
+      - tapOn: Use PIN
+- inputText: ${PIN || "1111"}
+- pressKey: Enter
+- extendedWaitUntil:
+    notVisible:
+      id: vault-locked
+    timeout: 10000

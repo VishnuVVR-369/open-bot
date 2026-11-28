@@ -53,6 +53,11 @@ export function lastSeen(iso: string, now = Date.now()): string {
   return since("Last seen", iso, now);
 }
 
+/** When a vault item was last filled in: "Used 4h ago", "Used yesterday". */
+export function lastUsed(iso: string, now = Date.now()): string {
+  return since("Used", iso, now);
+}
+
 function since(lead: string, iso: string, now: number): string {
   const when = ago(iso, now);
   if (when === "now") return `${lead} just now`;

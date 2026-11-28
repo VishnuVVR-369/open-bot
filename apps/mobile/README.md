@@ -19,12 +19,13 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # or ~/Librar
 
 ## Configuration
 
-| Variable                        | What it's for                                                                                            |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_APP_URL`           | The open-bot web app the phone talks to. Defaults to `https://openbot.up.railway.app`.                   |
-| `GOOGLE_SERVICES_JSON`          | Path to the Firebase config, if it isn't `apps/mobile/google-services.json`.                             |
-| `APP_VARIANT`                   | `development` builds `dev.openbot.mobile.dev` alongside the signed daily app. Leave unset for a release. |
-| `EXPO_PUBLIC_E2E_NOTIFICATIONS` | Set to `1` only in the local Metro session used by the Maestro notification tests.                       |
+| Variable                           | What it's for                                                                                                                |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_APP_URL`              | The open-bot web app the phone talks to. Defaults to `https://openbot.up.railway.app`.                                       |
+| `GOOGLE_SERVICES_JSON`             | Path to the Firebase config, if it isn't `apps/mobile/google-services.json`.                                                 |
+| `APP_VARIANT`                      | `development` builds `dev.openbot.mobile.dev` alongside the signed daily app. Leave unset for a release.                     |
+| `EXPO_PUBLIC_E2E_NOTIFICATIONS`    | Set to `1` only in the local Metro session used by the Maestro notification tests.                                           |
+| `EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE` | Set to `1` in a development build to let screenshots capture the vault's screens, for a UI review. Release builds ignore it. |
 
 `EXPO_PUBLIC_*` values are built into the JavaScript bundle, so set them before `pnpm start` or a release build.
 
@@ -100,6 +101,9 @@ Pass the id of a repeating schedule that is on (`select id, title from schedules
 It finds rows by id, since titles repeat, and checks that the newest run in the history is the one it just started.
 `maestro/memory.yaml` adds a shared memory, finds it by searching, edits it, restores its first revision from History and forgets it, then dismisses a teammate's suggested instructions from Home.
 Ask a teammate to suggest a change to its own instructions first, so Home lists it; run it with `maestro test maestro/memory.yaml`.
+`maestro/vault.yaml` opens the vault past the fingerprint prompt with the phone's PIN, adds a made-up login, edits it, deletes it, and gives a teammate a budget and takes it away again.
+Pass a teammate with no budget, and the PIN if it isn't the emulator's 1111: `maestro test -e TEAMMATE=<name> -e PIN=<pin> maestro/vault.yaml`.
+The vault's screens block screenshots, so Maestro's of them come out black unless Metro runs with `EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE=1`.
 These flows need an on-screen keyboard, such as Gboard: with a keyboardless test input method (agent-device installs one), `hideKeyboard` presses Back instead, and an editor asks to discard what was typed.
 Switch back with `adb shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME`.
 To check sharing, send a share with `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'https://example.com'" dev.openbot.mobile.dev`.
@@ -196,6 +200,6 @@ adb shell am broadcast -f 0x20 -a dev.openbot.egress.DEBUG_WAKE -p dev.openbot.m
 - `src/lib`: API, auth, query-client, stream, preferences and device infrastructure. `api.ts` is the typed API client (the session cookie lives in SecureStore, `auth.ts`), `query.ts` holds procedure-path query keys and consumes the API's shared event refresh map, `realtime.tsx` and `live-stream.ts` manage the live stream, and `lock.ts` handles the fingerprint lock on open and after five minutes away. Feature hooks live beside their feature rather than in a central query-hook file.
 - `src/push`: notification channels, rendering pushes (also while the app is closed, in `background.ts`), Approve and Deny, purchase Review and inline Reply.
 - `src/theme`: the palette, light and dark, and color mixing.
-- `modules/egress`: the phone connection (see above). `modules/passkey`: Android Credential Manager for passkeys. `modules/share-intent`: receiving shares from other apps. `modules/sms-consent`: Android's SMS User Consent, which passes only an unambiguous code to JavaScript.
+- `modules/egress`: the phone connection (see above). `modules/passkey`: Android Credential Manager for passkeys. `modules/secure-screen`: FLAG_SECURE for the vault's screens, with no permission and no screenshot listener. `modules/share-intent`: receiving shares from other apps. `modules/sms-consent`: Android's SMS User Consent, which passes only an unambiguous code to JavaScript.
 - `plugins/`: config plugins for release signing, the status bar icon, and the native theme (alerts and the text cursor use the app's palette and fonts).
 - `maestro/`: the Maestro UI flows run by `pnpm test:mobile-ui` from the repository root.

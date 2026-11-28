@@ -22,6 +22,14 @@ Each item lists the teammates allowed to use it.
 `vault_list` shows a teammate the items it may use, by name, kind, site and hint, and its spending budget.
 It never returns a secret.
 
+You add and change items on the web's Vault page or in the [Android app](/docs/flows/android-app#vault).
+A new item is saved under an id the app made for it (`vault.create`), with `insert ... on conflict (id) do nothing`.
+A retry after an answer that never came meets the row the first try made and answers with it (`created: false`), so the item is never added twice; an id already naming a different item (another kind, site, username or card) is refused with 409 (`CONFLICT`).
+A retry after the item was deleted adds it again, since a delete leaves nothing behind to tell.
+`vault.save` without an id still adds an item, with no retry safety, for apps from before `create`.
+An edit sends only what changed (`vault.patch`), and the worker applies it to the item's row while holding a lock on it (`select ... for update`), so two edits made at once both stay.
+A secret is never sent back to either app; a secret field left empty keeps the saved one.
+
 ## Filling a field
 
 The teammate clicks the field on its screen, then calls `vault_fill` with an item and a field name.
@@ -76,6 +84,10 @@ Without a budget, it can't pay for anything.
 
 Spending is the sum of the teammate's purchases this month (from the first of the month, UTC) that weren't denied or called off.
 
+Setting a budget (`teammates.setBudget`) names the budget and auto-approve amount your changes started from (`expected`), not the latest one the app read.
+The worker compares them with the saved ones while holding a lock on the teammate's row, and refuses with 409 (`STATE_CONFLICT` in the apps) when they differ, so a change made elsewhere meanwhile isn't overwritten.
+The apps follow a budget changed elsewhere only for the fields you haven't touched; one that changed a field you changed too is shown, and saving waits until you take it or keep yours (`followBudget` and `settleBudgetConflict` in `packages/domain/src/vault/budget.ts`).
+
 ## A purchase
 
 The developer instructions tell every teammate to pay only with a vault card, and only through this flow:
@@ -93,4 +105,4 @@ The only way to let small payments through without asking is the auto-approve am
 
 If you approve after the teammate stopped waiting, a new run tells it the purchase was approved, that the card fills for the next 30 minutes, and to call `finish_purchase` when it's done.
 
-Each teammate's page shows its spending this month, with every purchase and its status.
+Each teammate's page shows its spending this month, with every purchase and its status; on the phone it is under the vault's Budgets.

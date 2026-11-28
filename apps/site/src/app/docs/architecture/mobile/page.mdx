@@ -14,21 +14,21 @@ It imports the shared contract in `packages/api` and the chat logic it shares wi
 
 ## The parts
 
-| Part                | Code                                                         | Does                                                                                                                     |
-| ------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| Screens             | `apps/mobile/src/app`                                        | Thin Expo Router entries re-export feature screens; `(tabs)` and root layouts own navigation                             |
-| Root layout         | `apps/mobile/src/app/_layout.tsx`                            | Providers, the signed-in guard, the app lock, push registration and the live stream                                      |
-| Client logic        | `apps/mobile/src/lib`                                        | Shared API client, auth, query client and procedure-path keys, live stream, preferences and lock                         |
-| Features            | `apps/mobile/src/features`                                   | Feature screens, hooks, logic, tests and presentation components; features can compose other features directly           |
-| Push                | `apps/mobile/src/push`                                       | Notification channels, rendering data messages, action buttons, inline reply, device registration                        |
-| Computer viewer     | `apps/mobile/src/computer`                                   | The noVNC client and its generated HTML (`viewer-html.ts`)                                                               |
-| Components          | `apps/mobile/src/components`                                 | Generic shared UI, independent of feature logic                                                                          |
-| Theme               | `apps/mobile/src/theme`                                      | The light and dark palettes and color mixing                                                                             |
-| Phone connection    | `apps/mobile/modules/egress`                                 | A Kotlin foreground service, FCM wake handling and the pairing credential. The protocol core is in `modules/egress/core` |
-| Other native pieces | `apps/mobile/modules/passkey`, `share-intent`, `sms-consent` | Android Credential Manager, receiving shared text, and SMS User Consent                                                  |
-| Run progress        | `apps/mobile/modules/run-progress`                           | The ongoing notification for a running teammate, drawn natively with Android 16's progress style                         |
-| Config plugins      | `apps/mobile/plugins`                                        | Release signing, the status bar icon and the native theme                                                                |
-| Config              | `apps/mobile/app.config.ts`                                  | One Expo config for two variants, picked by `APP_VARIANT`                                                                |
+| Part                | Code                                                                          | Does                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| Screens             | `apps/mobile/src/app`                                                         | Thin Expo Router entries re-export feature screens; `(tabs)` and root layouts own navigation                                |
+| Root layout         | `apps/mobile/src/app/_layout.tsx`                                             | Providers, the signed-in guard, the app lock, push registration and the live stream                                         |
+| Client logic        | `apps/mobile/src/lib`                                                         | Shared API client, auth, query client and procedure-path keys, live stream, preferences and lock                            |
+| Features            | `apps/mobile/src/features`                                                    | Feature screens, hooks, logic, tests and presentation components; features can compose other features directly              |
+| Push                | `apps/mobile/src/push`                                                        | Notification channels, rendering data messages, action buttons, inline reply, device registration                           |
+| Computer viewer     | `apps/mobile/src/computer`                                                    | The noVNC client and its generated HTML (`viewer-html.ts`)                                                                  |
+| Components          | `apps/mobile/src/components`                                                  | Generic shared UI, independent of feature logic                                                                             |
+| Theme               | `apps/mobile/src/theme`                                                       | The light and dark palettes and color mixing                                                                                |
+| Phone connection    | `apps/mobile/modules/egress`                                                  | A Kotlin foreground service, FCM wake handling and the pairing credential. The protocol core is in `modules/egress/core`    |
+| Other native pieces | `apps/mobile/modules/passkey`, `secure-screen`, `share-intent`, `sms-consent` | Android Credential Manager, keeping the vault out of screenshots (FLAG_SECURE), receiving shared text, and SMS User Consent |
+| Run progress        | `apps/mobile/modules/run-progress`                                            | The ongoing notification for a running teammate, drawn natively with Android 16's progress style                            |
+| Config plugins      | `apps/mobile/plugins`                                                         | Release signing, the status bar icon and the native theme                                                                   |
+| Config              | `apps/mobile/app.config.ts`                                                   | One Expo config for two variants, picked by `APP_VARIANT`                                                                   |
 
 `APP_VARIANT=development` builds `open-bot dev` (`dev.openbot.mobile.dev`), which installs next to the real app and gets no Firebase config.
 Any other value builds `dev.openbot.mobile`, which has push when a `google-services.json` exists.
@@ -221,19 +221,21 @@ After that the work runs in `EgressService`, a `specialUse` foreground service, 
 
 ## Testing
 
-| Layer               | Command                                                  | Covers                                                                                    |
-| ------------------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| Unit                | `pnpm --filter @open-bot/mobile test`                    | vitest over `src/**/*.test.ts`: live stream, history, links, push payloads, uploads, lock |
-| Types               | `pnpm --filter @open-bot/mobile typecheck`               | The app, with the shared contract                                                         |
-| Kotlin core         | `./gradlew test` in `modules/egress/core`                | Frames, mux, IP policy and the shared vectors                                             |
-| Run progress        | `./gradlew :run-progress:testDebugUnitTest` in `android` | The pushes' rules and ledger on the JVM, and the notification itself under Robolectric    |
-| Run progress lint   | `./gradlew :run-progress:lintRelease` in `android`       | Any lint warning in the module, such as a call newer than minSdk                          |
-| Device flows        | `pnpm test:mobile-ui`                                    | Maestro flows in `apps/mobile/maestro`, against a local stack                             |
-| Worker side of push | `pnpm test:integration`                                  | FCM fan-out and retry-safe uploads against a disposable database                          |
+| Layer               | Command                                                   | Covers                                                                                    |
+| ------------------- | --------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Unit                | `pnpm --filter @open-bot/mobile test`                     | vitest over `src/**/*.test.ts`: live stream, history, links, push payloads, uploads, lock |
+| Types               | `pnpm --filter @open-bot/mobile typecheck`                | The app, with the shared contract                                                         |
+| Kotlin core         | `./gradlew test` in `modules/egress/core`                 | Frames, mux, IP policy and the shared vectors                                             |
+| Run progress        | `./gradlew :run-progress:testDebugUnitTest` in `android`  | The pushes' rules and ledger on the JVM, and the notification itself under Robolectric    |
+| Run progress lint   | `./gradlew :run-progress:lintRelease` in `android`        | Any lint warning in the module, such as a call newer than minSdk                          |
+| Secure screen       | `./gradlew :secure-screen:testDebugUnitTest` in `android` | FLAG_SECURE on the window, through a rotation, under Robolectric on API 29 and 34         |
+| Secure screen lint  | `./gradlew :secure-screen:lintRelease` in `android`       | Any lint warning in the module                                                            |
+| Device flows        | `pnpm test:mobile-ui`                                     | Maestro flows in `apps/mobile/maestro`, against a local stack                             |
+| Worker side of push | `pnpm test:integration`                                   | FCM fan-out and retry-safe uploads against a disposable database                          |
 
 CI has two Android jobs in `.github/workflows/ci.yml`, one per variant.
-Each runs `expo prebuild`, builds a debug APK, runs the run progress module's unit tests, and checks the merged manifest.
-The normal variant also runs `:app:lintVitalRelease`, and `:run-progress:lintRelease`, which fails on any lint warning in the run progress module.
+Each runs `expo prebuild`, builds a debug APK, runs the run progress and secure screen modules' unit tests, and checks the merged manifest.
+The normal variant also runs `:app:lintVitalRelease`, `:run-progress:lintRelease` and `:secure-screen:lintRelease`, which fail on any lint warning in those modules.
 Expo's module plugin turns lint's `abortOnError` off, so the module's `build.gradle` turns it back on: its code runs in the FCM service on every Android from minSdk 29, and a call newer than that (`NewApi`) would crash there.
 Its Robolectric tests run on API 29 and 33.
 A separate job runs the Kotlin core tests.

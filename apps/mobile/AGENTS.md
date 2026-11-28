@@ -1,6 +1,6 @@
 # apps/mobile
 
-The Expo (React Native) Android app: a pocket inbox, chats, approvals, the task board, automations, memory and suggested instructions, the computer viewer and the phone connection.
+The Expo (React Native) Android app: a pocket inbox, chats, approvals, the task board, automations, memory and suggested instructions, the vault and budgets, the computer viewer and the phone connection.
 It talks to the deployment through the oRPC contract in `packages/api` and does not import web code.
 Setup, usage, release builds and device tests are in `apps/mobile/README.md`; this file does not repeat them.
 The native phone-egress code is here, but the tunnel protocol itself belongs in `packages/egress`.
@@ -9,7 +9,7 @@ The native phone-egress code is here, but the tunnel protocol itself belongs in 
 
 - `apps/mobile/index.ts` is the JS entry; routes live in `apps/mobile/src/app` (expo-router).
 - `apps/mobile/app.config.ts` is the Expo config and picks the variant (`APP_VARIANT`).
-- `apps/mobile/modules/egress`, `passkey`, `run-progress`, `share-intent` and `sms-consent` are the native modules.
+- `apps/mobile/modules/egress`, `passkey`, `run-progress`, `secure-screen`, `share-intent` and `sms-consent` are the native modules.
   The egress module owns FCM's service and hands `run-progress` pushes to `modules/run-progress`.
 - `apps/mobile/modules/egress/core` is the Kotlin tunnel core.
 - `apps/mobile/src/computer/viewer.ts` is the noVNC viewer, bundled into `apps/mobile/src/computer/viewer-html.ts`.
@@ -52,6 +52,7 @@ Paths are relative to the repo root; symbols are in parentheses.
   Doctor's one expected failure is `@notifee/react-native` marked unmaintained (its repository is archived); the local modules are excluded from that check in `package.json`.
 - Kotlin core: `./gradlew test` in `apps/mobile/modules/egress/core`.
 - Run progress (its rules on the JVM, and the notification under Robolectric on API 29 and 33): `./gradlew :run-progress:testDebugUnitTest` in `apps/mobile/android` after a prebuild; its lint, which fails on any warning (a call newer than minSdk 29 is `NewApi`): `./gradlew :run-progress:lintRelease`; the worker's pushes end to end: `pnpm test:run-progress`.
+- Secure screen (FLAG_SECURE on the window and through a rotation, under Robolectric on API 29 and 34): `./gradlew :secure-screen:testDebugUnitTest`, and its lint, `./gradlew :secure-screen:lintRelease`, in `apps/mobile/android` after a prebuild.
 - Device flows: `pnpm test:mobile-ui` and the Maestro flows in `apps/mobile/maestro`.
 - Pocket inbox: `pnpm test:pocket-inbox` and `pnpm test:integration` (`apps/worker/src/features/notifications/fcm.integration.test.ts`, `apps/worker/src/features/uploads/service.integration.test.ts`).
 - Built artifact: follow `apps/mobile/README.md` for local builds and release checks. CI coverage and skip rules are in [Android CI](../site/src/app/docs/development/page.mdx#android-ci).

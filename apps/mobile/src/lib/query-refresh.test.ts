@@ -74,6 +74,9 @@ const queries = [
   [["run-memory", "a"], queryKeys.runMemory("a")],
   [["lessons", "a"], queryKeys.lessons("a")],
   [["proposal", "a"], queryKeys.proposal("a")],
+  [["vault"], queryKeys.vault],
+  [["spending", "a"], queryKeys.spending("a")],
+  [["spending", "b"], queryKeys.spending("b")],
 ] as const;
 
 async function invalidated(keys: readonly (readonly unknown[])[], side: 0 | 1) {
@@ -127,13 +130,20 @@ describe("shared event refresh migration", () => {
                       ]
                     : type === "lessons"
                       ? [["lessons", "a"]]
-                      : type === teammateEvent
-                        ? [
-                            ["chat", "a"],
-                            ["chat", "b"],
-                            ["proposal", "a"],
-                          ]
-                        : [];
+                      : type === "vault"
+                        ? [["vault"]]
+                        : type === "purchases"
+                          ? [
+                              ["spending", "a"],
+                              ["spending", "b"],
+                            ]
+                          : type === teammateEvent
+                            ? [
+                                ["chat", "a"],
+                                ["chat", "b"],
+                                ["proposal", "a"],
+                              ]
+                            : [];
       expect(added).toEqual(expected.map((key) => JSON.stringify(key)));
     },
   );

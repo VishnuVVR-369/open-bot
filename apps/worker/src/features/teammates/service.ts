@@ -503,8 +503,17 @@ export class TeammateService {
       await publishApp(this.ctx, { type });
   }
 
-  /** A teammate's monthly budget in dollars, or null so it can't pay at all, and its auto-approve. */
-  async setBudget(id: string, budget: number | null, autoApprove: number): Promise<void> {
+  /**
+   * A teammate's monthly budget in dollars, or null so it can't pay at all, and its auto-approve.
+   * With `expected` (the budget in cents as you saw it), one changed since is refused (409) rather
+   * than overwritten; the teammate's row is locked while it's checked and written.
+   */
+  async setBudget(
+    id: string,
+    budget: number | null,
+    autoApprove: number,
+    expected?: { budgetCents: number | null; autoApproveCents: number },
+  ): Promise<void> {
     const budgetCents = budget === null ? null : toCents(budget);
     if (budget !== null && budgetCents === null)
       throw new TeammateError(400, "Give the budget in dollars, like 100.");
@@ -514,12 +523,27 @@ export class TeammateService {
         400,
         "The amount to approve on its own can't be more than the budget.",
       );
-    const [updated] = await this.ctx.db
-      .update(teammates)
-      .set({ monthlyBudgetCents: budgetCents, autoApproveCents })
-      .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)))
-      .returning({ id: teammates.id });
-    if (!updated) throw new TeammateError(404, "That teammate no longer exists.");
+    await this.ctx.db.transaction(async (tx) => {
+      const [current] = await tx
+        .select({
+          budgetCents: teammates.monthlyBudgetCents,
+          autoApproveCents: teammates.autoApproveCents,
+        })
+        .from(teammates)
+        .where(and(eq(teammates.id, id), isNull(teammates.archivedAt)))
+        .for("update");
+      if (!current) throw new TeammateError(404, "That teammate no longer exists.");
+      if (
+        expected &&
+        (current.budgetCents !== expected.budgetCents ||
+          current.autoApproveCents !== expected.autoApproveCents)
+      )
+        throw new TeammateError(409, "The budget changed since you opened it.");
+      await tx
+        .update(teammates)
+        .set({ monthlyBudgetCents: budgetCents, autoApproveCents })
+        .where(eq(teammates.id, id));
+    });
     await publishApp(this.ctx, { type: "purchases" });
   }
 

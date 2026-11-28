@@ -23,7 +23,7 @@ import { and, desc, eq, gte, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import type { RunSession } from "../../runs/session";
 import type { ApprovalService } from "../approvals";
-import type { VaultItemInput } from "@open-bot/api";
+import type { VaultItemCreate, VaultItemInput, VaultItemPatch } from "@open-bot/api";
 import { WorkerError } from "../../core/errors";
 
 type Item = typeof vaultItems.$inferSelect;
@@ -62,6 +62,20 @@ function vaultSecret(
   const problem = invalidCard(card);
   if (problem) throw new VaultItemError(400, problem);
   return { secret: card, hint: cardHint(card.number), domain: null };
+}
+
+/**
+ * An item locked for the rest of the transaction, so two edits at once each keep the other's
+ * fields instead of the last one winning.
+ */
+async function lockedItem(tx: Queryable, itemId: string): Promise<Item> {
+  const [existing] = await tx
+    .select()
+    .from(vaultItems)
+    .where(eq(vaultItems.id, itemId))
+    .for("update");
+  if (!existing) throw new VaultItemError(404, "That item is no longer in the vault.");
+  return existing;
 }
 
 /** Tie a purchase to the approval that asks you about it. */
@@ -103,44 +117,126 @@ export class VaultService {
     private readonly approvals: ApprovalService,
   ) {}
 
+  /**
+   * Add a login or card under the id the client made for it. A retry after an answer that never
+   * came meets the row the first try made and answers with it (`created: false`), so the item is
+   * never added twice. An id already naming a different item (another kind, site or username or
+   * card) is refused: it isn't a retry of this one. Two tries at once wait on each other's insert.
+   * There's one owner per deployment, so an item has no owner of its own to compare.
+   */
+  async createItem(input: VaultItemCreate): Promise<{ id: string; created: boolean }> {
+    const values = this.itemValues(input.kind, input.name, input.domain, input.secret, {});
+    const [row] = await this.ctx.db
+      .insert(vaultItems)
+      .values({ ...values, id: input.id, teammateIds: input.teammateIds })
+      .onConflictDoNothing({ target: vaultItems.id })
+      .returning({ id: vaultItems.id });
+    if (row) {
+      await publishApp(this.ctx, { type: "vault" });
+      return { id: row.id, created: true };
+    }
+    const [existing] = await this.ctx.db
+      .select({ kind: vaultItems.kind, domain: vaultItems.domain, hint: vaultItems.hint })
+      .from(vaultItems)
+      .where(eq(vaultItems.id, input.id));
+    const same =
+      existing?.kind === values.kind &&
+      existing.domain === values.domain &&
+      existing.hint === values.hint;
+    if (!same) throw new VaultItemError(409, "That vault id was already used for something else.");
+    return { id: input.id, created: false };
+  }
+
   /** Save a login or card you entered. Secrets are encrypted here and never sent back. */
   async saveItem(input: VaultItemInput): Promise<{ id: string }> {
     const saved = await this.ctx.db.transaction(async (tx) => {
-      // Locked, so two edits at once each keep the other's fields instead of the last one winning.
-      const [existing] = input.id
-        ? await tx.select().from(vaultItems).where(eq(vaultItems.id, input.id)).for("update")
-        : [];
-      if (input.id && !existing)
-        throw new VaultItemError(404, "That item is no longer in the vault.");
-      if (existing && existing.kind !== input.kind)
+      if (!input.id) {
+        const values = this.itemValues(input.kind, input.name, input.domain, input.secret, {});
+        const [row] = await tx
+          .insert(vaultItems)
+          .values({ ...values, teammateIds: input.teammateIds })
+          .returning({ id: vaultItems.id });
+        return row!;
+      }
+      const existing = await lockedItem(tx, input.id);
+      if (existing.kind !== input.kind)
         throw new VaultItemError(400, "An item can't change its kind.");
-      const fields: Record<string, string> = existing
-        ? JSON.parse(decryptSecret(existing.encrypted, this.ctx.env.ENCRYPTION_KEY))
-        : {};
-      // Fields left empty keep what's saved, except the username: the form shows it, so an empty
-      // one was cleared.
-      for (const [field, value] of Object.entries(input.secret))
-        if (value.trim() || field === "username") fields[field] = value;
-      const { secret, hint, domain } = vaultSecret(input.kind, fields, input.domain);
-      const values = {
-        kind: input.kind,
+      return this.rewrite(tx, existing, {
         name: input.name,
-        domain,
-        hint,
+        domain: input.domain,
         teammateIds: input.teammateIds,
-        encrypted: encryptSecret(JSON.stringify(secret), this.ctx.env.ENCRYPTION_KEY),
-      };
-      const [row] = existing
-        ? await tx
-            .update(vaultItems)
-            .set(values)
-            .where(eq(vaultItems.id, existing.id))
-            .returning({ id: vaultItems.id })
-        : await tx.insert(vaultItems).values(values).returning({ id: vaultItems.id });
-      return row!;
+        secret: input.secret,
+      });
     });
     await publishApp(this.ctx, { type: "vault" });
     return saved;
+  }
+
+  /**
+   * Change only the given fields of a saved login or card (the phone's edit, and the web's): an
+   * edit made elsewhere meanwhile to any other field stays.
+   */
+  async patchItem(patch: VaultItemPatch): Promise<{ id: string }> {
+    const saved = await this.ctx.db.transaction(async (tx) => {
+      const existing = await lockedItem(tx, patch.itemId);
+      if (existing.kind === "card" && patch.domain !== undefined)
+        throw new VaultItemError(400, "A card has no site.");
+      return this.rewrite(tx, existing, {
+        name: patch.name ?? existing.name,
+        domain: patch.domain ?? existing.domain ?? "",
+        teammateIds: patch.teammateIds === undefined ? existing.teammateIds : patch.teammateIds,
+        secret: patch.secret ?? {},
+      });
+    });
+    await publishApp(this.ctx, { type: "vault" });
+    return saved;
+  }
+
+  /** Write a locked item again with its changes merged into what's saved. */
+  private async rewrite(
+    tx: Queryable,
+    existing: Item,
+    change: {
+      name: string;
+      domain: string;
+      teammateIds: string[] | null;
+      secret: VaultItemInput["secret"];
+    },
+  ): Promise<{ id: string }> {
+    const saved: Record<string, string> = JSON.parse(
+      decryptSecret(existing.encrypted, this.ctx.env.ENCRYPTION_KEY),
+    );
+    const values = this.itemValues(existing.kind, change.name, change.domain, change.secret, saved);
+    const [row] = await tx
+      .update(vaultItems)
+      .set({ ...values, teammateIds: change.teammateIds })
+      .where(eq(vaultItems.id, existing.id))
+      .returning({ id: vaultItems.id });
+    return row!;
+  }
+
+  /**
+   * An item's columns from its fields, merged into the saved ones. Fields left empty keep what's
+   * saved, except the username: the form shows it, so an empty one was cleared.
+   */
+  private itemValues(
+    kind: VaultKind,
+    name: string,
+    domainInput: string,
+    given: VaultItemInput["secret"],
+    saved: Record<string, string>,
+  ) {
+    const fields = { ...saved };
+    for (const [field, value] of Object.entries(given))
+      if (value.trim() || field === "username") fields[field] = value;
+    const { secret, hint, domain } = vaultSecret(kind, fields, domainInput);
+    return {
+      kind,
+      name,
+      domain,
+      hint,
+      encrypted: encryptSecret(JSON.stringify(secret), this.ctx.env.ENCRYPTION_KEY),
+    };
   }
 
   async removeItem(itemId: string): Promise<void> {

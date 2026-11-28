@@ -86,9 +86,17 @@ test("keep logins and cards in the vault without showing them again", async ({ p
   await expect(dialog.getByLabel("Password")).toHaveValue("");
   await dialog.getByRole("switch", { name: "Every teammate can use it" }).click();
   await dialog.getByRole("button", { name: owner }).click();
+  // Renamed elsewhere (the phone) while the dialog is open: the untouched name follows it, and
+  // saving sends only the access, so the rename stays.
+  const api = apiFor(page);
+  const itemId = (await api.vault.list()).find((entry) => entry.name === login)!.id;
+  const renamed = `${login} (phone)`;
+  await api.vault.patch({ itemId, name: renamed });
+  await expect(dialog.getByLabel("Name", { exact: true })).toHaveValue(renamed);
   await dialog.getByTestId("vault-save").click();
   await expect(dialog).toHaveCount(0);
   await expect(loginRow).toContainText(`Only ${owner}`);
+  await expect(loginRow).toContainText(renamed);
 
   // Deleting removes it.
   await cardRow.hover();
@@ -117,6 +125,28 @@ test("give a teammate a monthly budget", async ({ page }) => {
   await page.reload();
   await expect(page.getByLabel("Monthly budget")).toHaveValue("50");
   await expect(page.getByLabel("Approve on its own up to")).toHaveValue("10");
+
+  // Changed elsewhere (the phone) while the form is open: what you haven't touched follows it,
+  // what you typed stays, and saving keeps both.
+  await budget.getByLabel("Approve on its own up to").fill("5");
+  await apiFor(page).teammates.setBudget({ teammateId, budget: 70, autoApprove: 10 });
+  await expect(page.getByLabel("Monthly budget")).toHaveValue("70");
+  await expect(page.getByLabel("Approve on its own up to")).toHaveValue("5");
+  await budget.getByRole("button", { name: "Save budget" }).click();
+  await expect(page.getByTestId("spent")).toContainText("$0 of $70");
+  await expect(budget.getByRole("button", { name: "Save budget" })).toHaveCount(0);
+
+  // Changed elsewhere to something else on the field you're typing in: shown, never overwritten
+  // unseen, and saving waits until you pick.
+  await budget.getByLabel("Monthly budget").fill("60");
+  await apiFor(page).teammates.setBudget({ teammateId, budget: 80, autoApprove: 10 });
+  const conflict = budget.getByTestId("budget-conflict");
+  await expect(conflict).toContainText("Changed elsewhere to $80 a month");
+  await expect(page.getByLabel("Monthly budget")).toHaveValue("60");
+  await expect(budget.getByRole("button", { name: "Save budget" })).toBeDisabled();
+  await conflict.getByRole("button", { name: "Keep mine" }).click();
+  await budget.getByRole("button", { name: "Save budget" }).click();
+  await expect(page.getByTestId("spent")).toContainText("$0 of $60");
 });
 
 test("the computer types a saved password only on its own site", async ({ page }) => {

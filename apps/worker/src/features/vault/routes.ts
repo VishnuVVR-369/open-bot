@@ -6,7 +6,9 @@ const ok = { ok: true } as const;
 /** The vault procedures in the worker's internal API. */
 export function vaultRoutes(vault: VaultService) {
   return {
+    create: os.vault.create.handler(({ input }) => vault.createItem(input)),
     save: os.vault.save.handler(({ input }) => vault.saveItem(input)),
+    patch: os.vault.patch.handler(({ input }) => vault.patchItem(input)),
     remove: os.vault.remove.handler(async ({ input }) => {
       await vault.removeItem(input.itemId);
       return ok;

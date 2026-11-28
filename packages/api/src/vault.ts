@@ -41,3 +41,42 @@ export const vaultItemInputSchema = z.object({
   secret: z.partialRecord(z.enum(VAULT_SECRET_FIELDS), z.string().max(500)),
 });
 export type VaultItemInput = z.infer<typeof vaultItemInputSchema>;
+
+/**
+ * A new login or card, under an id the client made for it and keeps for retries: sending it again
+ * after an answer that never came finds the item the first one made, instead of adding another.
+ */
+export const vaultItemCreateSchema = vaultItemInputSchema.omit({ id: true }).extend({ id });
+export type VaultItemCreate = z.infer<typeof vaultItemCreateSchema>;
+
+/**
+ * Whether a patch's secret changes anything: a field given empty keeps what's saved, so it counts
+ * only with a value, except the username, which an empty one clears (and the worker refuses).
+ */
+const changesSecret = (secret: VaultItemInput["secret"] | undefined) =>
+  secret !== undefined &&
+  Object.entries(secret).some(([field, value]) => field === "username" || value.trim() !== "");
+
+/**
+ * A change to a saved login or card, and nothing else: what's left out stays as it is, so an edit
+ * made elsewhere meanwhile to another field isn't undone. A secret field given empty keeps what's
+ * saved, except the username, which can't be emptied.
+ */
+export const vaultItemPatchSchema = z
+  .object({
+    itemId: id,
+    name: vaultItemInputSchema.shape.name.optional(),
+    /** A login's site; refused for a card. */
+    domain: z.string().max(300).optional(),
+    teammateIds: teammateAccessSchema.optional(),
+    secret: vaultItemInputSchema.shape.secret.optional(),
+  })
+  .refine(
+    (patch) =>
+      patch.name !== undefined ||
+      patch.domain !== undefined ||
+      patch.teammateIds !== undefined ||
+      changesSecret(patch.secret),
+    { message: "Say what to change." },
+  );
+export type VaultItemPatch = z.infer<typeof vaultItemPatchSchema>;

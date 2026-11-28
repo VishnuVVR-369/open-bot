@@ -1,9 +1,29 @@
 "use client";
 
-import { cardBrand, cardDigits } from "@open-bot/domain";
+import {
+  cardBrand,
+  cvcInput,
+  expiryInput,
+  groupCardNumber,
+  rebaseVaultForm,
+  VAULT_COPY,
+  VAULT_NAME_MAX,
+  vaultChange,
+  vaultCreate,
+  vaultEditorTitle,
+  vaultForm,
+  vaultFormChanged,
+  vaultFormProblem,
+  vaultSaveLabel,
+  vaultSavedTitle,
+  type VaultCreate,
+  type VaultDraft,
+  type VaultForm,
+} from "@open-bot/domain";
+import { ORPCError } from "@orpc/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { useEffect, useId, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AccessPicker } from "@/components/access-picker";
 import { Button } from "@/components/ui/button";
@@ -24,20 +44,6 @@ import type { VaultItemView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Kind = VaultItemView["kind"];
-
-/** "4242 4242 4242 4242", grouped as the card prints it, while you type. */
-function groupCardNumber(value: string): string {
-  const digits = cardDigits(value).replace(/\D/g, "").slice(0, 19);
-  const groups = /^3[47]/.test(digits) ? [4, 6, 5] : [4, 4, 4, 4, 3];
-  const parts: string[] = [];
-  let offset = 0;
-  for (const size of groups) {
-    if (offset >= digits.length) break;
-    parts.push(digits.slice(offset, offset + size));
-    offset += size;
-  }
-  return parts.join(" ");
-}
 
 function Field({
   label,
@@ -101,7 +107,13 @@ function SecretInput({
   );
 }
 
-/** Add a login or card to the vault, or edit one when `item` is given. */
+/**
+ * Add a login or card to the vault, or edit one when `item` is given. An edit sends only what you
+ * changed (`vault.patch`), so a change made on the phone meanwhile stays, and what you haven't
+ * touched follows the item while the dialog is open. A new item is sent under an id made here
+ * (`vault.create`); one whose answer never came stays as sent, and Try again sends it unchanged,
+ * so it's never added twice.
+ */
 export function VaultDialog({
   kind,
   item,
@@ -113,63 +125,63 @@ export function VaultDialog({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [domain, setDomain] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [number, setNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvc, setCvc] = useState("");
-  const [holder, setHolder] = useState("");
-  const [zip, setZip] = useState("");
-  const [access, setAccess] = useState<string[] | null>(null);
+  const [draft, setDraft] = useState<VaultDraft>(() => {
+    const start = vaultForm(item ?? null);
+    return { start, form: start };
+  });
   const [pending, startTransition] = useTransition();
+  // A new item whose answer never came, as it was sent.
+  const [lost, setLost] = useState<VaultCreate | null>(null);
   const queryClient = useQueryClient();
   const editing = Boolean(item);
-  const saved = editing ? "Saved. Type to replace it." : undefined;
+  const saved = editing ? VAULT_COPY.savedPlaceholder : undefined;
+  const { start, form } = draft;
+  const { name, domain, username, password, number, expiry, cvc, holder, zip } = form;
+  const set = (patch: Partial<VaultForm>) =>
+    setDraft((current) => ({ ...current, form: { ...current.form, ...patch } }));
 
   // Start from the item (or a blank one) each time the dialog opens. Secrets are never sent back.
+  const reset = useEffectEvent(() => {
+    const fresh = vaultForm(item ?? null);
+    setDraft({ start: fresh, form: fresh });
+    setLost(null);
+  });
   useEffect(() => {
-    if (!open) return;
-    setName(item?.name ?? "");
-    setDomain(item?.domain ?? "");
-    setUsername(item?.kind === "login" ? item.hint : "");
-    setPassword("");
-    setNumber("");
-    setExpiry("");
-    setCvc("");
-    setHolder("");
-    setZip("");
-    setAccess(item ? item.teammateIds : null);
+    if (open) reset();
+  }, [open, item?.id]);
+  // Changed elsewhere while it's open: what you haven't touched follows it.
+  useEffect(() => {
+    if (open && item) setDraft((current) => rebaseVaultForm(current, vaultForm(item)));
   }, [open, item]);
 
   const ready =
-    name.trim() &&
-    (access === null || access.length > 0) &&
-    (kind === "login"
-      ? domain.trim() && username.trim() && (editing || password)
-      : editing || (number && expiry && cvc && holder.trim()));
+    vaultFormProblem(kind, form, editing) === null && (!editing || vaultFormChanged(start, form));
 
   function submit() {
     startTransition(async () => {
+      const change = item ? vaultChange(kind, start, form) : null;
+      if (item && !change) return setOpen(false);
+      const create = item ? null : vaultCreate(lost, kind, form, () => crypto.randomUUID());
+      // No answer (offline, or the server failing): it may have been saved, so it stays as sent.
+      let unanswered = false;
+      const call = create
+        ? api.vault.create(create)
+        : api.vault.patch({ itemId: item!.id, ...change });
       const result = await attempt(
-        api.vault.save({
-          id: item?.id ?? null,
-          kind,
-          name: name.trim(),
-          domain,
-          teammateIds: access,
-          secret:
-            kind === "login" ? { username, password } : { number, expiry, cvc, name: holder, zip },
+        call.catch((error: unknown) => {
+          unanswered = !(error instanceof ORPCError) || error.status >= 500;
+          throw error;
         }),
       );
       if (!result.ok) {
-        toast.error("Couldn't save it", { description: result.error });
+        setLost(create && unanswered ? create : null);
+        toast.error("Couldn't save it", {
+          description: create && unanswered ? VAULT_COPY.lostCreate : result.error,
+        });
         return;
       }
-      toast(editing ? "Saved" : kind === "login" ? "Login saved" : "Card saved", {
-        description: "Teammates fill it in on the computer without seeing it.",
-      });
+      setLost(null);
+      toast(vaultSavedTitle(kind, editing), { description: VAULT_COPY.savedToast });
       setOpen(false);
       await queryClient.invalidateQueries({ queryKey: orpc.vault.key() });
     });
@@ -182,13 +194,9 @@ export function VaultDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-lg" data-testid="vault-dialog">
         <DialogHeader>
-          <DialogTitle>
-            {editing ? `Edit ${item!.name}` : kind === "login" ? "Add a login" : "Add a card"}
-          </DialogTitle>
+          <DialogTitle>{vaultEditorTitle(kind, item?.name ?? null)}</DialogTitle>
           <DialogDescription>
-            {kind === "login"
-              ? "Teammates type it in for you on this site, and only on this site. They never see the password."
-              : "Teammates fill it in at checkout, only for purchases within their budget. They never see the number."}
+            {kind === "login" ? VAULT_COPY.loginDialog : VAULT_COPY.cardDialog}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -196,128 +204,133 @@ export function VaultDialog({
           autoComplete="off"
           onSubmit={(event) => {
             event.preventDefault();
-            if (ready && !pending) submit();
+            if ((ready || lost) && !pending) submit();
           }}
         >
-          <Field label="Name" htmlFor={`${id}-name`}>
-            <Input
-              id={`${id}-name`}
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-              placeholder={kind === "login" ? "GitHub" : "Personal Visa"}
-              maxLength={80}
-            />
-          </Field>
-          {kind === "login" ? (
-            <>
-              <Field label="Site" htmlFor={`${id}-site`} hint="It also works on its subdomains.">
-                <Input
-                  id={`${id}-site`}
-                  value={domain}
-                  onChange={(event) => setDomain(event.target.value)}
-                  placeholder="github.com"
-                  spellCheck={false}
-                  autoCapitalize="off"
-                />
-              </Field>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Field label="Username or email" htmlFor={`${id}-username`}>
+          {/* Sent and unanswered: it stays as sent until Try again tells. */}
+          <fieldset disabled={lost !== null} className="contents">
+            <Field label="Name" htmlFor={`${id}-name`}>
+              <Input
+                id={`${id}-name`}
+                value={name}
+                onChange={(event) => set({ name: event.target.value })}
+                placeholder={kind === "login" ? "GitHub" : "Personal Visa"}
+                maxLength={VAULT_NAME_MAX}
+              />
+            </Field>
+            {kind === "login" ? (
+              <>
+                <Field label="Site" htmlFor={`${id}-site`} hint={VAULT_COPY.siteHint}>
                   <Input
-                    id={`${id}-username`}
-                    value={username}
-                    onChange={(event) => setUsername(event.target.value)}
+                    id={`${id}-site`}
+                    value={domain}
+                    onChange={(event) => set({ domain: event.target.value })}
+                    placeholder="github.com"
                     spellCheck={false}
                     autoCapitalize="off"
-                    autoComplete="off"
                   />
                 </Field>
-                <Field label="Password" htmlFor={`${id}-password`}>
-                  <SecretInput
-                    id={`${id}-password`}
-                    value={password}
-                    onChange={setPassword}
-                    placeholder={saved}
-                    autoComplete="new-password"
-                  />
-                </Field>
-              </div>
-            </>
-          ) : (
-            <>
-              <Field label="Card number" htmlFor={`${id}-number`}>
-                <div className="relative">
-                  <Input
-                    id={`${id}-number`}
-                    value={number}
-                    onChange={(event) => setNumber(groupCardNumber(event.target.value))}
-                    placeholder={editing ? item!.hint : "4242 4242 4242 4242"}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    className="pr-24 font-mono tabular-nums"
-                  />
-                  {brand && brand !== "Card" && (
-                    <span className="absolute top-1/2 right-3 -translate-y-1/2 text-[12.5px] font-medium text-muted-foreground">
-                      {brand}
-                    </span>
-                  )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Username or email" htmlFor={`${id}-username`}>
+                    <Input
+                      id={`${id}-username`}
+                      value={username}
+                      onChange={(event) => set({ username: event.target.value })}
+                      spellCheck={false}
+                      autoCapitalize="off"
+                      autoComplete="off"
+                    />
+                  </Field>
+                  <Field label="Password" htmlFor={`${id}-password`}>
+                    <SecretInput
+                      id={`${id}-password`}
+                      value={password}
+                      onChange={(value) => set({ password: value })}
+                      placeholder={saved}
+                      autoComplete="new-password"
+                    />
+                  </Field>
                 </div>
-              </Field>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-                <Field label="Expiry" htmlFor={`${id}-expiry`}>
+              </>
+            ) : (
+              <>
+                <Field label="Card number" htmlFor={`${id}-number`}>
+                  <div className="relative">
+                    <Input
+                      id={`${id}-number`}
+                      value={number}
+                      onChange={(event) => set({ number: groupCardNumber(event.target.value) })}
+                      placeholder={editing ? item!.hint : "4242 4242 4242 4242"}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className="pr-24 font-mono tabular-nums"
+                    />
+                    {brand && brand !== "Card" && (
+                      <span className="absolute top-1/2 right-3 -translate-y-1/2 text-[12.5px] font-medium text-muted-foreground">
+                        {brand}
+                      </span>
+                    )}
+                  </div>
+                </Field>
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+                  <Field label="Expiry" htmlFor={`${id}-expiry`}>
+                    <Input
+                      id={`${id}-expiry`}
+                      value={expiry}
+                      onChange={(event) => set({ expiry: expiryInput(event.target.value) })}
+                      placeholder={editing ? "Saved" : "MM/YY"}
+                      inputMode="numeric"
+                      autoComplete="off"
+                      className="font-mono tabular-nums"
+                    />
+                  </Field>
+                  <Field label="Security code" htmlFor={`${id}-cvc`}>
+                    <SecretInput
+                      id={`${id}-cvc`}
+                      value={cvc}
+                      onChange={(value) => set({ cvc: cvcInput(value) })}
+                      placeholder={editing ? "Saved" : "123"}
+                    />
+                  </Field>
+                  <Field
+                    label="ZIP code"
+                    htmlFor={`${id}-zip`}
+                    className="col-span-2 sm:col-span-1"
+                  >
+                    <Input
+                      id={`${id}-zip`}
+                      value={zip}
+                      onChange={(event) => set({ zip: event.target.value })}
+                      placeholder={editing ? "Saved" : "Optional"}
+                      autoComplete="off"
+                    />
+                  </Field>
+                </div>
+                <Field label="Name on the card" htmlFor={`${id}-holder`}>
                   <Input
-                    id={`${id}-expiry`}
-                    value={expiry}
-                    onChange={(event) => {
-                      const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
-                      setExpiry(
-                        digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits,
-                      );
-                    }}
-                    placeholder={editing ? "Saved" : "MM/YY"}
-                    inputMode="numeric"
-                    autoComplete="off"
-                    className="font-mono tabular-nums"
-                  />
-                </Field>
-                <Field label="Security code" htmlFor={`${id}-cvc`}>
-                  <SecretInput
-                    id={`${id}-cvc`}
-                    value={cvc}
-                    onChange={(value) => setCvc(value.replace(/\D/g, "").slice(0, 4))}
-                    placeholder={editing ? "Saved" : "123"}
-                  />
-                </Field>
-                <Field label="ZIP code" htmlFor={`${id}-zip`} className="col-span-2 sm:col-span-1">
-                  <Input
-                    id={`${id}-zip`}
-                    value={zip}
-                    onChange={(event) => setZip(event.target.value)}
-                    placeholder={editing ? "Saved" : "Optional"}
+                    id={`${id}-holder`}
+                    value={holder}
+                    onChange={(event) => set({ holder: event.target.value })}
+                    placeholder={saved}
                     autoComplete="off"
                   />
                 </Field>
-              </div>
-              <Field label="Name on the card" htmlFor={`${id}-holder`}>
-                <Input
-                  id={`${id}-holder`}
-                  value={holder}
-                  onChange={(event) => setHolder(event.target.value)}
-                  placeholder={editing ? "Saved. Type to replace it." : undefined}
-                  autoComplete="off"
-                />
-              </Field>
-            </>
-          )}
-          <div className="rounded-xl border bg-subtle/60 p-3.5">
-            <AccessPicker value={access} onChange={setAccess} />
-          </div>
+              </>
+            )}
+            <div className="rounded-xl border bg-subtle/60 p-3.5">
+              <AccessPicker
+                value={form.teammateIds}
+                onChange={(teammateIds) => set({ teammateIds })}
+              />
+            </div>
+          </fieldset>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={!ready || pending} data-testid="vault-save">
+            <Button type="submit" disabled={!(ready || lost) || pending} data-testid="vault-save">
               {pending && <Loader2 className="animate-spin" />}
-              {editing ? "Save" : kind === "login" ? "Save login" : "Save card"}
+              {lost ? "Try again" : vaultSaveLabel(kind, editing)}
             </Button>
           </DialogFooter>
         </form>

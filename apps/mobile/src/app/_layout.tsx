@@ -127,6 +127,10 @@ function App() {
               <Stack.Screen name="memory/lessons" options={{ title: "Lessons" }} />
               <Stack.Screen name="memory/[memoryId]/index" options={{ title: "Memory" }} />
               <Stack.Screen name="memory/[memoryId]/history" options={{ title: "History" }} />
+              <Stack.Screen name="vault/index" options={{ title: "Vault" }} />
+              <Stack.Screen name="vault/new" options={{ title: "" }} />
+              <Stack.Screen name="vault/[itemId]" options={{ title: "" }} />
+              <Stack.Screen name="vault/budget/[teammateId]" options={{ title: "Budget" }} />
               <Stack.Screen name="share" options={{ title: "Share with a teammate" }} />
             </Stack.Protected>
             <Stack.Protected guard={!signedIn}>

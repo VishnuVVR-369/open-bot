@@ -200,7 +200,7 @@ The end-to-end run needs the encoded tour first (`pnpm --filter @open-bot/site m
 
 ### Android CI
 
-The Android matrix in `.github/workflows/ci.yml` builds x86_64 debug APKs for the development and Firebase (`normal`) variants, runs the run progress module's JVM unit tests (`:run-progress:testDebugUnitTest`), checks both merged manifests, and runs `:app:lintVitalRelease` and the run progress module's own lint (`:run-progress:lintRelease`, which fails on any warning) for the Firebase variant.
+The Android matrix in `.github/workflows/ci.yml` builds x86_64 debug APKs for the development and Firebase (`normal`) variants, runs the run progress and secure screen modules' JVM unit tests (`:run-progress:testDebugUnitTest`, `:secure-screen:testDebugUnitTest`), checks both merged manifests, and runs `:app:lintVitalRelease` and those modules' own lint (`:run-progress:lintRelease`, `:secure-screen:lintRelease`, which fail on any warning) for the Firebase variant.
 Gradle runs with `--build-cache`; `gradle/actions/setup-gradle` persists task outputs as well as dependencies.
 A separate, size-limited `ccache` cache reuses native C/C++ compilation for each variant.
 React Native discovers it for the app; `scripts/ci/android-ccache.gradle` configures compiler launchers for native library projects.

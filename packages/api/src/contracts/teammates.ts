@@ -74,7 +74,10 @@ export const teammatesContract = {
   setLead: base.input(z.object({ teammateId: id })).output(ok),
   /** Archive a teammate: its chats are archived, its automations paused, its work stopped. */
   archive: base.input(z.object({ teammateId: id })).output(ok),
-  /** What a teammate may spend from the vault's cards each month; see `budgetInputSchema`. */
+  /**
+   * What a teammate may spend from the vault's cards each month; see `budgetInputSchema`. With
+   * `expected`, a budget changed since you saw it fails with `STATE_CONFLICT`.
+   */
   setBudget: base.input(budgetInputSchema).output(ok),
 };
 

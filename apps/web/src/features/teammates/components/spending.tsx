@@ -1,6 +1,25 @@
 "use client";
 
-import { formatMoney } from "@open-bot/domain";
+import {
+  budgetConflictText,
+  budgetCopy,
+  budgetDraft,
+  budgetDraftChanged,
+  budgetInput,
+  budgetSaved,
+  budgetUse,
+  editBudget,
+  followBudget,
+  formatMoney,
+  mayUse,
+  moneyInput,
+  PURCHASE_STATUS,
+  purchaseCalledOff,
+  settleBudgetConflict,
+  spendingMonth,
+  type BudgetDraft,
+  type BudgetForm,
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { CreditCard, Loader2 } from "lucide-react";
 import Link from "next/link";
@@ -16,21 +35,13 @@ import { attempt } from "@/lib/client/mutate";
 import { useVault } from "@/features/vault";
 import { useSpending } from "../hooks";
 import { api, orpc } from "@/lib/client/rpc";
-import type { PurchaseView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const STATUS: Record<PurchaseView["status"], { label: string; className: string }> = {
-  pending: { label: "Needs your approval", className: "bg-attention/12 text-attention-ink" },
-  approved: { label: "Approved", className: "bg-done/10 text-done" },
-  paid: { label: "Paid", className: "bg-done/12 text-done" },
-  denied: { label: "Denied", className: "bg-muted text-muted-foreground" },
-  not_paid: { label: "Didn't go through", className: "bg-muted text-muted-foreground" },
-};
-
-function dollars(cents: number | null): string {
-  if (cents === null || cents === 0) return "";
-  return String(cents / 100);
-}
+const TONE_CLASS = {
+  attention: "bg-attention/12 text-attention-ink",
+  done: "bg-done/10 text-done",
+  muted: "bg-muted text-muted-foreground",
+} as const;
 
 /** A dollar amount input with a $ in front. */
 function MoneyInput({
@@ -52,7 +63,7 @@ function MoneyInput({
       <Input
         id={id}
         value={value}
-        onChange={(event) => onChange(event.target.value.replace(/[^\d.]/g, ""))}
+        onChange={(event) => onChange(moneyInput(event.target.value))}
         inputMode="decimal"
         disabled={disabled}
         className="pl-6 tabular-nums"
@@ -66,19 +77,23 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
   const { data, isLoading } = useSpending(teammateId);
   const { data: vault } = useVault();
   const queryClient = useQueryClient();
-  const [enabled, setEnabled] = useState(false);
-  const [budget, setBudgetValue] = useState("");
-  const [autoApprove, setAutoApprove] = useState("");
+  const [draft, setDraft] = useState<BudgetDraft | null>(null);
   const [saving, startSaving] = useTransition();
+  const copy = budgetCopy(name);
 
+  // The saved budget, changed here or elsewhere: what you haven't touched follows it, and a change
+  // to what you changed too waits for you to take it or keep yours. A save names the budget your
+  // changes started from, so one saved elsewhere since is refused, never overwritten. A purchase
+  // the teammate makes meanwhile changes only what's spent, so it leaves the form alone.
+  const budgetCents = data?.budgetCents;
+  const autoApproveCents = data?.autoApproveCents;
   useEffect(() => {
-    if (!data) return;
-    setEnabled(data.budgetCents !== null);
-    setBudgetValue(dollars(data.budgetCents));
-    setAutoApprove(dollars(data.autoApproveCents));
-  }, [data]);
+    if (budgetCents === undefined || autoApproveCents === undefined || saving) return;
+    const fresh = { budgetCents, autoApproveCents };
+    setDraft((current) => (current ? followBudget(current, fresh) : budgetDraft(fresh)));
+  }, [budgetCents, autoApproveCents, saving]);
 
-  if (isLoading || !data) {
+  if (isLoading || !data || !draft) {
     return (
       <div className="flex flex-col gap-6">
         <Skeleton className="h-40 rounded-xl" />
@@ -87,32 +102,33 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
     );
   }
 
-  const cards = (vault ?? []).filter(
-    (item) =>
-      item.kind === "card" && (item.teammateIds === null || item.teammateIds.includes(teammateId)),
-  );
-  const savedEnabled = data.budgetCents !== null;
-  const dirty =
-    enabled !== savedEnabled ||
-    (enabled &&
-      (budget !== dollars(data.budgetCents) || autoApprove !== dollars(data.autoApproveCents)));
-  const used = data.budgetCents ? Math.min(1, data.spentCents / data.budgetCents) : 0;
-  const month = new Date().toLocaleDateString("en-US", { month: "long" });
+  const { form, theirs } = draft;
+  const { enabled, budget, autoApprove } = form;
+  const set = (patch: Partial<BudgetForm>) =>
+    setDraft((current) => current && editBudget(current, patch));
+  const settle = (keep: "theirs" | "mine") =>
+    setDraft((current) => current && settleBudgetConflict(current, keep));
+  const cards = (vault ?? []).filter((item) => item.kind === "card" && mayUse(item, teammateId));
+  const dirty = budgetDraftChanged(draft) || theirs !== null;
+  const use = budgetUse(data);
+  const month = spendingMonth();
 
   function save() {
+    if (!draft || draft.theirs) return;
+    const expected = draft.base;
     startSaving(async () => {
       const result = await attempt(
-        api.teammates.setBudget({
-          teammateId,
-          budget: enabled ? Number(budget) : null,
-          autoApprove: enabled ? Number(autoApprove || 0) : 0,
-        }),
+        api.teammates.setBudget({ teammateId, ...budgetInput(form), expected }),
       );
       if (!result.ok) {
         toast.error("Couldn't save the budget", { description: result.error });
+        await queryClient.invalidateQueries({
+          queryKey: orpc.teammates.spending.key({ input: { teammateId } }),
+        });
         return;
       }
-      toast(enabled ? "Budget saved" : `${name} can't pay for things now`);
+      toast(enabled ? copy.saved : copy.off);
+      setDraft((current) => current && budgetSaved(current));
       await queryClient.invalidateQueries({
         queryKey: orpc.teammates.spending.key({ input: { teammateId } }),
       });
@@ -124,35 +140,56 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
       <section className="flex flex-col gap-4" data-testid="budget">
         <label className="flex cursor-pointer items-start justify-between gap-4">
           <span className="flex flex-col gap-0.5">
-            <span className="text-[14px] font-medium">{name} can pay for things</span>
-            <span className="text-[13px] text-muted-foreground">
-              With a card from the vault, up to a monthly budget.
-            </span>
+            <span className="text-[14px] font-medium">{copy.canPay}</span>
+            <span className="text-[13px] text-muted-foreground">{copy.canPayHint}</span>
           </span>
           <Switch
             checked={enabled}
-            onCheckedChange={setEnabled}
-            aria-label={`${name} can pay for things`}
+            onCheckedChange={(value) => set({ enabled: value })}
+            aria-label={copy.canPay}
           />
         </label>
         {enabled && (
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="budget">Monthly budget</Label>
-              <MoneyInput id="budget" value={budget} onChange={setBudgetValue} />
+              <Label htmlFor="budget">{copy.monthly}</Label>
+              <MoneyInput id="budget" value={budget} onChange={(value) => set({ budget: value })} />
             </div>
             <div className="flex flex-col gap-2">
-              <Label htmlFor="auto-approve">Approve on its own up to</Label>
-              <MoneyInput id="auto-approve" value={autoApprove} onChange={setAutoApprove} />
-              <span className="text-[12.5px] text-muted-foreground">
-                Larger purchases ask you first. Leave empty to approve each one.
-              </span>
+              <Label htmlFor="auto-approve">{copy.autoApprove}</Label>
+              <MoneyInput
+                id="auto-approve"
+                value={autoApprove}
+                onChange={(value) => set({ autoApprove: value })}
+              />
+              <span className="text-[12.5px] text-muted-foreground">{copy.autoApproveHint}</span>
             </div>
+          </div>
+        )}
+        {theirs && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-attention/35 bg-attention/[0.04] px-3 py-2.5"
+            data-testid="budget-conflict"
+          >
+            <span className="text-[13px] text-attention-ink">
+              {budgetConflictText(theirs, name)}
+            </span>
+            <span className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => settle("theirs")}>
+                Use theirs
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => settle("mine")}>
+                Keep mine
+              </Button>
+            </span>
           </div>
         )}
         {dirty && (
           <div className="flex justify-end">
-            <Button onClick={save} disabled={saving || (enabled && !Number(budget))}>
+            <Button
+              onClick={save}
+              disabled={saving || theirs !== null || (enabled && !Number(budget))}
+            >
               {saving && <Loader2 className="animate-spin" />}
               Save budget
             </Button>
@@ -162,7 +199,7 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
           <p className="flex items-center gap-2 rounded-lg bg-subtle px-3 py-2.5 text-[13px] text-muted-foreground">
             <CreditCard className="size-4 shrink-0" />
             <span>
-              No card {name} may use yet.{" "}
+              {copy.noCard}{" "}
               <Link href="/vault" className="text-foreground underline underline-offset-2">
                 Add one in the vault
               </Link>
@@ -185,16 +222,20 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
             className="h-2 overflow-hidden rounded-full bg-muted"
             role="progressbar"
             aria-label={`Spent in ${month}`}
-            aria-valuenow={Math.round(used * 100)}
+            aria-valuenow={Math.round(use.share * 100)}
             aria-valuemin={0}
             aria-valuemax={100}
           >
             <div
               className={cn(
                 "h-full rounded-full transition-[width]",
-                used >= 0.9 ? "bg-destructive" : used >= 0.7 ? "bg-attention" : "bg-done",
+                use.tone === "destructive"
+                  ? "bg-destructive"
+                  : use.tone === "attention"
+                    ? "bg-attention"
+                    : "bg-done",
               )}
-              style={{ width: `${used * 100}%` }}
+              style={{ width: `${use.share * 100}%` }}
             />
           </div>
         </section>
@@ -204,15 +245,13 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
         <div className="flex flex-col gap-0.5">
           <span className="text-[14px] font-medium">Purchases</span>
           <span className="text-[13px] text-muted-foreground">
-            {data.purchases.length > 0
-              ? `What ${name} paid for, or asked to.`
-              : `Nothing yet. When ${name} buys something, it shows here.`}
+            {data.purchases.length > 0 ? copy.purchases : copy.noPurchases}
           </span>
         </div>
         {data.purchases.length > 0 && (
           <ul className="flex flex-col divide-y divide-border/70 rounded-xl border bg-card">
             {data.purchases.map((purchase) => {
-              const status = STATUS[purchase.status];
+              const status = PURCHASE_STATUS[purchase.status];
               return (
                 <li
                   key={purchase.id}
@@ -225,7 +264,7 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
                       <span
                         className={cn(
                           "rounded-full px-2 py-0.5 text-[11.5px] font-medium",
-                          status.className,
+                          TONE_CLASS[status.tone],
                         )}
                       >
                         {status.label}
@@ -251,8 +290,7 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
                   <span
                     className={cn(
                       "shrink-0 text-[14px] font-medium",
-                      (purchase.status === "denied" || purchase.status === "not_paid") &&
-                        "text-muted-foreground line-through",
+                      purchaseCalledOff(purchase.status) && "text-muted-foreground line-through",
                     )}
                   >
                     {formatMoney(purchase.amountCents)}

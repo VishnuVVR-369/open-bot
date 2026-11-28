@@ -87,6 +87,7 @@
           "egress",
           "passkey",
           "run-progress",
+          "secure-screen",
           "share-intent",
           "sms-consent"
         ]
