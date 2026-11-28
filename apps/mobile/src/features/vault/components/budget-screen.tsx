@@ -1,15 +1,19 @@
 import type { SpendingView } from "@open-bot/api";
 import {
+  budgetConflictText,
   budgetCopy,
-  budgetForm,
-  budgetFormChanged,
+  budgetDraft,
+  budgetDraftChanged,
   budgetInput,
   budgetProblem,
+  budgetSaved,
   budgetUse,
+  editBudget,
+  followBudget,
   formatMoney,
   mayUse,
   moneyInput,
-  rebaseBudgetForm,
+  settleBudgetConflict,
   spendingMonth,
   type BudgetForm,
 } from "@open-bot/domain";
@@ -74,9 +78,10 @@ function Budget() {
 }
 
 /**
- * The budget as the web's Spending tab sets it. Saving names the budget you saw, so one changed
- * on the web meanwhile is refused and shown instead of overwritten; what you haven't touched
- * follows it. Leaving with changes asks first, and nothing is sent offline.
+ * The budget as the web's Spending tab sets it. Saving names the budget your changes started
+ * from, so one saved on the web meanwhile is refused instead of overwritten. What you haven't
+ * touched follows it; when it changed what you changed too, it's shown, and you take it or keep
+ * yours before saving. Leaving with changes asks first, and nothing is sent offline.
  */
 function BudgetEditor({
   teammateId,
@@ -93,25 +98,22 @@ function BudgetEditor({
   const open = useVaultOpen();
   const { data: vault } = useVaultItems();
   const copy = budgetCopy(name);
-  const [draft, setDraft] = useState(() => {
-    const start = budgetForm(data);
-    return { start, form: start };
-  });
+  const [draft, setDraft] = useState(() => budgetDraft(data));
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const [conflict, setConflict] = useState(false);
+  const [refused, setRefused] = useState(false);
   const [discarded, setDiscarded] = useState(false);
-  const { form } = draft;
-  const changed = budgetFormChanged(draft.start, form);
+  const { form, theirs } = draft;
+  const changed = budgetDraftChanged(draft) || theirs !== null;
   const invalid = budgetProblem(form);
   const editable = open && !busy;
 
-  // The saved budget changed (here, on the web, or by a refresh after a conflict): what you haven't
-  // touched follows it. A purchase meanwhile changes only what's spent, and leaves the form alone.
+  // The saved budget changed (here, on the web, or read again after a refused save). A purchase
+  // meanwhile changes only what's spent, and leaves the form alone.
   const { budgetCents, autoApproveCents } = data;
   useEffect(() => {
     if (busy) return;
-    setDraft((current) => rebaseBudgetForm(current, budgetForm({ budgetCents, autoApproveCents })));
+    setDraft((current) => followBudget(current, { budgetCents, autoApproveCents }));
   }, [budgetCents, autoApproveCents, busy]);
 
   usePreventRemove(changed && !discarded, ({ repeat }) =>
@@ -131,8 +133,15 @@ function BudgetEditor({
   const set = (patch: Partial<BudgetForm>) => {
     if (!editable) return;
     setProblem(null);
-    setConflict(false);
-    setDraft((current) => ({ ...current, form: { ...current.form, ...patch } }));
+    setRefused(false);
+    setDraft((current) => editBudget(current, patch));
+  };
+
+  const settle = (keep: "theirs" | "mine") => {
+    if (!editable) return;
+    haptics.tap();
+    setRefused(false);
+    setDraft((current) => settleBudgetConflict(current, keep));
   };
 
   async function save() {
@@ -141,26 +150,24 @@ function BudgetEditor({
       haptics.warning();
       return;
     }
-    if (!vaultLock.isOpen()) return;
+    if (!vaultLock.isOpen() || theirs) return;
     setBusy(true);
     setProblem(null);
+    setRefused(false);
     const result = await safe(
-      api.teammates.setBudget({
-        teammateId,
-        ...budgetInput(form),
-        expected: { budgetCents, autoApproveCents },
-      }),
+      api.teammates.setBudget({ teammateId, ...budgetInput(form), expected: draft.base }),
     );
     await queryClient.invalidateQueries({ queryKey: queryKeys.spending(teammateId) });
     setBusy(false);
     if (result.error) {
       haptics.error();
-      if (isStateConflict(result.error)) setConflict(true);
+      // Saved elsewhere since: the read above shows what changed, and a clash waits in `theirs`.
+      if (isStateConflict(result.error)) setRefused(true);
       else setProblem(errorMessage(result.error, "Couldn't save the budget."));
       return;
     }
     haptics.success();
-    setDraft((current) => ({ start: current.form, form: current.form }));
+    setDraft(budgetSaved);
   }
 
   const cards = (vault ?? []).filter((item) => item.kind === "card" && mayUse(item, teammateId));
@@ -241,7 +248,7 @@ function BudgetEditor({
           </Text>
         </Pressable>
       )}
-      {(changed || conflict || problem) && (
+      {(changed || refused || problem) && (
         <View style={{ gap: space(2.5) }}>
           {!online ? (
             <View style={styles.offline}>
@@ -250,9 +257,36 @@ function BudgetEditor({
                 You're offline. Your changes stay here until you're back.
               </Text>
             </View>
-          ) : conflict ? (
-            <Text variant="small" style={{ color: colors.attentionInk }} testID="budget-conflict">
-              The budget changed since you opened it. Check it, then save again.
+          ) : theirs ? (
+            <View
+              style={[styles.conflict, { borderColor: colors.attention }]}
+              testID="budget-conflict"
+            >
+              <Text variant="small" style={{ color: colors.attentionInk }}>
+                {budgetConflictText(theirs, name)}
+              </Text>
+              <View style={styles.choices}>
+                <Button
+                  title="Use theirs"
+                  variant="outline"
+                  onPress={() => settle("theirs")}
+                  disabled={!editable}
+                  style={{ flex: 1 }}
+                  testID="budget-take-theirs"
+                />
+                <Button
+                  title="Keep mine"
+                  variant="outline"
+                  onPress={() => settle("mine")}
+                  disabled={!editable}
+                  style={{ flex: 1 }}
+                  testID="budget-keep-mine"
+                />
+              </View>
+            </View>
+          ) : refused ? (
+            <Text variant="small" style={{ color: colors.attentionInk }} testID="budget-refused">
+              The budget changed elsewhere since. Check it, then save again.
             </Text>
           ) : problem || (changed && invalid) ? (
             <Text variant="small" style={{ color: colors.destructive }} testID="budget-problem">
@@ -262,7 +296,7 @@ function BudgetEditor({
           <Button
             title="Save budget"
             onPress={() => void save()}
-            disabled={!online || !editable || !changed || Boolean(invalid)}
+            disabled={!online || !editable || !changed || theirs !== null || Boolean(invalid)}
             busy={busy}
             testID="budget-save"
           />
@@ -360,6 +394,8 @@ const styles = StyleSheet.create({
     paddingVertical: space(2.5),
   },
   offline: { flexDirection: "row", alignItems: "center", gap: space(2) },
+  conflict: { gap: space(3), borderWidth: 1, borderRadius: 12, padding: space(3) },
+  choices: { flexDirection: "row", gap: space(2.5) },
   spent: { gap: space(2.5) },
   spentLine: { flexDirection: "row", justifyContent: "space-between", gap: space(4) },
   track: { height: 8, borderRadius: 4, overflow: "hidden" },

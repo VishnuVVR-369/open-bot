@@ -135,6 +135,18 @@ test("give a teammate a monthly budget", async ({ page }) => {
   await budget.getByRole("button", { name: "Save budget" }).click();
   await expect(page.getByTestId("spent")).toContainText("$0 of $70");
   await expect(budget.getByRole("button", { name: "Save budget" })).toHaveCount(0);
+
+  // Changed elsewhere to something else on the field you're typing in: shown, never overwritten
+  // unseen, and saving waits until you pick.
+  await budget.getByLabel("Monthly budget").fill("60");
+  await apiFor(page).teammates.setBudget({ teammateId, budget: 80, autoApprove: 10 });
+  const conflict = budget.getByTestId("budget-conflict");
+  await expect(conflict).toContainText("Changed elsewhere to $80 a month");
+  await expect(page.getByLabel("Monthly budget")).toHaveValue("60");
+  await expect(budget.getByRole("button", { name: "Save budget" })).toBeDisabled();
+  await conflict.getByRole("button", { name: "Keep mine" }).click();
+  await budget.getByRole("button", { name: "Save budget" }).click();
+  await expect(page.getByTestId("spent")).toContainText("$0 of $60");
 });
 
 test("the computer types a saved password only on its own site", async ({ page }) => {

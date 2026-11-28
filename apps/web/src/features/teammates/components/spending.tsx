@@ -1,18 +1,23 @@
 "use client";
 
 import {
+  budgetConflictText,
   budgetCopy,
-  budgetForm,
-  budgetFormChanged,
+  budgetDraft,
+  budgetDraftChanged,
   budgetInput,
+  budgetSaved,
   budgetUse,
+  editBudget,
+  followBudget,
   formatMoney,
   mayUse,
   moneyInput,
   PURCHASE_STATUS,
   purchaseCalledOff,
-  rebaseBudgetForm,
+  settleBudgetConflict,
   spendingMonth,
+  type BudgetDraft,
   type BudgetForm,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
@@ -72,21 +77,21 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
   const { data, isLoading } = useSpending(teammateId);
   const { data: vault } = useVault();
   const queryClient = useQueryClient();
-  const [draft, setDraft] = useState<{ start: BudgetForm; form: BudgetForm } | null>(null);
+  const [draft, setDraft] = useState<BudgetDraft | null>(null);
   const [saving, startSaving] = useTransition();
   const copy = budgetCopy(name);
 
-  // The saved budget, changed here or elsewhere: what you haven't touched follows it. A purchase
+  // The saved budget, changed here or elsewhere: what you haven't touched follows it, and a change
+  // to what you changed too waits for you to take it or keep yours. A save names the budget your
+  // changes started from, so one saved elsewhere since is refused, never overwritten. A purchase
   // the teammate makes meanwhile changes only what's spent, so it leaves the form alone.
   const budgetCents = data?.budgetCents;
   const autoApproveCents = data?.autoApproveCents;
   useEffect(() => {
-    if (budgetCents === undefined || autoApproveCents === undefined) return;
-    const fresh = budgetForm({ budgetCents, autoApproveCents });
-    setDraft((current) =>
-      current ? rebaseBudgetForm(current, fresh) : { start: fresh, form: fresh },
-    );
-  }, [budgetCents, autoApproveCents]);
+    if (budgetCents === undefined || autoApproveCents === undefined || saving) return;
+    const fresh = { budgetCents, autoApproveCents };
+    setDraft((current) => (current ? followBudget(current, fresh) : budgetDraft(fresh)));
+  }, [budgetCents, autoApproveCents, saving]);
 
   if (isLoading || !data || !draft) {
     return (
@@ -97,23 +102,23 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
     );
   }
 
-  const { form } = draft;
+  const { form, theirs } = draft;
   const { enabled, budget, autoApprove } = form;
   const set = (patch: Partial<BudgetForm>) =>
-    setDraft((current) => current && { ...current, form: { ...current.form, ...patch } });
+    setDraft((current) => current && editBudget(current, patch));
+  const settle = (keep: "theirs" | "mine") =>
+    setDraft((current) => current && settleBudgetConflict(current, keep));
   const cards = (vault ?? []).filter((item) => item.kind === "card" && mayUse(item, teammateId));
-  const dirty = budgetFormChanged(draft.start, form);
+  const dirty = budgetDraftChanged(draft) || theirs !== null;
   const use = budgetUse(data);
   const month = spendingMonth();
 
   function save() {
+    if (!draft || draft.theirs) return;
+    const expected = draft.base;
     startSaving(async () => {
       const result = await attempt(
-        api.teammates.setBudget({
-          teammateId,
-          ...budgetInput(form),
-          expected: { budgetCents: data!.budgetCents, autoApproveCents: data!.autoApproveCents },
-        }),
+        api.teammates.setBudget({ teammateId, ...budgetInput(form), expected }),
       );
       if (!result.ok) {
         toast.error("Couldn't save the budget", { description: result.error });
@@ -123,7 +128,7 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
         return;
       }
       toast(enabled ? copy.saved : copy.off);
-      setDraft((current) => current && { start: current.form, form: current.form });
+      setDraft((current) => current && budgetSaved(current));
       await queryClient.invalidateQueries({
         queryKey: orpc.teammates.spending.key({ input: { teammateId } }),
       });
@@ -161,9 +166,30 @@ export function Spending({ teammateId, name }: { teammateId: string; name: strin
             </div>
           </div>
         )}
+        {theirs && (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-attention/35 bg-attention/[0.04] px-3 py-2.5"
+            data-testid="budget-conflict"
+          >
+            <span className="text-[13px] text-attention-ink">
+              {budgetConflictText(theirs, name)}
+            </span>
+            <span className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={() => settle("theirs")}>
+                Use theirs
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => settle("mine")}>
+                Keep mine
+              </Button>
+            </span>
+          </div>
+        )}
         {dirty && (
           <div className="flex justify-end">
-            <Button onClick={save} disabled={saving || (enabled && !Number(budget))}>
+            <Button
+              onClick={save}
+              disabled={saving || theirs !== null || (enabled && !Number(budget))}
+            >
               {saving && <Loader2 className="animate-spin" />}
               Save budget
             </Button>

@@ -41,14 +41,19 @@ export function budgetForm(saved: SavedBudget): BudgetForm {
   };
 }
 
-type BudgetField = keyof BudgetForm;
+export type BudgetField = keyof BudgetForm;
+
+/** Whether two forms say something different for a field: "50" and "50.00" are the same. */
+function differs(a: BudgetForm, b: BudgetForm, field: BudgetField): boolean {
+  return field === "enabled"
+    ? a.enabled !== b.enabled
+    : Number(a[field] || 0) !== Number(b[field] || 0);
+}
+
+const BUDGET_FIELDS: readonly BudgetField[] = ["enabled", "budget", "autoApprove"];
 
 function changedBudgetFields(start: BudgetForm, form: BudgetForm): BudgetField[] {
-  const fields: BudgetField[] = [];
-  if (start.enabled !== form.enabled) fields.push("enabled");
-  if (Number(start.budget || 0) !== Number(form.budget || 0)) fields.push("budget");
-  if (Number(start.autoApprove || 0) !== Number(form.autoApprove || 0)) fields.push("autoApprove");
-  return fields;
+  return BUDGET_FIELDS.filter((field) => differs(start, form, field));
 }
 
 /**
@@ -60,16 +65,132 @@ export function budgetFormChanged(start: BudgetForm, form: BudgetForm): boolean 
   return fields.includes("enabled") || (form.enabled && fields.length > 0);
 }
 
-/** A fresher budget (changed on the web, say): what you haven't touched follows it. */
-export function rebaseBudgetForm(
-  draft: { start: BudgetForm; form: BudgetForm },
-  fresh: BudgetForm,
-): { start: BudgetForm; form: BudgetForm } {
-  if (changedBudgetFields(draft.start, fresh).length === 0) return draft;
-  const form = { ...fresh };
-  for (const field of changedBudgetFields(draft.start, draft.form))
-    (form as Record<BudgetField, unknown>)[field] = draft.form[field];
-  return { start: fresh, form };
+/** The budget a form saves, in cents, as the worker stores it. */
+export function savedBudget(form: BudgetForm): SavedBudget {
+  const { budget, autoApprove } = budgetInput(form);
+  return {
+    budgetCents: budget === null ? null : Math.round(budget * 100),
+    autoApproveCents: Math.round(autoApprove * 100),
+  };
+}
+
+/**
+ * An edit of a teammate's budget, as the web's Spending tab and the phone's budget screen keep it.
+ * A save names `base` as the budget it expects (`teammates.setBudget`'s `expected`), so a budget
+ * saved elsewhere since is refused rather than overwritten.
+ */
+export interface BudgetDraft {
+  /** The saved budget your changes are based on. */
+  base: SavedBudget;
+  form: BudgetForm;
+  /** The fields you changed. The others follow the saved budget as it changes elsewhere. */
+  touched: readonly BudgetField[];
+  /**
+   * A budget saved elsewhere since that changed a field you changed too, to something else. It's
+   * shown, and saving waits until you take it or keep yours (`settleBudgetConflict`).
+   */
+  theirs: SavedBudget | null;
+}
+
+export function budgetDraft(saved: SavedBudget): BudgetDraft {
+  return { base: saved, form: budgetForm(saved), touched: [], theirs: null };
+}
+
+/** You changed the form. */
+export function editBudget(draft: BudgetDraft, patch: Partial<BudgetForm>): BudgetDraft {
+  const touched = new Set(draft.touched);
+  for (const field of Object.keys(patch) as BudgetField[]) touched.add(field);
+  return { ...draft, form: { ...draft.form, ...patch }, touched: [...touched] };
+}
+
+/** The fields you changed that still say something other than the base. */
+function yourFields(draft: BudgetDraft): BudgetField[] {
+  const base = budgetForm(draft.base);
+  return draft.touched.filter((field) => differs(base, draft.form, field));
+}
+
+/** The fields where a fresher budget and your changes disagree. */
+function conflicting(draft: BudgetDraft, fresh: SavedBudget): BudgetField[] {
+  const base = budgetForm(draft.base);
+  const theirs = budgetForm(fresh);
+  return yourFields(draft).filter(
+    (field) => differs(base, theirs, field) && differs(draft.form, theirs, field),
+  );
+}
+
+/**
+ * The saved budget as it is now (changed here, on the web, or read again after a refused save).
+ * What you haven't changed follows it. When it changed a field you changed too, to something else,
+ * your value stays and the new budget waits in `theirs`; saving is off until you pick. A purchase
+ * meanwhile changes only what's spent, so it never reaches here.
+ */
+export function followBudget(draft: BudgetDraft, fresh: SavedBudget): BudgetDraft {
+  const mine = yourFields(draft);
+  const form = { ...budgetForm(fresh) };
+  for (const field of mine) (form as Record<BudgetField, unknown>)[field] = draft.form[field];
+  const clash = conflicting(draft, fresh).length > 0;
+  const next: BudgetDraft = {
+    base: clash ? draft.base : fresh,
+    form,
+    touched: mine,
+    theirs: clash ? fresh : null,
+  };
+  return sameDraft(draft, next) ? draft : next;
+}
+
+/** Take the budget saved elsewhere for the fields you both changed, or keep yours over it. */
+export function settleBudgetConflict(draft: BudgetDraft, keep: "theirs" | "mine"): BudgetDraft {
+  const theirs = draft.theirs;
+  if (!theirs) return draft;
+  if (keep === "mine") return { ...draft, base: theirs, theirs: null };
+  const taken = conflicting(draft, theirs);
+  const fresh = budgetForm(theirs);
+  const form = { ...draft.form };
+  for (const field of taken) (form as Record<BudgetField, unknown>)[field] = fresh[field];
+  return {
+    base: theirs,
+    form,
+    touched: draft.touched.filter((field) => !taken.includes(field)),
+    theirs: null,
+  };
+}
+
+/** The form was saved: it's the budget now, and the base the next save names. */
+export function budgetSaved(draft: BudgetDraft): BudgetDraft {
+  return { base: savedBudget(draft.form), form: draft.form, touched: [], theirs: null };
+}
+
+/** Whether saving would change the budget it names. */
+export const budgetDraftChanged = (draft: BudgetDraft) =>
+  budgetFormChanged(budgetForm(draft.base), draft.form);
+
+/** What the budget was changed to elsewhere, for a conflict. */
+export function budgetConflictText(theirs: SavedBudget, name: string): string {
+  if (theirs.budgetCents === null) return `Changed elsewhere: ${name} can't pay for things now.`;
+  const each =
+    theirs.autoApproveCents > 0
+      ? `approving up to ${formatMoney(theirs.autoApproveCents)} on its own`
+      : "asking you about each purchase";
+  return `Changed elsewhere to ${formatMoney(theirs.budgetCents)} a month, ${each}.`;
+}
+
+const sameSaved = (a: SavedBudget | null, b: SavedBudget | null) =>
+  a === b ||
+  (a !== null &&
+    b !== null &&
+    a.budgetCents === b.budgetCents &&
+    a.autoApproveCents === b.autoApproveCents);
+
+function sameDraft(a: BudgetDraft, b: BudgetDraft): boolean {
+  return (
+    sameSaved(a.base, b.base) &&
+    sameSaved(a.theirs, b.theirs) &&
+    a.form.enabled === b.form.enabled &&
+    a.form.budget === b.form.budget &&
+    a.form.autoApprove === b.form.autoApprove &&
+    a.touched.length === b.touched.length &&
+    a.touched.every((field) => b.touched.includes(field))
+  );
 }
 
 /** Why the budget can't be saved, in the worker's words, or null when it can. */
