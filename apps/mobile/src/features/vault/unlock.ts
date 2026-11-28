@@ -95,6 +95,13 @@ export function createVaultLock(deps: VaultLockDeps) {
     backgrounded() {
       if (!state.prompting) lock();
     },
+    /**
+     * The app's state changed (React Native's AppState). Only leaving the screen locks: the
+     * prompt itself makes the app `inactive` while it's up.
+     */
+    appState(next: string) {
+      if (next === "background" && !state.prompting) lock();
+    },
   };
 }
 

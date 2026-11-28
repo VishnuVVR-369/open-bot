@@ -1,5 +1,6 @@
 import { vaultItems } from "@open-bot/db";
 import { decryptSecret } from "@open-bot/domain/server";
+import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { describe, expect, it } from "vitest";
 import { rpcEnabled, rpcHarness, failure, ID } from "../../testing/rpc";
@@ -49,6 +50,49 @@ describe.skipIf(!rpcEnabled)("worker internal API, end to end", () => {
       await worker.vault.remove({ itemId: id });
       await worker.vault.remove({ itemId: id });
       expect(await db.select().from(vaultItems).where(eq(vaultItems.id, id))).toEqual([]);
+    });
+
+    it("adds a new item once under the client's id, however often it's sent", async () => {
+      const id = randomUUID();
+      const { id: _, ...fields } = login;
+      const item = { ...fields, id };
+      expect(await worker.vault.create(item)).toEqual({ id, created: true });
+      // The answer was lost and the phone sends it again: the item it made, not a second one.
+      expect(await worker.vault.create(item)).toEqual({ id, created: false });
+      // Renamed on the web before the retry came: still the same item.
+      await worker.vault.patch({ itemId: id, name: "GitHub (web)" });
+      expect(await worker.vault.create(item)).toEqual({ id, created: false });
+      const rows = await db.select().from(vaultItems).where(eq(vaultItems.id, id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toMatchObject({ name: "GitHub (web)", domain: "github.com", hint: "alex" });
+
+      // The same id for something else isn't a retry, and changes nothing.
+      const reused = [
+        { ...item, secret: { username: "someone-else", password: "made-up-pass" } },
+        { ...item, domain: "gitlab.com" },
+        {
+          ...item,
+          kind: "card" as const,
+          secret: { number: "4242424242424242", expiry: "12/40", cvc: "123", name: "A", zip: "" },
+        },
+      ];
+      for (const other of reused)
+        expect(await failure(worker.vault.create(other))).toEqual({
+          status: 409,
+          message: "That vault id was already used for something else.",
+        });
+      expect(await vaultSecret(id)).toEqual({ username: "alex", password: "hunter22" });
+
+      // Two tries at once (a retry while the first is still on its way): one item.
+      const raced = randomUUID();
+      const answers = await Promise.all([
+        worker.vault.create({ ...item, id: raced }),
+        worker.vault.create({ ...item, id: raced }),
+      ]);
+      expect(answers.map((answer) => answer.created).sort()).toEqual([false, true]);
+      expect(await db.select().from(vaultItems).where(eq(vaultItems.id, raced))).toHaveLength(1);
+      await worker.vault.remove({ itemId: id });
+      await worker.vault.remove({ itemId: raced });
     });
 
     it("keeps both of two card edits made at once", async () => {

@@ -11,6 +11,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { fonts, radius, space, useColors } from "@/theme";
+import { passwordKeyboard } from "./password-keyboard";
 
 /**
  * A text box in the app's one style, the sign-in screen's: a bordered field that turns ink while
@@ -67,6 +68,7 @@ export function TextField({
         autoCapitalize={password ? "none" : undefined}
         autoCorrect={password ? false : undefined}
         {...props}
+        keyboardType={passwordKeyboard(props.keyboardType, Boolean(password), shown)}
         onFocus={(event) => {
           setFocused(true);
           onFocus?.(event);

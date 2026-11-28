@@ -162,6 +162,39 @@ export function vaultSecretInput(kind: VaultKind, form: VaultForm): Record<strin
     : { number: form.number, expiry: form.expiry, cvc: form.cvc, name: form.holder, zip: form.zip };
 }
 
+/** A new login or card as `vault.create` takes it, under the id it's saved with. */
+export interface VaultCreate {
+  id: string;
+  kind: VaultKind;
+  name: string;
+  domain: string;
+  teammateIds: string[] | null;
+  secret: Record<string, string>;
+}
+
+/**
+ * The new item to send. One whose answer never came goes again exactly, with the same id, so the
+ * server answers with the item that one made instead of adding a second; the form stays as it was
+ * sent until then. Otherwise it's the form as it is, under a fresh id.
+ */
+export function vaultCreate(
+  lost: VaultCreate | null,
+  kind: VaultKind,
+  form: VaultForm,
+  newId: () => string,
+): VaultCreate {
+  return (
+    lost ?? {
+      id: newId(),
+      kind,
+      name: form.name.trim(),
+      domain: kind === "login" ? form.domain : "",
+      teammateIds: form.teammateIds,
+      secret: vaultSecretInput(kind, form),
+    }
+  );
+}
+
 /** A change to a saved item: only what differs from where the form started. */
 export interface VaultChange {
   name?: string;
@@ -237,6 +270,7 @@ export const VAULT_COPY = {
     "Teammates fill it in at checkout, only for purchases within their budget. They never see the number.",
   savedPlaceholder: "Saved. Type to replace it.",
   savedToast: "Teammates fill it in on the computer without seeing it.",
+  lostCreate: "Couldn't tell if it was saved. Try again: it won't be added twice.",
   everyone: "Every teammate can use it",
   everyoneHint: "Including teammates you add later.",
   siteHint: "It also works on its subdomains.",

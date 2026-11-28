@@ -23,7 +23,7 @@ import { and, desc, eq, gte, gt, inArray, isNull, or, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
 import type { RunSession } from "../../runs/session";
 import type { ApprovalService } from "../approvals";
-import type { VaultItemInput, VaultItemPatch } from "@open-bot/api";
+import type { VaultItemCreate, VaultItemInput, VaultItemPatch } from "@open-bot/api";
 import { WorkerError } from "../../core/errors";
 
 type Item = typeof vaultItems.$inferSelect;
@@ -116,6 +116,36 @@ export class VaultService {
     private readonly ctx: Context,
     private readonly approvals: ApprovalService,
   ) {}
+
+  /**
+   * Add a login or card under the id the client made for it. A retry after an answer that never
+   * came meets the row the first try made and answers with it (`created: false`), so the item is
+   * never added twice. An id already naming a different item (another kind, site or username or
+   * card) is refused: it isn't a retry of this one. Two tries at once wait on each other's insert.
+   * There's one owner per deployment, so an item has no owner of its own to compare.
+   */
+  async createItem(input: VaultItemCreate): Promise<{ id: string; created: boolean }> {
+    const values = this.itemValues(input.kind, input.name, input.domain, input.secret, {});
+    const [row] = await this.ctx.db
+      .insert(vaultItems)
+      .values({ ...values, id: input.id, teammateIds: input.teammateIds })
+      .onConflictDoNothing({ target: vaultItems.id })
+      .returning({ id: vaultItems.id });
+    if (row) {
+      await publishApp(this.ctx, { type: "vault" });
+      return { id: row.id, created: true };
+    }
+    const [existing] = await this.ctx.db
+      .select({ kind: vaultItems.kind, domain: vaultItems.domain, hint: vaultItems.hint })
+      .from(vaultItems)
+      .where(eq(vaultItems.id, input.id));
+    const same =
+      existing?.kind === values.kind &&
+      existing.domain === values.domain &&
+      existing.hint === values.hint;
+    if (!same) throw new VaultItemError(409, "That vault id was already used for something else.");
+    return { id: input.id, created: false };
+  }
 
   /** Save a login or card you entered. Secrets are encrypted here and never sent back. */
   async saveItem(input: VaultItemInput): Promise<{ id: string }> {

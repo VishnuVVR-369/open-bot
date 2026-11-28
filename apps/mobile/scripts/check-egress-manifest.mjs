@@ -42,9 +42,11 @@ for (const permission of [
     `missing permission ${permission}`,
   );
 
-// Blocked in app.config.ts: no library may bring them back (expo-screen-capture asks for the
-// media and screenshot ones, for a screenshot listener the app doesn't use). SYSTEM_ALERT_WINDOW
-// is blocked too, but a debug build's own manifest adds it back for React Native's dev overlay.
+// Blocked in app.config.ts: no library may bring them back. SYSTEM_ALERT_WINDOW is blocked too,
+// but a debug build's own manifest adds it back for React Native's dev overlay. Nor may anything
+// ask to be told of screenshots (DETECT_SCREEN_CAPTURE): the vault only hides itself from them
+// (modules/secure-screen). expo-screen-capture's listener, which needs it, crashed the app on
+// Android 14 once it was blocked.
 for (const permission of [
   "READ_EXTERNAL_STORAGE",
   "WRITE_EXTERNAL_STORAGE",

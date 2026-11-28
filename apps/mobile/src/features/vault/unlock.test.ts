@@ -96,6 +96,17 @@ describe("the vault's lock", () => {
     expect(t.lock.getState().locks).toBe(1);
   });
 
+  it("locks when the app goes to the background, not when the prompt makes it inactive", async () => {
+    const t = setup();
+    await t.lock.unlock();
+    t.lock.appState("inactive");
+    expect(t.lock.isOpen()).toBe(true);
+    t.lock.appState("active");
+    expect(t.lock.isOpen()).toBe(true);
+    t.lock.appState("background");
+    expect(t.lock.isOpen()).toBe(false);
+  });
+
   it("tells listeners when it opens and locks", async () => {
     const t = setup();
     const seen: (number | null)[] = [];

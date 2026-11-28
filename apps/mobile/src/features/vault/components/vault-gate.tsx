@@ -16,8 +16,8 @@ import { Text } from "@/components/text";
 import { ComputerAccess } from "@/features/computer/computer-access";
 import { shouldRelock } from "@/lib/lock";
 import { getPreferences } from "@/lib/preferences";
-import { useNoScreenCapture } from "@/lib/screen-capture";
 import { space, useColors } from "@/theme";
+import { asksOnReturn, shouldAskHere } from "../gate";
 import { useVaultLock, useVaultScreen, vaultLock } from "../hooks";
 import { NO_SCREEN_LOCK } from "../unlock";
 
@@ -28,12 +28,12 @@ export const useVaultOpen = () => useContext(VaultOpen);
 /**
  * Every vault screen sits behind this. Nothing of the vault is read or shown until your
  * fingerprint (or the phone's PIN) opens it; it asks as you come in and as you come back to the
- * app, and covers the screen again when it locks, keeping what's under it. The screen also stays
- * out of screenshots, recordings and the recent apps preview.
+ * app, and covers the screen again when it locks, keeping what's under it: hidden from TalkBack
+ * and out of reach of touches until it opens again. While a vault screen is in front, the app
+ * stays out of screenshots, recordings and the recent apps preview.
  */
 export function VaultGate({ children }: { children: ReactNode }) {
   useVaultScreen();
-  useNoScreenCapture();
   const { openedAt, prompting } = useVaultLock();
   const open = openedAt !== null;
   const [shown, setShown] = useState(open);
@@ -50,8 +50,12 @@ export function VaultGate({ children }: { children: ReactNode }) {
   // Asks on its own only where you'd expect it: coming in, and coming back. A lock after its five
   // minutes while you're here waits for the button, so it never pops up while you type.
   const askHere = useCallback(() => {
-    if (vaultLock.isOpen() || !navigation.isFocused() || AppState.currentState !== "active") return;
-    void ask();
+    const here = {
+      open: vaultLock.isOpen(),
+      focused: navigation.isFocused(),
+      active: AppState.currentState === "active",
+    };
+    if (shouldAskHere(here)) void ask();
   }, [ask, navigation]);
 
   // Coming in, and once the app's own lock (asked first) has let you in.
@@ -64,9 +68,14 @@ export function VaultGate({ children }: { children: ReactNode }) {
       if (state === "background") backgroundedAt.current = Date.now();
       if (state !== "active") return;
       // Away long enough for the app lock: it asks first, and the effect above follows it.
-      const appLocks = getPreferences().appLock && shouldRelock(backgroundedAt.current, Date.now());
+      const asks = asksOnReturn({
+        appLock: getPreferences().appLock,
+        appRelocks: shouldRelock,
+        backgroundedAt: backgroundedAt.current,
+        now: Date.now(),
+      });
       backgroundedAt.current = null;
-      if (!appLocks) askHere();
+      if (asks) askHere();
     });
     return () => subscription.remove();
   }, [askHere]);
@@ -81,7 +90,19 @@ export function VaultGate({ children }: { children: ReactNode }) {
   return (
     <VaultOpen.Provider value={open}>
       <View style={{ flex: 1 }}>
-        {shown && children}
+        {shown && (
+          // Locked, what's under the cover stays (so a background trip keeps an edit), but TalkBack
+          // can't read or press it, and no touch reaches it.
+          <View
+            style={{ flex: 1 }}
+            pointerEvents={open ? "auto" : "none"}
+            importantForAccessibility={open ? "auto" : "no-hide-descendants"}
+            accessibilityElementsHidden={!open}
+            testID="vault-content"
+          >
+            {children}
+          </View>
+        )}
         {!open && <VaultLocked problem={problem} busy={prompting} onOpen={() => void ask()} />}
       </View>
     </VaultOpen.Provider>

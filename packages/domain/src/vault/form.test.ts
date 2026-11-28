@@ -8,6 +8,7 @@ import {
   rebaseVaultForm,
   vaultAccess,
   vaultChange,
+  vaultCreate,
   vaultForm,
   vaultFormChanged,
   vaultFormProblem,
@@ -116,6 +117,37 @@ describe("vaultChange", () => {
     expect(
       vaultChange("card", start, { ...start, cvc: "999", holder: "Test Owner", domain: "x.com" }),
     ).toEqual({ secret: { cvc: "999", name: "Test Owner" } });
+  });
+});
+
+describe("vaultCreate", () => {
+  it("sends a new item under a fresh id, and a lost one again exactly", () => {
+    let made = 0;
+    const newId = () => `id-${++made}`;
+    const form = {
+      ...vaultForm(null),
+      name: " GitHub ",
+      domain: "github.com",
+      username: "octo",
+      password: "made-up-pass",
+    };
+    const first = vaultCreate(null, "login", form, newId);
+    expect(first).toEqual({
+      id: "id-1",
+      kind: "login",
+      name: "GitHub",
+      domain: "github.com",
+      teammateIds: null,
+      secret: { username: "octo", password: "made-up-pass" },
+    });
+    // Its answer never came: Try again sends the same item under the same id.
+    expect(vaultCreate(first, "login", { ...form, name: "Changed" }, newId)).toBe(first);
+    expect(made).toBe(1);
+    // A card has no site.
+    expect(vaultCreate(null, "card", { ...form, domain: "shop.com" }, newId)).toMatchObject({
+      id: "id-2",
+      domain: "",
+    });
   });
 });
 

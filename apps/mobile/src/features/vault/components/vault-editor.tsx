@@ -4,18 +4,19 @@ import {
   VAULT_COPY,
   VAULT_NAME_MAX,
   vaultChange,
-  vaultEditorTitle,
+  vaultCreate,
   vaultForm,
   vaultFormChanged,
   vaultFormProblem,
   vaultSaveLabel,
-  vaultSecretInput,
   withoutSecrets,
+  type VaultCreate,
   type VaultDraft,
   type VaultForm,
   type VaultKind,
 } from "@open-bot/domain";
 import { safe } from "@orpc/client";
+import * as Crypto from "expo-crypto";
 import { router, Stack, useNavigation, usePreventRemove } from "expo-router";
 import { CloudOff, Trash2 } from "lucide-react-native";
 import { useEffect, useState } from "react";
@@ -32,6 +33,7 @@ import { useOnline } from "@/lib/network";
 import { useKeyboardHeight } from "@/lib/use-keyboard";
 import { space, useColors } from "@/theme";
 import { confirmRemove, refreshVault } from "../actions";
+import { vaultEditorHeader } from "../gate";
 import { vaultLock } from "../hooks";
 import { editorReturnsToVault, usedText, VAULT_HREF } from "../vault";
 import { AccessPicker, CardFields, Field, LoginFields } from "./vault-fields";
@@ -41,8 +43,10 @@ import { useVaultOpen } from "./vault-gate";
  * Adds a login or card, or edits one. An edit sends only what you changed (`vault.patch`), so a
  * change made on the web meanwhile stays, and what you haven't touched follows the item as it
  * changes elsewhere. Secrets are never sent back: their fields start empty, and an empty one keeps
- * what's saved. What you type stays in this screen alone, never in a cache or a draft, and is
- * gone when you leave; leaving with changes asks first. Nothing is sent offline.
+ * what's saved. A new item is sent under an id made here (`vault.create`): one whose answer never
+ * came stays as sent and goes again unchanged, so it's never added twice. What you type stays in
+ * this screen alone, never in a cache or a draft, and is gone when you leave; leaving with changes
+ * asks first. Nothing is sent offline.
  */
 export function VaultEditor({
   kind,
@@ -69,7 +73,8 @@ export function VaultEditor({
   const { start, form } = draft;
   const [busy, setBusy] = useState<"save" | "delete" | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const [lost, setLost] = useState(false);
+  // A new item whose answer never came, as it was sent: Try again sends it again unchanged.
+  const [lost, setLost] = useState<VaultCreate | null>(null);
   const [goneHere, setGoneHere] = useState(false);
   const [footer, setFooter] = useState(0);
   const [leave, setLeave] = useState(false);
@@ -78,7 +83,7 @@ export function VaultEditor({
   const gone = deleted || goneHere;
   const changed = vaultFormChanged(start, form);
   const invalid = vaultFormProblem(kind, form, editing);
-  const editable = open && busy === null && !gone;
+  const editable = open && busy === null && !gone && lost === null;
 
   // A fresher copy (changed on the web, say): what you haven't touched follows it. Not while a
   // save is on its way: the form is frozen, and the save's own answer comes next.
@@ -114,7 +119,6 @@ export function VaultEditor({
   const set = (patch: Partial<VaultForm>) => {
     if (!editable) return;
     setProblem(null);
-    setLost(false);
     setDraft((current) => ({ ...current, form: { ...current.form, ...patch } }));
   };
 
@@ -128,30 +132,23 @@ export function VaultEditor({
     if (!vaultLock.isOpen()) return;
     const change = item ? vaultChange(kind, start, form) : null;
     if (item && !change) return;
+    const create = item ? null : vaultCreate(lost, kind, form, Crypto.randomUUID);
     setBusy("save");
     setProblem(null);
     const result = await safe(
-      item
-        ? api.vault.patch({ itemId: item.id, ...change })
-        : api.vault.save({
-            id: null,
-            kind,
-            name: form.name.trim(),
-            domain: form.domain,
-            teammateIds: form.teammateIds,
-            secret: vaultSecretInput(kind, form),
-          }),
+      create ? api.vault.create(create) : api.vault.patch({ itemId: item!.id, ...change }),
     );
     void refreshVault();
     setBusy(null);
     if (result.error) {
       haptics.error();
       if (isGone(result.error)) return setGoneHere(true);
-      // No answer: a new item may have been saved, and a second try could add it twice.
-      setLost(!item && isRetryable(result.error));
+      // No answer: it may have been saved, so it stays as sent and Try again sends it unchanged.
+      setLost(create && isRetryable(result.error) ? create : null);
       setProblem(errorMessage(result.error, "Couldn't save it."));
       return;
     }
+    setLost(null);
     haptics.success();
     // Saved: what was typed goes from memory now, not when the screen closes.
     const kept = withoutSecrets(form);
@@ -171,7 +168,7 @@ export function VaultEditor({
   const canSave = online && open && busy === null && !gone && !invalid && (!editing || changed);
   return (
     <View style={{ flex: 1 }}>
-      <Stack.Screen options={{ title: vaultEditorTitle(kind, item?.name ?? null) }} />
+      <Stack.Screen options={{ title: vaultEditorHeader(kind, item?.name ?? null, open) }} />
       <ScrollView
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[styles.content, { paddingBottom: footer + space(6) }]}
@@ -254,8 +251,7 @@ export function VaultEditor({
           </View>
         ) : lost ? (
           <Text variant="small" muted testID="vault-lost">
-            Couldn't tell if it was saved. Check the vault before you try again, so it isn't added
-            twice.
+            {VAULT_COPY.lostCreate}
           </Text>
         ) : problem ? (
           <Text variant="small" style={{ color: colors.destructive }} testID="vault-problem">
@@ -263,7 +259,7 @@ export function VaultEditor({
           </Text>
         ) : null}
         <Button
-          title={vaultSaveLabel(kind, editing)}
+          title={lost ? "Try again" : vaultSaveLabel(kind, editing)}
           onPress={() => void save()}
           disabled={!canSave}
           busy={busy === "save"}

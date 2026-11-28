@@ -49,7 +49,6 @@
     "expo-localization": "~58.0.5",
     "expo-network": "~58.0.5",
     "expo-router": "~58.0.32",
-    "expo-screen-capture": "~58.0.6",
     "expo-screen-orientation": "~58.0.4",
     "expo-secure-store": "~58.0.3",
     "expo-speech": "~58.0.4",
@@ -88,6 +87,7 @@
           "egress",
           "passkey",
           "run-progress",
+          "secure-screen",
           "share-intent",
           "sms-consent"
         ]
