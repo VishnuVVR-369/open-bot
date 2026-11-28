@@ -19,12 +19,13 @@ export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools   # or ~/Librar
 
 ## Configuration
 
-| Variable                        | What it's for                                                                                            |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `EXPO_PUBLIC_APP_URL`           | The open-bot web app the phone talks to. Defaults to `https://openbot.up.railway.app`.                   |
-| `GOOGLE_SERVICES_JSON`          | Path to the Firebase config, if it isn't `apps/mobile/google-services.json`.                             |
-| `APP_VARIANT`                   | `development` builds `dev.openbot.mobile.dev` alongside the signed daily app. Leave unset for a release. |
-| `EXPO_PUBLIC_E2E_NOTIFICATIONS` | Set to `1` only in the local Metro session used by the Maestro notification tests.                       |
+| Variable                           | What it's for                                                                                                                |
+| ---------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `EXPO_PUBLIC_APP_URL`              | The open-bot web app the phone talks to. Defaults to `https://openbot.up.railway.app`.                                       |
+| `GOOGLE_SERVICES_JSON`             | Path to the Firebase config, if it isn't `apps/mobile/google-services.json`.                                                 |
+| `APP_VARIANT`                      | `development` builds `dev.openbot.mobile.dev` alongside the signed daily app. Leave unset for a release.                     |
+| `EXPO_PUBLIC_E2E_NOTIFICATIONS`    | Set to `1` only in the local Metro session used by the Maestro notification tests.                                           |
+| `EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE` | Set to `1` in a development build to let screenshots capture the vault's screens, for a UI review. Release builds ignore it. |
 
 `EXPO_PUBLIC_*` values are built into the JavaScript bundle, so set them before `pnpm start` or a release build.
 
@@ -100,6 +101,9 @@ Pass the id of a repeating schedule that is on (`select id, title from schedules
 It finds rows by id, since titles repeat, and checks that the newest run in the history is the one it just started.
 `maestro/memory.yaml` adds a shared memory, finds it by searching, edits it, restores its first revision from History and forgets it, then dismisses a teammate's suggested instructions from Home.
 Ask a teammate to suggest a change to its own instructions first, so Home lists it; run it with `maestro test maestro/memory.yaml`.
+`maestro/vault.yaml` opens the vault past the fingerprint prompt with the phone's PIN, adds a made-up login, edits it, deletes it, and gives a teammate a budget and takes it away again.
+Pass a teammate with no budget, and the PIN if it isn't the emulator's 1111: `maestro test -e TEAMMATE=<name> -e PIN=<pin> maestro/vault.yaml`.
+The vault's screens block screenshots, so Maestro's of them come out black unless Metro runs with `EXPO_PUBLIC_ALLOW_SCREEN_CAPTURE=1`.
 These flows need an on-screen keyboard, such as Gboard: with a keyboardless test input method (agent-device installs one), `hideKeyboard` presses Back instead, and an editor asks to discard what was typed.
 Switch back with `adb shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME`.
 To check sharing, send a share with `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'https://example.com'" dev.openbot.mobile.dev`.

@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/flows/android-app");
 
 # The Android app
 
-Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, automations, memory, and approvals you can decide from the notification shade.
+Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, automations, memory, the vault and budgets, and approvals you can decide from the notification shade.
 It is an Expo app (React Native) that talks to your open-bot deployment through the same RPC contract the web app serves (`packages/api`).
 It is installed over USB; there is no Play Store listing.
 Building, configuring and testing it is covered in `apps/mobile/README.md`.
@@ -14,7 +14,7 @@ Building, configuring and testing it is covered in `apps/mobile/README.md`.
 Home leads with what needs you, then your teammates, then a briefing of work finished while you were away.
 Each teammate's avatar shows what they're doing: a soft pulse while they work, an amber ring and mark while they wait for you, and a dashed ring while they're up next.
 Teammates who need you sort first; tap one to open your latest chat with them, or hold to open their profile.
-A teammate's profile has Message, New chat and Screen, the instructions they suggest for themselves, their open tasks, their daily check-in and automations, how much they do on their own, their Always allow rules, their memory and lessons, and every conversation they're in.
+A teammate's profile has Message, New chat and Screen, the instructions they suggest for themselves, their open tasks, their daily check-in and automations, how much they do on their own, their Always allow rules, their memory and lessons, what they spent this month, and every conversation they're in.
 Use Computer to watch or take over a teammate's screen.
 
 ## Chats
@@ -83,7 +83,7 @@ Android's notification channels still control sound and alert prominence; delive
 
 ## Settings
 
-Settings, from your initial on Home, has Light, Dark or System appearance, a switch for haptics, notifications, the [phone connection](#phone-connection), and security (app lock, password and passkeys, Always allowed rules).
+Settings, from your initial on Home, has Light, Dark or System appearance, a switch for haptics, notifications, the [phone connection](#phone-connection), and security (app lock, password and passkeys, Always allowed rules, the [vault](#vault)).
 Animations follow Android's Remove animations setting.
 
 ## The computer on your phone
@@ -230,6 +230,34 @@ Select text in a page and tap Ask about this, or use the Ask button in the heade
 The question goes to the chat the page was made in, or the teammate's main chat, with the page, version and passage attached.
 The menu also opens the page in the browser, goes to its chat, pins it or deletes it.
 A notification about a published page opens the page.
+
+## Vault
+
+The vault holds the logins and cards your teammates use without ever seeing them (see [Vault and payments](/docs/flows/vault-and-payments)).
+Open it from Settings, by searching for Vault, or from Spending on a teammate's profile.
+Opening it asks for your fingerprint or the phone's PIN every time, even right after you unlocked the app.
+It stays open while you move between its screens, and locks again when you leave the last of them, when the app goes to the background, or after five minutes.
+A locked vault covers the screen, and nothing on it can be changed until you open it again; what you were typing stays.
+A phone without a screen lock can't open the vault, and the screen says to set one up.
+
+The list shows each login with its username and site, and each card with its brand and last four digits, with who may use it and when it was last used.
+It never shows a password, card number or security code: the phone never receives one, and no procedure returns one.
+Add a login or a card with its section's Add, and choose which teammates may use it, or every teammate.
+Tap an item to rename it, change its site or who may use it, or replace a secret by typing a new one; a secret field left empty keeps what's saved.
+An edit sends only what you changed (`vault.patch`), so a change made on the web meanwhile to something else stays.
+What you haven't touched follows the item as it changes elsewhere, and an item deleted elsewhere while you edit it says so.
+Delete asks first; the item leaves the list at once and comes back if the delete fails.
+Leaving with unsaved changes asks first, and while the phone is offline nothing is sent.
+
+Budgets lists each teammate with what they spent this month.
+Tap one to choose whether they may pay for things, their monthly budget and the amount approved without asking, and to see their purchases; a purchase opens the chat it was made in.
+Saving names the budget you opened (`teammates.setBudget`'s `expected`), so one changed on the web meanwhile is refused (`STATE_CONFLICT`), and the screen shows the new one to check before you save again.
+The `vault` and `purchases` app events refresh both.
+
+What you type into the vault lives only on the screen you type it on: it is never kept as a draft or cached, and it is cleared once saved and when you leave.
+The vault's screens are kept out of screenshots, screen recordings and the recent apps preview (Android's `FLAG_SECURE`), and their fields turn off autofill and the keyboard's suggestions.
+The list and budgets the phone read are dropped when you leave the vault.
+A save that gets no answer says so; for a new item, check the list before adding it again, since the first one may have been saved.
 
 ## Phone connection
 
