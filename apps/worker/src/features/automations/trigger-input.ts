@@ -15,9 +15,33 @@ import { eq } from "drizzle-orm";
 import { WorkerError } from "../../core/errors";
 
 export class TriggerError extends WorkerError {
-  constructor(message: string) {
-    super(400, message);
+  constructor(message: string, status: 400 | 404 = 400) {
+    super(status, message);
   }
+}
+
+/** A trigger's name, trimmed, or why it can't be used. */
+export function checkTriggerTitle(value: string): string {
+  const title = value.trim();
+  if (!title) throw new TriggerError("Give it a name.");
+  if (title.length > 80) throw new TriggerError("Keep the name under 80 characters.");
+  return title;
+}
+
+/** How often a page watch checks, rounded, or why it can't. */
+export function checkWatchInterval(value: number | null | undefined): number {
+  const intervalMinutes = Math.round(value ?? 60);
+  if (intervalMinutes < MIN_WATCH_MINUTES || intervalMinutes > MAX_WATCH_MINUTES)
+    throw new TriggerError(`Check between every ${MIN_WATCH_MINUTES} minutes and once a week.`);
+  return intervalMinutes;
+}
+
+/** How long before an event a Calendar trigger wakes its teammate, rounded, or why it can't. */
+export function checkLead(value: number | null | undefined): number {
+  const leadMinutes = Math.round(value ?? 30);
+  const problem = invalidLead(leadMinutes);
+  if (problem) throw new TriggerError(problem);
+  return leadMinutes;
 }
 
 /** A trigger as the owner or a teammate sets it up; see `triggerInputSchema`. */
@@ -36,10 +60,8 @@ interface TriggerFields {
 }
 
 export async function validateTrigger(db: Queryable, input: TriggerInput): Promise<TriggerFields> {
-  const title = input.title.trim();
+  const title = checkTriggerTitle(input.title);
   const prompt = input.prompt.trim();
-  if (!title) throw new TriggerError("Give it a name.");
-  if (title.length > 80) throw new TriggerError("Keep the name under 80 characters.");
   if (!prompt) throw new TriggerError("Say what the teammate should do when it fires.");
   if (prompt.length > 4000) throw new TriggerError("Keep the instructions under 4000 characters.");
   const none = {
@@ -63,17 +85,13 @@ export async function validateTrigger(db: Queryable, input: TriggerInput): Promi
     const query = input.query ?? "all";
     if (!isCalendarEventFilter(query))
       throw new TriggerError("Choose every event, or only events with other people.");
-    const leadMinutes = Math.round(input.leadMinutes ?? 30);
-    const problem = invalidLead(leadMinutes);
-    if (problem) throw new TriggerError(problem);
+    const leadMinutes = checkLead(input.leadMinutes);
     return { title, prompt, ...none, connectionId, query, leadMinutes };
   }
   const url = input.url?.trim() ?? "";
   const problem = invalidWatchUrl(url);
   if (problem) throw new TriggerError(problem);
-  const intervalMinutes = Math.round(input.intervalMinutes ?? 60);
-  if (intervalMinutes < MIN_WATCH_MINUTES || intervalMinutes > MAX_WATCH_MINUTES)
-    throw new TriggerError(`Check between every ${MIN_WATCH_MINUTES} minutes and once a week.`);
+  const intervalMinutes = checkWatchInterval(input.intervalMinutes);
   const lookFor = input.lookFor?.trim().slice(0, 200) || null;
   return { ...none, title, prompt, url, intervalMinutes, lookFor };
 }

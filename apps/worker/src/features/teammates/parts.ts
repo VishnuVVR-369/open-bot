@@ -40,6 +40,7 @@ export async function teammateParts(db: Queryable, id: string): Promise<Teammate
       prompt: routine.prompt,
       cron: routine.cron!,
       quiet: routine.quiet,
+      checkIn: routine.checkIn,
     })),
     watches: watches.map((watch) => ({
       title: watch.title,

@@ -23,6 +23,9 @@ export function automationRoutes(
       update: os.schedules.update.handler(async ({ input: { scheduleId, ...input } }) => ({
         id: (await schedules.update(scheduleId, input)).id,
       })),
+      patch: os.schedules.patch.handler(async ({ input: { scheduleId, ...changes } }) => ({
+        id: (await schedules.patch(scheduleId, changes)).id,
+      })),
       setEnabled: os.schedules.setEnabled.handler(async ({ input }) => {
         await schedules.setEnabled(input.scheduleId, input.enabled);
         return ok;
@@ -31,8 +34,12 @@ export function automationRoutes(
         await schedules.remove(input.scheduleId);
         return ok;
       }),
-      runNow: os.schedules.runNow.handler(async ({ input }) => {
-        await schedules.runNow(input.scheduleId);
+      runNow: os.schedules.runNow.handler(async ({ input }) => ({
+        ...ok,
+        ...(await schedules.runNow(input.scheduleId, input.runId)),
+      })),
+      setCheckIn: os.schedules.setCheckIn.handler(async ({ input }) => {
+        await schedules.setCheckIn(input.teammateId, input.on);
         return ok;
       }),
     },
@@ -43,6 +50,9 @@ export function automationRoutes(
       }),
       update: os.triggers.update.handler(async ({ input: { triggerId, ...input } }) => ({
         id: (await triggers.update(triggerId, input)).id,
+      })),
+      patch: os.triggers.patch.handler(async ({ input: { triggerId, ...changes } }) => ({
+        id: (await triggers.patch(triggerId, changes)).id,
       })),
       setEnabled: os.triggers.setEnabled.handler(async ({ input }) => {
         await triggers.setEnabled(input.triggerId, input.enabled);

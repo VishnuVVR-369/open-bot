@@ -1,6 +1,7 @@
 import * as Device from "expo-device";
 import { NativePasskey, passkeyFailure } from "../../modules/passkey";
 import { authClient } from "./auth";
+import { isConnectionFailure } from "./errors";
 
 /**
  * Passkeys, made and used with Android's Credential Manager against the server's passkey
@@ -32,7 +33,7 @@ function failed(error: unknown, action: "add" | "use"): PasskeyResult {
   const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
   if (code === "SESSION_NOT_FRESH")
     return { ok: false, message: "Sign in again with your password, then add the passkey." };
-  if (error instanceof TypeError)
+  if (isConnectionFailure(error))
     return { ok: false, message: "Couldn't reach open-bot. Check your connection." };
   return {
     ok: false,

@@ -1,0 +1,144 @@
+appId: dev.openbot.mobile.dev
+name: Turn a schedule off and on, run it now, open its history, discard an edit and rename it
+# Run against a signed-in development app, with the id of a repeating schedule that is on:
+#   maestro test -e AUTOMATION_ID=<schedule id> maestro/automations.yaml
+# Find the id with `select id, title from schedules;` in the database. Rows are found by id, since
+# titles repeat (every teammate's check-in is "Daily check-in").
+# Run now queues a run in the schedule's chat; with the computer offline the button is off, so
+# start the computer first. The flow renames the schedule and then names it back.
+# A tap puts the cursor where it lands, so the flow taps the name's field at its right end, after
+# the name, and erases back from there: the schedule's name must fit in the field.
+---
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://automations
+- extendedWaitUntil:
+    visible:
+      id: automations
+    timeout: 20000
+- scrollUntilVisible:
+    element:
+      id: automation-toggle-${AUTOMATION_ID}
+    timeout: 10000
+
+# Turn it off, then on again.
+- assertVisible:
+    id: automation-toggle-${AUTOMATION_ID}
+    checked: true
+- tapOn:
+    id: automation-toggle-${AUTOMATION_ID}
+- extendedWaitUntil:
+    visible:
+      id: automation-toggle-${AUTOMATION_ID}
+      checked: false
+    timeout: 10000
+- tapOn:
+    id: automation-toggle-${AUTOMATION_ID}
+- extendedWaitUntil:
+    visible:
+      id: automation-toggle-${AUTOMATION_ID}
+      checked: true
+    timeout: 10000
+
+# Open it, and keep its title, as typed and as a pattern.
+- tapOn:
+    id: automation-row-${AUTOMATION_ID}
+- extendedWaitUntil:
+    visible:
+      id: automation-action
+      enabled: true
+    timeout: 15000
+- copyTextFrom:
+    id: automation-title
+- runScript: title-pattern.js
+
+# Run it now: the answer says so, and the newest run in its history is the one just started.
+- tapOn:
+    id: automation-action
+- extendedWaitUntil:
+    visible:
+      id: automation-outcome
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: automation-run-yours
+    timeout: 15000
+- assertVisible:
+    id: automation-run-yours
+    childOf:
+      id: automation-run
+      index: 0
+- tapOn:
+    id: automation-run
+    index: 0
+- extendedWaitUntil:
+    visible:
+      id: composer-input
+    timeout: 15000
+- back
+- extendedWaitUntil:
+    visible:
+      id: automation-edit
+    timeout: 10000
+
+# Change its name and leave without saving: Discard goes back to it, still named as it was.
+- tapOn:
+    id: automation-edit
+- extendedWaitUntil:
+    visible:
+      id: automation-title-input
+    timeout: 5000
+- tapOn:
+    id: automation-title-input
+    point: 97%,50%
+- eraseText: 120
+- inputText: Not saved
+- hideKeyboard
+- back
+- tapOn: Discard
+- extendedWaitUntil:
+    visible:
+      id: automation-title
+      text: ${output.titlePattern}
+    timeout: 10000
+
+# Rename it, then give it its name back.
+- tapOn:
+    id: automation-edit
+- extendedWaitUntil:
+    visible:
+      id: automation-title-input
+    timeout: 5000
+- tapOn:
+    id: automation-title-input
+    point: 97%,50%
+- eraseText: 120
+- inputText: ${output.title} (Maestro)
+- hideKeyboard
+- tapOn:
+    id: automation-save
+- extendedWaitUntil:
+    visible:
+      id: automation-title
+      text: ${output.titlePattern} \(Maestro\)
+    timeout: 10000
+- tapOn:
+    id: automation-edit
+- extendedWaitUntil:
+    visible:
+      id: automation-title-input
+    timeout: 5000
+- tapOn:
+    id: automation-title-input
+    point: 97%,50%
+- eraseText: 120
+- inputText: ${output.title}
+- hideKeyboard
+- tapOn:
+    id: automation-save
+- extendedWaitUntil:
+    visible:
+      id: automation-title
+      text: ${output.titlePattern}
+    timeout: 10000

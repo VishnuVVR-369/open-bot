@@ -4,6 +4,7 @@ import { teammateProfileSchema } from "./management";
 import { MAX_LESSON_CHARS } from "./profile";
 import { MAX_WATCH_MINUTES, MIN_WATCH_MINUTES } from "../automations/triggers";
 import { SKILL_NAME_PATTERN } from "../skills/skills";
+import { DAILY_CHECK_IN } from "./templates";
 
 /**
  * A teammate as a file you can keep or share: its job and how it works, without its chats,
@@ -11,6 +12,22 @@ import { SKILL_NAME_PATTERN } from "../skills/skills";
  */
 export const BUNDLE_FORMAT = "open-bot.teammate";
 export const BUNDLE_VERSION = 1;
+
+/**
+ * A file from before check-ins were marked says nothing about them: its check-in is its first quiet
+ * routine with the check-in's name, as open-bot found it then.
+ */
+function markOldCheckIn<T extends { title: string; quiet: boolean; checkIn?: boolean }>(
+  routines: T[],
+): T[] {
+  if (routines.some((routine) => routine.checkIn !== undefined)) return routines;
+  const old = routines.findIndex(
+    (routine) => routine.title === DAILY_CHECK_IN.title && routine.quiet,
+  );
+  return routines.map((routine, index) =>
+    index === old ? { ...routine, checkIn: true } : routine,
+  );
+}
 
 export const teammateBundleSchema = z.object({
   format: z.literal(BUNDLE_FORMAT, { error: "This isn't an open-bot teammate file." }),
@@ -42,10 +59,13 @@ export const teammateBundleSchema = z.object({
         cron: z.string().min(9).max(120),
         /** Only tells you when there's news. */
         quiet: z.boolean().default(false),
+        /** The teammate's daily check-in (one at most). */
+        checkIn: z.boolean().optional(),
       }),
     )
     .max(50)
-    .default([]),
+    .default([])
+    .transform(markOldCheckIn),
   watches: z
     .array(
       z.object({

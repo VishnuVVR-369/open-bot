@@ -44,9 +44,19 @@ function laneOf(input: RunInput) {
 
 /**
  * Save a queued run and its first event, without telling anyone yet. Takes a transaction, so the
- * run can be saved together with what caused it; call `announceRun` once it's committed.
+ * run can be saved together with what caused it; call `announceRun` once it's committed. A run
+ * whose `id` is already saved is left as it is and its id returned, so delivering it twice is
+ * harmless; a caller that must know whether it saved one uses `insertNewRun`.
  */
 export async function insertRun(db: Queryable, input: RunInput): Promise<string> {
+  return (await insertNewRun(db, input)) ?? input.id!;
+}
+
+/**
+ * Save a queued run as `insertRun` does, or null when a run with its `id` is already saved (by an
+ * earlier ask, or by anything else that took the id): nothing is saved then.
+ */
+export async function insertNewRun(db: Queryable, input: RunInput): Promise<string | null> {
   const [row] = await db
     .insert(runs)
     .values({
@@ -72,13 +82,13 @@ export async function insertRun(db: Queryable, input: RunInput): Promise<string>
     })
     .onConflictDoNothing({ target: runs.id })
     .returning({ id: runs.id });
-  if (!row && input.id) return input.id;
+  if (!row) return null;
   await db.insert(runEvents).values({
-    runId: row!.id,
+    runId: row.id,
     chatId: input.chatId,
     payload: { type: "status", status: "queued" },
   });
-  return row!.id;
+  return row.id;
 }
 
 /**

@@ -1,15 +1,7 @@
 import "server-only";
 import type { TaskMoveInput } from "@open-bot/api";
 import { ApiError } from "@/lib/server/api/errors";
-import { worker, WorkerError } from "@/lib/server/worker";
-
-/**
- * The worker has no such route: it's from before that route, still running while a deploy
- * finishes (the web app and the worker deploy on their own, in either order). A worker answers
- * a path it doesn't know with this 404, never a feature's refusal.
- */
-export const isMissingRoute = (error: unknown) =>
-  error instanceof WorkerError && error.status === 404 && error.message === "not found";
+import { isMissingRoute, worker } from "@/lib/server/worker";
 
 /**
  * Moves a task with the worker's `move`, which places it against the whole column under the

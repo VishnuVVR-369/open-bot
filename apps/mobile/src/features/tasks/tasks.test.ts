@@ -1,5 +1,5 @@
 import type { TaskView } from "@open-bot/api";
-import { PendingMoves, sendMove, withPendingMoves } from "@open-bot/domain";
+import { PendingMoves, sendMove, todayIn, withPendingMoves } from "@open-bot/domain";
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
@@ -182,10 +182,18 @@ describe("the due date picker", () => {
   });
 
   it("offers today, tomorrow and a week out, across a month's end", () => {
-    expect(dueShortcuts(new Date(2026, 10, 30, 9))).toEqual([
+    expect(dueShortcuts("2026-11-30")).toEqual([
       { label: "Today", day: "2026-11-30" },
       { label: "Tomorrow", day: "2026-12-01" },
       { label: "In a week", day: "2026-12-07" },
+    ]);
+    // A reminder's day picker counts from today on the schedule's clock: at 20:00 UTC on Nov 28
+    // it's already Nov 29 in Kolkata, whatever the phone's date.
+    const kolkata = dueShortcuts(todayIn("Asia/Kolkata", new Date("2026-11-28T20:00:00Z")));
+    expect(kolkata.map((shortcut) => shortcut.day)).toEqual([
+      "2026-11-29",
+      "2026-11-30",
+      "2026-12-06",
     ]);
   });
 

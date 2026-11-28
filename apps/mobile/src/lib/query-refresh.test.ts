@@ -63,6 +63,10 @@ const queries = [
   [["page-link", "a", "dark"], queryKeys.pageLink("a", "dark")],
   [["page-link", "b", "light"], queryKeys.pageLink("b", "light")],
   [["tasks"], queryKeys.tasks],
+  [["schedules"], queryKeys.schedules],
+  [["schedule-runs", "a"], queryKeys.scheduleRuns("a")],
+  [["triggers"], queryKeys.triggers],
+  [["trigger-runs", "a"], queryKeys.triggerRuns("a")],
   [["memory", "a"], [...queryKeys.memories("a", "")]],
   [["memory", "shared"], queryKeys.memories(null, "berlin")],
   [["memory-item", "a"], queryKeys.memory("a")],
@@ -96,33 +100,40 @@ describe("shared event refresh migration", () => {
       const after = await invalidated(keysForAppEvent(type), 1);
       expect(after).toEqual(expect.arrayContaining(before));
       const added = after.filter((key) => !before.includes(key));
+      const schedules = [["schedules"], ["schedule-runs", "a"]];
+      const triggers = [["triggers"], ["trigger-runs", "a"]];
       const expected =
-        type === "pages"
-          ? [
-              ["home", null],
-              ["home", "yesterday"],
-            ]
-          : type === "chats"
-            ? [["approval-rules"]]
-            : type === "tasks"
-              ? [["tasks"]]
-              : type === "memory"
-                ? [
-                    ["memory", "a"],
-                    ["memory", "shared"],
-                    ["memory-item", "a"],
-                    ["memory-history", "a"],
-                    ["run-memory", "a"],
-                  ]
-                : type === "lessons"
-                  ? [["lessons", "a"]]
-                  : type === teammateEvent
+        type === "schedules"
+          ? schedules
+          : type === "triggers"
+            ? triggers
+            : type === "pages"
+              ? [
+                  ["home", null],
+                  ["home", "yesterday"],
+                ]
+              : type === "chats"
+                ? // A run starting or finishing shows in automations' history.
+                  [["approval-rules"], ...schedules, ...triggers]
+                : type === "tasks"
+                  ? [["tasks"]]
+                  : type === "memory"
                     ? [
-                        ["chat", "a"],
-                        ["chat", "b"],
-                        ["proposal", "a"],
+                        ["memory", "a"],
+                        ["memory", "shared"],
+                        ["memory-item", "a"],
+                        ["memory-history", "a"],
+                        ["run-memory", "a"],
                       ]
-                    : [];
+                    : type === "lessons"
+                      ? [["lessons", "a"]]
+                      : type === teammateEvent
+                        ? [
+                            ["chat", "a"],
+                            ["chat", "b"],
+                            ["proposal", "a"],
+                          ]
+                        : [];
       expect(added).toEqual(expected.map((key) => JSON.stringify(key)));
     },
   );

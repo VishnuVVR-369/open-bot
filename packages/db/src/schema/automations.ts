@@ -11,6 +11,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 import { createdAt, updatedAt } from "./columns";
 import { connections } from "./integrations";
 import { teammates } from "./teammates";
@@ -31,6 +32,11 @@ export const schedules = pgTable(
     enabled: boolean("enabled").notNull().default(true),
     /** Only tell you when there's news: a run with nothing to report doesn't notify you. */
     quiet: boolean("quiet").notNull().default(false),
+    /**
+     * The teammate's daily check-in, which its profile's switch turns on and off. Marked when it's
+     * made, so renaming or retiming it keeps it the check-in; a teammate has one at most.
+     */
+    checkIn: boolean("check_in").notNull().default(false),
     createdBy: text("created_by").$type<Creator>().notNull(),
     createdByRunId: uuid("created_by_run_id"),
     nextRunAt: timestamp("next_run_at", { withTimezone: true }),
@@ -38,7 +44,12 @@ export const schedules = pgTable(
     createdAt: createdAt(),
     updatedAt: updatedAt(),
   },
-  (table) => [index("schedules_due_idx").on(table.enabled, table.nextRunAt)],
+  (table) => [
+    index("schedules_due_idx").on(table.enabled, table.nextRunAt),
+    uniqueIndex("schedules_check_in_idx")
+      .on(table.teammateId)
+      .where(sql`${table.checkIn}`),
+  ],
 );
 
 /**

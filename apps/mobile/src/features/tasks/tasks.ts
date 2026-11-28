@@ -340,10 +340,13 @@ const MONTH_NAMES = [
 
 export const monthTitle = (year: number, month: number) => `${MONTH_NAMES[month]} ${year}`;
 
-/** The quick due days above the calendar. */
-export function dueShortcuts(now = new Date()): { label: string; day: string }[] {
+/** The quick due days above the calendar, counted from `today` (the phone's, without one). */
+export function dueShortcuts(
+  today: string = formatDay(new Date()),
+): { label: string; day: string }[] {
+  const start = parseDay(today);
   const plus = (days: number) =>
-    formatDay(new Date(now.getFullYear(), now.getMonth(), now.getDate() + days));
+    formatDay(new Date(start.getFullYear(), start.getMonth(), start.getDate() + days));
   return [
     { label: "Today", day: plus(0) },
     { label: "Tomorrow", day: plus(1) },

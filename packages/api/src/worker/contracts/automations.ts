@@ -1,6 +1,12 @@
 import { base, id, ok } from "../base";
 import { z } from "zod";
-import { scheduleInputSchema, triggerInputSchema } from "../../automations";
+import {
+  runNowAnswerSchema,
+  scheduleInputSchema,
+  schedulePatchSchema,
+  triggerInputSchema,
+  triggerPatchSchema,
+} from "../../automations";
 import { triggerCheckSchema } from "../views";
 
 export const schedulesContract = {
@@ -12,6 +18,11 @@ export const schedulesContract = {
     .route({ method: "POST", path: "/internal/schedules/{scheduleId}" })
     .input(scheduleInputSchema.extend({ scheduleId: id }))
     .output(z.object({ id: z.string() })),
+  /** Change only the name or timing given; 404 when it was deleted. */
+  patch: base
+    .route({ method: "POST", path: "/internal/schedules/{scheduleId}/patch" })
+    .input(schedulePatchSchema)
+    .output(z.object({ id: z.string() })),
   setEnabled: base
     .route({ method: "POST", path: "/internal/schedules/{scheduleId}/enabled" })
     .input(z.object({ scheduleId: id, enabled: z.boolean() }))
@@ -21,10 +32,19 @@ export const schedulesContract = {
     .route({ method: "POST", path: "/internal/schedules/{scheduleId}/delete" })
     .input(z.object({ scheduleId: id }))
     .output(ok),
-  /** Run it now, without changing when it runs next. */
+  /**
+   * Run it now, without changing when it runs next; a `runId` already used starts nothing more.
+   * `started` is false when an earlier ask with the same `runId` started the run; an id another
+   * run has is 409, and so is a schedule whose teammate is archived.
+   */
   runNow: base
     .route({ method: "POST", path: "/internal/schedules/{scheduleId}/run" })
-    .input(z.object({ scheduleId: id }))
+    .input(z.object({ scheduleId: id, runId: id.optional() }))
+    .output(runNowAnswerSchema),
+  /** The teammate's daily check-in, on or off; see `schedulesContract.setCheckIn` in the API. */
+  setCheckIn: base
+    .route({ method: "POST", path: "/internal/teammates/{teammateId}/check-in" })
+    .input(z.object({ teammateId: id, on: z.boolean() }))
     .output(ok),
 };
 
@@ -36,6 +56,11 @@ export const triggersContract = {
   update: base
     .route({ method: "POST", path: "/internal/triggers/{triggerId}" })
     .input(triggerInputSchema.extend({ triggerId: id }))
+    .output(z.object({ id: z.string() })),
+  /** Change only the name, interval or lead time given; 404 when it was deleted. */
+  patch: base
+    .route({ method: "POST", path: "/internal/triggers/{triggerId}/patch" })
+    .input(triggerPatchSchema)
     .output(z.object({ id: z.string() })),
   setEnabled: base
     .route({ method: "POST", path: "/internal/triggers/{triggerId}/enabled" })

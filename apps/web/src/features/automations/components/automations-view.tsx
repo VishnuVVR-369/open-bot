@@ -1,7 +1,7 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { DAILY_CHECK_IN } from "@open-bot/domain";
+import { dailyCheckInOn } from "@open-bot/domain";
 import {
   CalendarClock,
   CalendarDays,
@@ -212,13 +212,7 @@ function CheckIn({ teammateId, name }: { teammateId: string; name: string }) {
   const { data: schedules } = useSchedules();
   const queryClient = useQueryClient();
   const [pending, startTransition] = useTransition();
-  const on = (schedules ?? []).some(
-    (row) =>
-      row.teammateId === teammateId &&
-      row.title === DAILY_CHECK_IN.title &&
-      row.quiet &&
-      row.enabled,
-  );
+  const on = dailyCheckInOn(schedules ?? [], teammateId);
   return (
     <label
       className="flex cursor-pointer items-start gap-3.5 rounded-xl border bg-card px-4 py-3.5"

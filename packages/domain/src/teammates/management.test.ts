@@ -5,7 +5,7 @@ import {
   createTeammateSchema,
   updateTeammateSchema,
 } from "./management";
-import { TEAMMATE_TEMPLATES } from "./templates";
+import { DAILY_CHECK_IN, TEAMMATE_TEMPLATES } from "./templates";
 
 describe("teammate management contracts", () => {
   it("requires a job and name for a custom teammate and defaults to cautious autonomy", () => {
@@ -27,6 +27,17 @@ describe("teammate management contracts", () => {
       template.starters[0]!.title,
     ]);
     expect(teammateCreation({ template_id: template.id }).schedules).toEqual([]);
+    // The template's daily check-in is marked, so its profile switch finds it whatever it's called.
+    const withCheckIn = TEAMMATE_TEMPLATES.find((entry) =>
+      entry.starters.some((starter) => starter.id === DAILY_CHECK_IN.id),
+    )!;
+    const starters = teammateCreation({
+      template_id: withCheckIn.id,
+      starter_ids: withCheckIn.starters.map((starter) => starter.id),
+    }).schedules;
+    expect(starters.filter((schedule) => schedule.checkIn).map((s) => s.title)).toEqual([
+      DAILY_CHECK_IN.title,
+    ]);
     expect(() => teammateCreation({ template_id: "made-up" })).toThrow();
     expect(() =>
       teammateCreation({ template_id: template.id, starter_ids: ["made-up"] }),

@@ -18,8 +18,20 @@ export function errorMessage(error: unknown, fallback = "Something went wrong.")
     }
     if (typeof call.message === "string" && call.message) return call.message;
   }
-  if (error instanceof TypeError) return "Couldn't reach open-bot. Check your connection.";
+  if (isConnectionFailure(error)) return "Couldn't reach open-bot. Check your connection.";
   return fallback;
+}
+
+/**
+ * The request never got an answer: no connection, or it dropped before the answer came. Standard
+ * fetch rejects with a `TypeError`; Expo's, which the phone's global `fetch` is, with its own
+ * `FetchError`, whose message starts "fetch failed:" (it isn't exported to check its class).
+ */
+export function isConnectionFailure(error: unknown): boolean {
+  return (
+    error instanceof TypeError ||
+    (error instanceof Error && error.message.startsWith("fetch failed"))
+  );
 }
 
 /** The server said what you asked for isn't there (archived, or deleted): asking again won't help. */

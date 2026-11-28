@@ -1,16 +1,16 @@
 "use client";
 
 import {
+  CADENCES,
   type Cadence,
   cadenceCron,
-  cadenceOf,
   describeCron,
-  formatLocalDateTime,
+  timingForm,
   WEEKDAYS,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2, Plus } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useMemo, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { TeammateAvatar } from "@/components/teammate-avatar";
 import { Button } from "@/components/ui/button";
@@ -39,13 +39,6 @@ import { useAppState } from "@/features/app-shell";
 import { attempt } from "@/lib/client/mutate";
 import { api, orpc } from "@/lib/client/rpc";
 import type { ScheduleView } from "@/lib/types";
-
-function defaultDateTime() {
-  const date = new Date(Date.now() + 60 * 60 * 1000);
-  date.setMinutes(0, 0, 0);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
 
 /**
  * Create a schedule, or edit one when `schedule` is given. Opens from `trigger`, or from outside
@@ -78,34 +71,34 @@ export function ScheduleDialog({
   const [time, setTime] = useState("09:00");
   const [weekday, setWeekday] = useState("1");
   const [custom, setCustom] = useState("0 9 * * 1-5");
-  const [at, setAt] = useState(defaultDateTime);
+  const [at, setAt] = useState("");
   const [quiet, setQuiet] = useState(false);
   const [pending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   // A schedule keeps the timezone it was made in; new ones use yours.
   const timezone = schedule?.timezone ?? defaultTimezone;
 
-  // Start from the schedule (or a blank one) each time the dialog opens.
-  useEffect(() => {
-    if (!open) return;
+  // Start from the schedule (or a blank one) each time the dialog opens, or opens on another one.
+  // Only then: a fresher copy of the schedule, or app state arriving with your zone, while it's
+  // open must not wipe what you typed, so it reads them as they are at that moment.
+  const reset = useEffectEvent(() => {
     setSelectedTeammate(schedule?.teammateId ?? teammateId ?? "");
     setTitle(schedule?.title ?? "");
     setPrompt(schedule?.prompt ?? "");
-    setKind(schedule?.kind ?? "cron");
     setQuiet(schedule?.quiet ?? false);
-    const parsed = schedule?.cron
-      ? cadenceOf(schedule.cron)
-      : { cadence: "weekdays" as const, time: "09:00", weekday: "1" };
-    setCadence(parsed.cadence);
-    setTime(parsed.time);
-    setWeekday(parsed.weekday);
-    setCustom(schedule?.cron ?? "0 9 * * 1-5");
-    setAt(
-      schedule?.runAt && new Date(schedule.runAt).getTime() > Date.now()
-        ? formatLocalDateTime(new Date(schedule.runAt), schedule.timezone)
-        : defaultDateTime(),
-    );
-  }, [open, schedule, teammateId]);
+    // The same form the phone edits, on the schedule's own clock (yours for a new one).
+    const form = timingForm(schedule ?? null, schedule?.timezone ?? defaultTimezone);
+    setKind(form.kind);
+    setCadence(form.cadence);
+    setTime(form.time);
+    setWeekday(form.weekday);
+    setCustom(form.custom);
+    setAt(form.at);
+  });
+  const scheduleId = schedule?.id;
+  useEffect(() => {
+    if (open) reset();
+  }, [open, scheduleId]);
 
   const cron = cadenceCron(cadence, time, weekday, custom);
   const summary = useMemo(() => (kind === "cron" ? describeCron(cron) : null), [kind, cron]);
@@ -160,7 +153,8 @@ export function ScheduleDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
-          {(!teammateId || schedule) && (
+          {/* The daily check-in stays with its teammate and repeats; the worker refuses otherwise. */}
+          {(!teammateId || schedule) && !schedule?.checkIn && (
             <div className="flex flex-col gap-2">
               <Label>Teammate</Label>
               <Select value={teammateValue} onValueChange={setSelectedTeammate}>
@@ -205,20 +199,22 @@ export function ScheduleDialog({
           </div>
           <div className="flex flex-col gap-2">
             <Label>When</Label>
-            <ToggleGroup
-              type="single"
-              variant="outline"
-              value={kind}
-              onValueChange={(value) => value && setKind(value as "cron" | "once")}
-              className="w-full"
-            >
-              <ToggleGroupItem value="cron" className="flex-1">
-                Repeats
-              </ToggleGroupItem>
-              <ToggleGroupItem value="once" className="flex-1">
-                Once
-              </ToggleGroupItem>
-            </ToggleGroup>
+            {!schedule?.checkIn && (
+              <ToggleGroup
+                type="single"
+                variant="outline"
+                value={kind}
+                onValueChange={(value) => value && setKind(value as "cron" | "once")}
+                className="w-full"
+              >
+                <ToggleGroupItem value="cron" className="flex-1">
+                  Repeats
+                </ToggleGroupItem>
+                <ToggleGroupItem value="once" className="flex-1">
+                  Once
+                </ToggleGroupItem>
+              </ToggleGroup>
+            )}
           </div>
           {kind === "cron" ? (
             <div className="flex flex-col gap-3">
@@ -228,11 +224,11 @@ export function ScheduleDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="daily">Every day</SelectItem>
-                    <SelectItem value="weekdays">Weekdays</SelectItem>
-                    <SelectItem value="weekly">Every week</SelectItem>
-                    <SelectItem value="hourly">Every hour</SelectItem>
-                    <SelectItem value="custom">Custom (cron)</SelectItem>
+                    {CADENCES.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 {cadence === "weekly" && (

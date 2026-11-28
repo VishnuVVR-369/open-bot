@@ -95,6 +95,9 @@ Pass a published page as `PAGE_ID`, for example `maestro test -e PAGE_ID=<page i
 It opens the page from a link, checks that it loads, opens Ask and the menu, and switches to an older version when there is one.
 `maestro/tasks.yaml` adds a task for a teammate, edits it, starts it (its chat opens) and deletes it, against a signed-in development app.
 Pass the teammate's name: `maestro test -e TEAMMATE=<name> maestro/tasks.yaml`.
+`maestro/automations.yaml` turns a schedule off and on, runs it now, opens the run from its history, discards an edit, and renames it and back, against a signed-in development app with the computer on.
+Pass the id of a repeating schedule that is on (`select id, title from schedules;` finds it): `maestro test -e AUTOMATION_ID=<id> maestro/automations.yaml`.
+It finds rows by id, since titles repeat, and checks that the newest run in the history is the one it just started.
 `maestro/memory.yaml` adds a shared memory, finds it by searching, edits it, restores its first revision from History and forgets it, then dismisses a teammate's suggested instructions from Home.
 Ask a teammate to suggest a change to its own instructions first, so Home lists it; run it with `maestro test maestro/memory.yaml`.
 These flows need an on-screen keyboard, such as Gboard: with a keyboardless test input method (agent-device installs one), `hideKeyboard` presses Back instead, and an editor asks to discard what was typed.

@@ -1,6 +1,7 @@
-import { teammates, ownerTimeZone, schedules, type Queryable, type Tx } from "@open-bot/db";
+import { teammates, ownerTimeZone, runs, schedules, type Queryable, type Tx } from "@open-bot/db";
 import {
   type Creator,
+  DAILY_CHECK_IN,
   describeCron,
   isValidTimeZone,
   nextCronRun,
@@ -8,9 +9,9 @@ import {
   QUIET_NOTE,
   validateCron,
 } from "@open-bot/domain";
-import { and, asc, eq, lte } from "drizzle-orm";
+import { and, asc, eq, lte, sql } from "drizzle-orm";
 import { publishApp, type Context } from "../../context";
-import { announceRun, enqueueRun, insertRun, type RunInput } from "../../runs/queue";
+import { announceRun, insertNewRun, insertRun, type RunInput } from "../../runs/queue";
 import { errorMessage } from "../../logger";
 import { mainChat } from "../chat";
 import { WorkerError } from "../../core/errors";
@@ -19,12 +20,61 @@ export type Schedule = typeof schedules.$inferSelect;
 
 /** A schedule that can't be saved or run as asked; the message says why. */
 export class ScheduleError extends WorkerError {
-  constructor(message: string) {
-    super(400, message);
+  constructor(message: string, status: 400 | 404 | 409 = 400) {
+    super(status, message);
   }
 }
 
+/** What `patch` may change: only the fields given, each checked as `update` checks it. */
+export interface SchedulePatch {
+  title?: string;
+  /** Exactly one of `cron` (recurring) or `at` (one time, wall-clock in the schedule's zone). */
+  timing?: { cron: string | null; at: string | null };
+}
+
 const TICK_MS = 10_000;
+
+/** Why a "Run now" can't use the run id it was given. */
+const RUN_ID_TAKEN = "That run id was already used for something else.";
+
+/** Why a daily check-in can't become a one-time reminder. */
+const CHECK_IN_REPEATS = "The daily check-in repeats. Pick when it runs each time.";
+const CHECK_IN_STAYS =
+  "The daily check-in stays with its teammate. Add a routine for the other teammate instead.";
+
+/** A teammate's marked daily check-in, if it has one. */
+async function markedCheckIn(tx: Tx, teammateId: string): Promise<{ id: string } | undefined> {
+  const [row] = await tx
+    .select({ id: schedules.id })
+    .from(schedules)
+    .where(and(eq(schedules.teammateId, teammateId), eq(schedules.checkIn, true)));
+  return row;
+}
+
+/**
+ * A check-in added without its mark, by a web app or worker from before the mark while they were
+ * being replaced, marked now as migration 0046 marked the ones before it: a quiet routine named
+ * "Daily check-in", an enabled one over a paused one, then the oldest. Without this the switch
+ * would add a second check-in next to it.
+ */
+async function adoptCheckIn(tx: Tx, teammateId: string): Promise<{ id: string } | undefined> {
+  const [legacy] = await tx
+    .select({ id: schedules.id })
+    .from(schedules)
+    .where(
+      and(
+        eq(schedules.teammateId, teammateId),
+        eq(schedules.title, DAILY_CHECK_IN.title),
+        eq(schedules.quiet, true),
+        eq(schedules.kind, "cron"),
+      ),
+    )
+    .orderBy(sql`${schedules.enabled} desc`, asc(schedules.createdAt))
+    .limit(1);
+  if (!legacy) return undefined;
+  await tx.update(schedules).set({ checkIn: true }).where(eq(schedules.id, legacy.id));
+  return legacy;
+}
 
 export class ScheduleService {
   private timer: NodeJS.Timeout | null = null;
@@ -70,10 +120,13 @@ export class ScheduleService {
     timezone: string | null;
     /** Only tell the user when there's news. */
     quiet?: boolean;
+    /** It's the teammate's daily check-in (a template's starter). */
+    checkIn?: boolean;
     createdBy: Creator;
     createdByRunId?: string | null;
   }): Promise<Schedule> {
     const timing = await this.timing(input);
+    if (input.checkIn && timing.kind === "once") throw new ScheduleError(CHECK_IN_REPEATS);
     const [row] = await this.ctx.db
       .insert(schedules)
       .values({
@@ -81,6 +134,7 @@ export class ScheduleService {
         title: input.title,
         prompt: input.prompt,
         quiet: input.quiet ?? false,
+        checkIn: input.checkIn ?? false,
         ...timing,
         createdBy: input.createdBy,
         createdByRunId: input.createdByRunId ?? null,
@@ -108,47 +162,159 @@ export class ScheduleService {
       quiet?: boolean;
     },
   ): Promise<Schedule> {
-    const [existing] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
-    if (!existing) throw new ScheduleError("That schedule no longer exists.");
     const timing = await this.timing(input);
-    const finishedReminder = existing.kind === "once" && !existing.enabled && existing.lastRunAt;
-    const enabled = timing.kind === "once" && finishedReminder ? true : existing.enabled;
-    const [row] = await this.ctx.db
-      .update(schedules)
-      .set({
-        teammateId: input.teammateId,
-        title: input.title,
-        prompt: input.prompt,
-        ...(input.quiet === undefined ? {} : { quiet: input.quiet }),
-        ...timing,
-        enabled,
-        ...(enabled && finishedReminder ? { lastRunAt: null } : {}),
-      })
-      .where(eq(schedules.id, id))
-      .returning();
+    const row = await this.ctx.db.transaction(async (tx) => {
+      const existing = await this.locked(tx, id);
+      if (existing.checkIn && timing.kind === "once") throw new ScheduleError(CHECK_IN_REPEATS);
+      if (existing.checkIn && input.teammateId !== existing.teammateId)
+        throw new ScheduleError(CHECK_IN_STAYS, 409);
+      const finishedReminder = existing.kind === "once" && !existing.enabled && existing.lastRunAt;
+      const enabled = timing.kind === "once" && finishedReminder ? true : existing.enabled;
+      const [updated] = await tx
+        .update(schedules)
+        .set({
+          teammateId: input.teammateId,
+          title: input.title,
+          prompt: input.prompt,
+          ...(input.quiet === undefined ? {} : { quiet: input.quiet }),
+          ...timing,
+          enabled,
+          ...(enabled && finishedReminder ? { lastRunAt: null } : {}),
+        })
+        .where(eq(schedules.id, id))
+        .returning();
+      return updated!;
+    });
     await publishApp(this.ctx, { type: "schedules" });
     this.kick();
-    return row!;
+    return row;
   }
 
-  /** Pause or resume. A reminder whose time has passed can't be resumed; it would never run. */
+  /**
+   * The schedule, locked until the transaction ends, so whatever else changes it (the web's
+   * `update`, the phone's `patch`, a switch) waits and then reads what this one wrote.
+   */
+  private async locked(tx: Tx, id: string): Promise<Schedule> {
+    const [row] = await tx.select().from(schedules).where(eq(schedules.id, id)).for("update");
+    if (!row) throw new ScheduleError("That schedule was deleted.", 404);
+    return row;
+  }
+
+  /**
+   * Change only the fields given, as the phone edits a name or a time: the prompt, the teammate
+   * and anything else changed elsewhere meanwhile stay as they are. Like every write that reads
+   * the schedule first (`update`, `setEnabled`), it locks the row while it reads and writes, so a
+   * change that lands at the same moment waits for this one instead of being undone by it. New
+   * timing is read in the schedule's own time zone, follows `update`'s rules (a reminder that
+   * already ran runs again at its new time), and a one-time reminder is never quiet, as the web's
+   * form saves it. The daily check-in can't become a one-time reminder.
+   */
+  async patch(id: string, changes: SchedulePatch): Promise<Schedule> {
+    const title = changes.title?.trim();
+    if (changes.title !== undefined && !title) throw new ScheduleError("Give it a name.");
+    if (title && title.length > 80) throw new ScheduleError("Keep the name under 80 characters.");
+    const row = await this.ctx.db.transaction(async (tx) => {
+      const existing = await this.locked(tx, id);
+      const timing = changes.timing
+        ? await this.timing({ ...changes.timing, timezone: existing.timezone })
+        : null;
+      if (existing.checkIn && timing?.kind === "once") throw new ScheduleError(CHECK_IN_REPEATS);
+      const finishedReminder = existing.kind === "once" && !existing.enabled && existing.lastRunAt;
+      const rerun = timing?.kind === "once" && Boolean(finishedReminder);
+      const [updated] = await tx
+        .update(schedules)
+        .set({
+          ...(title ? { title } : {}),
+          ...(timing ?? {}),
+          ...(timing?.kind === "once" ? { quiet: false } : {}),
+          ...(rerun ? { enabled: true, lastRunAt: null } : {}),
+        })
+        .where(eq(schedules.id, id))
+        .returning();
+      return updated!;
+    });
+    await publishApp(this.ctx, { type: "schedules" });
+    this.kick();
+    return row;
+  }
+
+  /**
+   * Pause or resume. A reminder whose time has passed can't be resumed; it would never run. The
+   * next run is worked out from the timing the locked row has, so a retime landing at the same
+   * moment is never undone by the next run of the timing before it.
+   */
   async setEnabled(id: string, enabled: boolean): Promise<Schedule> {
-    const [row] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
-    if (!row) throw new ScheduleError("That schedule no longer exists.");
+    const updated = await this.ctx.db.transaction((tx) => this.setEnabledIn(tx, id, enabled));
+    await publishApp(this.ctx, { type: "schedules" });
+    this.kick();
+    return updated;
+  }
+
+  private async setEnabledIn(tx: Tx, id: string, enabled: boolean): Promise<Schedule> {
+    const row = await this.locked(tx, id);
     let nextRunAt = row.nextRunAt;
     if (enabled && row.kind === "cron" && row.cron) nextRunAt = nextCronRun(row.cron, row.timezone);
     if (enabled && row.kind === "once" && row.runAt && row.runAt.getTime() < Date.now())
       throw new ScheduleError(
         "That reminder's time has passed. Give it a new time to run it again.",
       );
-    const [updated] = await this.ctx.db
+    const [updated] = await tx
       .update(schedules)
       .set({ enabled, nextRunAt: enabled ? (nextRunAt ?? row.runAt) : nextRunAt })
       .where(eq(schedules.id, id))
       .returning();
+    return updated!;
+  }
+
+  /**
+   * A teammate's daily check-in, on or off: its profile's switch. Turning it on resumes the one it
+   * has, whatever it was renamed or retimed to, and adds one (every morning at 9, on the owner's
+   * clock) only when it has none. A teammate has one check-in at most, so two asks at once add one.
+   */
+  async setCheckIn(teammateId: string, on: boolean): Promise<void> {
+    const timezone = on ? await ownerTimeZone(this.ctx.db) : null;
+    await this.ctx.db.transaction(async (tx) => {
+      // The teammate's row, so two switches for it take turns. `no key update` doesn't hold up
+      // rows that only point at the teammate.
+      const [teammate] = await tx
+        .select({ archivedAt: teammates.archivedAt })
+        .from(teammates)
+        .where(eq(teammates.id, teammateId))
+        .for("no key update");
+      if (!teammate) throw new ScheduleError("That teammate no longer exists.", 404);
+      if (on && teammate.archivedAt)
+        throw new ScheduleError("That teammate is archived, so its check-in can't be on.", 409);
+      const existing =
+        (await markedCheckIn(tx, teammateId)) ?? (await adoptCheckIn(tx, teammateId));
+      if (existing) {
+        await this.setEnabledIn(tx, existing.id, on);
+        return;
+      }
+      if (!on) return;
+      const [added] = await tx
+        .insert(schedules)
+        .values({
+          teammateId,
+          title: DAILY_CHECK_IN.title,
+          prompt: DAILY_CHECK_IN.prompt,
+          kind: "cron",
+          cron: DAILY_CHECK_IN.cron,
+          timezone: timezone!,
+          nextRunAt: nextCronRun(DAILY_CHECK_IN.cron, timezone!),
+          quiet: true,
+          checkIn: true,
+          createdBy: "user",
+        })
+        .onConflictDoNothing({ target: schedules.teammateId, where: sql`${schedules.checkIn}` })
+        .returning({ id: schedules.id });
+      if (added) return;
+      // Something else added it a moment ago (a teammate made from a template): this insert waited
+      // on that one's index entry, so it's there now.
+      const theirs = await markedCheckIn(tx, teammateId);
+      if (theirs) await this.setEnabledIn(tx, theirs.id, true);
+    });
     await publishApp(this.ctx, { type: "schedules" });
     this.kick();
-    return updated!;
   }
 
   /** Delete a schedule the owner no longer wants. One already gone is fine. */
@@ -187,17 +353,42 @@ export class ScheduleService {
       .join("\n");
   }
 
-  /** Run a schedule now, without changing when it runs next. */
-  async runNow(id: string): Promise<void> {
+  /**
+   * Run a schedule now, without changing when it runs next. `runId`, when given, is the run's id:
+   * asking again with it after an answer that was lost finds that run and starts nothing more.
+   * `started` says which: true when this ask started the run, false when an earlier ask with the
+   * same id did. An id another run has is refused (409), even when it's taken between the check
+   * and the save.
+   */
+  async runNow(id: string, runId?: string): Promise<{ started: boolean }> {
     const [row] = await this.ctx.db.select().from(schedules).where(eq(schedules.id, id));
-    if (!row) throw new ScheduleError("Schedule not found");
-    await this.fire(row);
+    if (!row) throw new ScheduleError("Schedule not found", 404);
+    if (runId && (await this.ranAs(id, runId))) return { started: false };
+    const chatId = await this.runChat(row);
+    if (!chatId) throw new ScheduleError("Its teammate is archived, so it can't run.", 409);
+    const saved = await insertNewRun(this.ctx.db, {
+      ...runInput(row, chatId),
+      ...(runId ? { id: runId } : {}),
+    });
+    if (!saved) {
+      // The id was saved between the check and this save: by the same ask sent twice at once,
+      // which started the run, or by something else, which is refused.
+      if (await this.ranAs(id, runId!)) return { started: false };
+      throw new ScheduleError(RUN_ID_TAKEN, 409);
+    }
+    await announceRun(this.ctx, chatId);
+    return { started: true };
   }
 
-  private async fire(row: Schedule) {
-    const chatId = await this.runChat(row);
-    if (!chatId) return;
-    await enqueueRun(this.ctx, runInput(row, chatId));
+  /** Whether the run `runId` is this schedule's; an id another run has is refused. */
+  private async ranAs(scheduleId: string, runId: string): Promise<boolean> {
+    const [run] = await this.ctx.db
+      .select({ scheduleId: runs.scheduleId })
+      .from(runs)
+      .where(eq(runs.id, runId));
+    if (!run) return false;
+    if (run.scheduleId !== scheduleId) throw new ScheduleError(RUN_ID_TAKEN, 409);
+    return true;
   }
 
   /** The chat a schedule's run goes to: its teammate's main chat, unless it's archived. */
@@ -315,16 +506,25 @@ function runInput(row: Schedule, chatId: string): RunInput {
 export async function addPausedRoutines(
   tx: Queryable,
   teammateId: string,
-  routines: readonly { title: string; prompt: string; cron: string; quiet: boolean }[],
+  routines: readonly {
+    title: string;
+    prompt: string;
+    cron: string;
+    quiet: boolean;
+    checkIn?: boolean;
+  }[],
   timezone: string,
 ): Promise<void> {
-  const values = routines.flatMap((routine) => {
+  // One check-in at most: a file that marks two keeps the first.
+  const checkIn = routines.findIndex((routine) => routine.checkIn);
+  const values = routines.flatMap(({ checkIn: _, ...routine }, index) => {
     try {
       const nextRunAt = nextCronRun(routine.cron, timezone);
       return [
         {
           teammateId,
           ...routine,
+          checkIn: index === checkIn,
           kind: "cron" as const,
           timezone,
           nextRunAt,

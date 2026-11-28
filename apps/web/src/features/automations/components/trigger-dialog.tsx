@@ -3,8 +3,6 @@
 import {
   type AccountTriggerKind,
   CALENDAR_EVENT_FILTERS,
-  CALENDAR_LEADS,
-  describeInterval,
   describeLead,
   invalidGmailQuery,
   invalidWatchUrl,
@@ -13,7 +11,8 @@ import {
   MAX_GMAIL_QUERY_CHARS,
   TRIGGER_CONNECTION_KIND,
   type TriggerKind,
-  WATCH_INTERVALS,
+  intervalChoices,
+  leadChoices,
 } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
@@ -187,16 +186,9 @@ export function TriggerDialog({
     ? connectionId
     : (choices[0]?.id ?? "");
   const noAccount = account !== null && !loadingConnections && choices.length === 0;
-  const leads: { minutes: number; label: string }[] = [...CALENDAR_LEADS];
-  if (!leads.some((option) => String(option.minutes) === leadMinutes))
-    leads.push({ minutes: Number(leadMinutes), label: describeLead(Number(leadMinutes)) });
-  const intervals: { minutes: number; label: string }[] = [...WATCH_INTERVALS];
+  const leads = leadChoices(Number(leadMinutes));
   // A teammate may have picked an interval the menu doesn't offer.
-  if (!intervals.some((option) => String(option.minutes) === intervalMinutes))
-    intervals.push({
-      minutes: Number(intervalMinutes),
-      label: describeInterval(Number(intervalMinutes)),
-    });
+  const intervals = intervalChoices(Number(intervalMinutes));
 
   function submit() {
     if (urlProblem) {

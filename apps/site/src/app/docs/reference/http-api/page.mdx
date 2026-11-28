@@ -159,12 +159,26 @@ A path or input field is removed only once no deployed web app calls it.
 | --------------------------------------------------------------------------- | ----------------------------------------------------- |
 | `POST /internal/schedules`, `/internal/schedules/:id`                       | Create or update a schedule                           |
 | `POST /internal/schedules/:id/enabled`, `/run`, `/delete`                   | Pause or resume, run now, delete                      |
+| `POST /internal/schedules/:id/patch`                                        | Rename or retime a schedule; see below                |
+| `POST /internal/teammates/:id/check-in`                                     | Turn a teammate's daily check-in on or off            |
 | `POST /internal/triggers`, `/internal/triggers/:id`                         | Create or update a watch or webhook                   |
 | `POST /internal/triggers/:id/enabled`, `/delete`, `/check`, `/rotate`       | Pause, delete, check now, new webhook URL             |
+| `POST /internal/triggers/:id/patch`                                         | Rename one, or change a watch's interval or a lead    |
 | `POST /internal/hooks/:token`                                               | Fire a webhook (called by the web app's public route) |
 | `POST /internal/tasks`, `/internal/tasks/:id`, `/move`, `/delete`, `/start` | The task board; see below                             |
 | `POST /internal/skills`, `/internal/skills/:id/delete`                      | Save or delete a skill                                |
 | `POST /internal/swarms/:id/stop`                                            | Stop a swarm's helpers                                |
+
+The automation patches:
+
+- `POST /internal/schedules/:id/patch` takes `title` and `timing` (`cron` or `at`, with `at` on the schedule's own clock), either or both, and changes only those.
+  A finished reminder given a new time is turned on again; a timing in the past, or a cron that isn't five fields, is `400`.
+- `POST /internal/triggers/:id/patch` takes `title`, `intervalMinutes` (a page watch only) and `leadMinutes` (a Calendar trigger only).
+  Either on another kind is `400`.
+- Both are `404` when the automation was deleted.
+- `POST /internal/schedules/:id/run` takes an optional `runId` and answers `{ ok, started }`: a retry with the id runs nothing again and answers `started: false`, and `409` means it was used for another schedule (or the schedule's teammate is archived).
+  A worker from before `started` answered only `ok`; the web app reads that as started, since such a worker ignores `runId` and always starts a run.
+- `POST /internal/teammates/:id/check-in` takes `on`: it resumes or pauses the teammate's marked check-in, or adds one when it has none, and is `404` for an unknown teammate.
 
 The task routes:
 
