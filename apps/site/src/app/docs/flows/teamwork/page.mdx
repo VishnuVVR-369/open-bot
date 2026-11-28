@@ -225,9 +225,9 @@ Nothing else moves it, so making another teammate the lead, changing the budget 
 
 `update_teammate` takes only the fields that change, with the revision as `expected_revision`.
 `TeammateService.update()` locks the row and refuses the change if the revision moved, so neither you nor a teammate overwrites a change made since it was read.
-The web app's form sends the revision it loaded, the same way, with only the fields you changed (`teammates.update` takes any of them).
+The web app's form and the Android app's editor send the revision they loaded, the same way, with only the fields you changed (`teammates.update` takes any of them); the Android app reads it with `teammates.profile`.
 Only what's sent is checked, so a value saved before today's rules, such as an older color, doesn't block a save that leaves it alone.
-The worker also accepts the older revision, a hash of the whole saved row, while it still matches (`TeammateService.isCurrent()`): the web app's form still hands that one out, and a teammate's thread from before may hold one.
+The worker also accepts the older revision, a hash of the whole saved row, while it still matches (`TeammateService.isCurrent()`), so a web form opened before the deploy or a teammate's thread from before can still save.
 
 ### Duplicating a teammate
 

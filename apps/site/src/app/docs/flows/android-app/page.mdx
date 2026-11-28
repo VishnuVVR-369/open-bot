@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/flows/android-app");
 
 # The Android app
 
-Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, automations, memory, and approvals you can decide from the notification shade.
+Your teammates on your phone: a home briefing, their profiles to edit, duplicate or archive, chats with live replies and attachments, search, the computer's screens, pages, the task board, automations, memory, and approvals you can decide from the notification shade.
 It is an Expo app (React Native) that talks to your open-bot deployment through the same RPC contract the web app serves (`packages/api`).
 It is installed over USB; there is no Play Store listing.
 Building, configuring and testing it is covered in `apps/mobile/README.md`.
@@ -16,6 +16,21 @@ Each teammate's avatar shows what they're doing: a soft pulse while they work, a
 Teammates who need you sort first; tap one to open your latest chat with them, or hold to open their profile.
 A teammate's profile has Message, New chat and Screen, the instructions they suggest for themselves, their open tasks, their daily check-in and automations, how much they do on their own, their Always allow rules, their memory and lessons, and every conversation they're in.
 Use Computer to watch or take over a teammate's screen.
+
+The pencil at the top of a profile edits the teammate as the web's profile form does: their name, job, responsibilities, emoji or initial, color, and when they ask you first.
+Responsibilities are Markdown, with a preview.
+While you edit, a change made elsewhere (on the web, or by a teammate) comes in under what you're typing: fields you haven't touched follow it, and a field you changed that was changed there too is marked, with the saved value and a button to take it instead.
+A save names the revision it started from (`teammates.profile` reads it), so a change made meanwhile that the phone hadn't heard about yet refuses it (`STATE_CONFLICT`).
+The editor then takes in the newer profile, keeps your changes on top of it, and asks you to look them over and save again, so nothing is overwritten unseen.
+The revision covers only the profile, so a new lead, a budget change or a lesson learned meanwhile doesn't refuse a save.
+Leaving with unsaved changes asks first.
+
+Manage, at the end of the profile, makes the teammate the lead, duplicates them, or archives them.
+Duplicate asks for a name and whether to copy their memory, then opens the new teammate: it gets the job, instructions, skills and Always allow rules, and the schedules and page watches turned off, while chats and webhooks stay behind.
+Archive asks first and says what happens: the teammate stops working, their automations turn off and their chats are archived, while their workspace stays on the computer.
+Archiving the lead leaves the team without one until you choose another; until then a group message that mentions nobody goes to the chat's first member.
+After archiving, the app returns to Home, since the chats that led to the profile are archived too.
+These need the phone online; skills, spending and importing teammates stay on the web.
 
 ## Chats
 
