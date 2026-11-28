@@ -4,7 +4,7 @@ export const metadata = docMetadata("/docs/flows/android-app");
 
 # The Android app
 
-Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, and approvals you can decide from the notification shade.
+Your teammates on your phone: a home briefing, chats with live replies and attachments, search, the computer's screens, pages, the task board, memory, and approvals you can decide from the notification shade.
 It is an Expo app (React Native) that talks to your open-bot deployment through the same RPC contract the web app serves (`packages/api`).
 It is installed over USB; there is no Play Store listing.
 Building, configuring and testing it is covered in `apps/mobile/README.md`.
@@ -14,8 +14,8 @@ Building, configuring and testing it is covered in `apps/mobile/README.md`.
 Home leads with what needs you, then your teammates, then a briefing of work finished while you were away.
 Each teammate's avatar shows what they're doing: a soft pulse while they work, an amber ring and mark while they wait for you, and a dashed ring while they're up next.
 Teammates who need you sort first; tap one to open your latest chat with them, or hold to open their profile.
-A teammate's profile has Message, New chat and Screen, their open tasks, how much they do on their own, their Always allow rules, and every conversation they're in.
-Use Computer to watch or take over a teammate's screen; suggested instructions are still reviewed on the web.
+A teammate's profile has Message, New chat and Screen, the instructions they suggest for themselves, their open tasks, how much they do on their own, their Always allow rules, their memory and lessons, and every conversation they're in.
+Use Computer to watch or take over a teammate's screen.
 
 ## Chats
 
@@ -39,6 +39,7 @@ PDFs and other formats open in a compatible app on the phone.
 The microphone adds dictation to the current draft; leaving that composer cancels recognition.
 The latest reply shows copy, read aloud and ratings under it; hold any reply, or use its More button, for the same actions plus its time and usage.
 Feedback offers an option to remember a lesson or try again.
+The reply's menu also has What they remembered: the saved memories that reply was given, each opening to read or edit, or saying it changed or was forgotten since.
 You can steer a working teammate with another message, stop it, or retry a failed or stopped turn.
 
 ## Search and history
@@ -147,6 +148,43 @@ The board shows the move at once and keeps showing it until a board read after i
 Move up and Move down step past the next task you can see: tasks hidden by the filter don't count, and a task never crosses the line between what waits on you and the rest, since that line decides the order first.
 Deleting asks first, since the board has no undo, and says when the teammate may still be working on it.
 While the phone is offline, everything that would change the board is disabled, and a task you're writing stays on screen until you're back.
+
+## Memory
+
+Memory is what your teammates remember: facts and preferences every teammate shares, and each teammate's own facts and lessons.
+Open it from Settings, from a teammate's profile, or by searching for Memory.
+The chips at the top switch between Shared and each teammate, and the search finds memories by their words, as on the web.
+Each memory shows its type, who saved it (you, your feedback, or a teammate by name), and whether it's pinned, expires or was changed.
+The list shows the newest 200; search to find older ones.
+
+Tap a memory to edit what it says, its type (fact, preference, lesson or note) and whether teammates get it with every task.
+An expiry set on the web shows there, and can be cleared; setting one is on the web.
+Every change names the revision you opened (`expectedRevision`), so one made meanwhile on the web or by a teammate is refused (`STATE_CONFLICT`).
+The screen then says "Changed since you opened it" with Reload, which shows the saved version; it never saves over the newer one.
+Reload reads the memory from the server (`memory.get`): only a fresh copy replaces your changes, and when that read fails (offline, or the server failing) your changes and the conflict stay and the screen says why.
+What you haven't touched follows the memory as it changes elsewhere.
+A memory a teammate suggested shows Confirm and Dismiss; dismissing asks first, like Forget, which removes the memory and its history.
+Forget checks the connection again once you confirm, and sends nothing if the phone went offline meanwhile.
+When it's done, the screen leaves only once it's the one you're looking at, so History or a chat opened meanwhile stays open.
+A memory forgotten elsewhere while you edit it says so; leaving still asks first while you have changes, and "Copy what you wrote" keeps your text.
+History lists every revision with who made it and a link to the conversation, and Restore makes an earlier one the newest, as a new revision.
+Once the server says the memory is gone, History shows that instead of revisions it read before, so nothing offers to restore it.
+
+Add a memory with the plus.
+Saving the same words again confirms or finds the one already saved instead of adding another (`saveOutcome`), and the screen says so.
+Each new memory is sent with an id the phone makes for it (`memory.create`'s `id`), and the memory is saved under that id.
+When a save gets no answer, the form stays as it was sent and Try again sends it unchanged, with the same id, so a lost save is never added twice.
+If the first attempt was saved, the server answers with that memory as it is now, even if it was edited on the web since; if it was forgotten since, it says so (`STATE_CONFLICT`) and adding it again is a new save.
+Leaving with unsaved changes asks first, and while the phone is offline nothing is sent and your draft stays.
+Switching between Shared and a teammate shows a loading list, never the other scope's memories, while typing a search keeps the last results up, faded.
+Each screen reads memory itself (`memory.get`, `memory.history`), so a link or a lesson opens it, and the `memory` app event refreshes it when anything changes.
+
+A teammate's profile shows how much they remember, with suggestions to confirm, and their lessons: what they learned from your feedback, read before every task.
+Lessons are memories of kind lesson, so each one opens to edit or forget.
+When a teammate suggests new instructions for itself, Home lists it and its profile shows what would change, line by line, against the instructions as they are now (`proposals.pending`).
+Accept or Dismiss says which is on its way, then that it's done; deciding the same way again is harmless, so a lost answer can be tried again, and one decided elsewhere says so.
+Accept sends the instructions the change was shown against (`expectedInstructions`), so if you edited them on the web meanwhile, or archived the teammate, it's refused (`STATE_CONFLICT`) instead of overwriting them.
+The card then says so and shows the change against the instructions as they are now, to review again.
 
 ## Pages
 

@@ -63,6 +63,13 @@ const queries = [
   [["page-link", "a", "dark"], queryKeys.pageLink("a", "dark")],
   [["page-link", "b", "light"], queryKeys.pageLink("b", "light")],
   [["tasks"], queryKeys.tasks],
+  [["memory", "a"], [...queryKeys.memories("a", "")]],
+  [["memory", "shared"], queryKeys.memories(null, "berlin")],
+  [["memory-item", "a"], queryKeys.memory("a")],
+  [["memory-history", "a"], queryKeys.memoryHistory("a")],
+  [["run-memory", "a"], queryKeys.runMemory("a")],
+  [["lessons", "a"], queryKeys.lessons("a")],
+  [["proposal", "a"], queryKeys.proposal("a")],
 ] as const;
 
 async function invalidated(keys: readonly (readonly unknown[])[], side: 0 | 1) {
@@ -99,12 +106,23 @@ describe("shared event refresh migration", () => {
             ? [["approval-rules"]]
             : type === "tasks"
               ? [["tasks"]]
-              : type === teammateEvent
+              : type === "memory"
                 ? [
-                    ["chat", "a"],
-                    ["chat", "b"],
+                    ["memory", "a"],
+                    ["memory", "shared"],
+                    ["memory-item", "a"],
+                    ["memory-history", "a"],
+                    ["run-memory", "a"],
                   ]
-                : [];
+                : type === "lessons"
+                  ? [["lessons", "a"]]
+                  : type === teammateEvent
+                    ? [
+                        ["chat", "a"],
+                        ["chat", "b"],
+                        ["proposal", "a"],
+                      ]
+                    : [];
       expect(added).toEqual(expected.map((key) => JSON.stringify(key)));
     },
   );

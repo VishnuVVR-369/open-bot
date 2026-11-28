@@ -35,6 +35,7 @@ import {
 } from "./model";
 import { inScope, now, readable, scopeOf } from "./queries";
 import { recordRevision } from "./revisions";
+import { reusedId, savedAs, takenId } from "./retries";
 import {
   listMemories,
   memoryGeneration,
@@ -60,7 +61,14 @@ export class MemoryService {
   async save(
     input: MemoryInput,
     actor: MemoryActor,
-    options: { source?: MemorySource } = {},
+    options: {
+      source?: MemorySource;
+      /**
+       * A client's id for this save, kept while it retries: the memory is saved under it, so a
+       * retry after a lost answer finds the one the first attempt added instead of adding another.
+       */
+      id?: string;
+    } = {},
   ): Promise<MemorySaveResult> {
     return guarded(async () => {
       const data = validate(memoryInputSchema, input);
@@ -75,6 +83,8 @@ export class MemoryService {
       return this.db.transaction(async (tx) => {
         await lockScope(tx, data.teammateId);
         const hash = fingerprint(data.content);
+        const earlier = options.id && (await savedAs(tx, options.id, data.teammateId, hash));
+        if (earlier) return earlier;
         if (actor.kind === "teammate") {
           const blocked = await tx
             .select({ key: memoryImports.key })
@@ -164,6 +174,7 @@ export class MemoryService {
         const [row] = await tx
           .insert(memoryItems)
           .values({
+            ...(options.id ? { id: options.id } : {}),
             teammateId: data.teammateId,
             kind: data.kind,
             content: data.content,
@@ -174,7 +185,10 @@ export class MemoryService {
             expiresAt,
             source: options.source ?? sourceOf(actor),
           })
-          .returning();
+          .returning()
+          .catch((error: unknown) => {
+            throw options.id && takenId(error) ? reusedId() : error;
+          });
         await recordRevision(tx, row!);
         await recordChange(tx, data.teammateId, actor, state === "active");
         return { ...itemView(row!), saveOutcome: "created" };

@@ -1,5 +1,5 @@
 import "server-only";
-import type { ApiInputs, ApiOutputs } from "@open-bot/api";
+import type { ApiInputs, ApiOutputs, PendingProposalView } from "@open-bot/api";
 import {
   approvalRules,
   teammates,
@@ -107,8 +107,9 @@ export async function setBudget(input: Inputs["setBudget"]): Promise<{ ok: true 
 /** Take a teammate's suggested instructions; they apply from its next message. */
 export async function acceptProposal({
   proposalId,
+  expectedInstructions,
 }: ApiInputs["proposals"]["accept"]): Promise<{ ok: true }> {
-  return worker.proposals.accept({ proposalId });
+  return worker.proposals.accept({ proposalId, expectedInstructions });
 }
 
 export async function dismissProposal({
@@ -177,6 +178,20 @@ export async function teammateName(teammateId: string): Promise<string | null> {
     .from(teammates)
     .where(eq(teammates.id, teammateId));
   return row?.name ?? null;
+}
+
+/**
+ * The suggestion waiting from a teammate, with its instructions now, for the phone: the web's page
+ * reads the same suggestion beside the teammate. Null when none waits, or the teammate is archived.
+ */
+export async function pendingProposalFor(teammateId: string): Promise<PendingProposalView | null> {
+  const [teammate] = await db
+    .select({ instructions: teammates.instructions })
+    .from(teammates)
+    .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
+  if (!teammate) throw new ApiError("NOT_FOUND", "No such teammate.");
+  const proposal = await pendingProposal(teammateId);
+  return proposal ? { ...proposal, teammateId, instructionsNow: teammate.instructions } : null;
 }
 
 async function pendingProposal(teammateId: string): Promise<ProposalView | null> {

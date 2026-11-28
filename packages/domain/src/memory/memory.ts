@@ -65,11 +65,16 @@ export interface MemoryRef {
   revision: number;
 }
 
+/** The shortest and longest a memory's text can be, and its topic key's longest. */
+export const MEMORY_CONTENT_MIN = 3;
+export const MEMORY_CONTENT_MAX = 8000;
+export const MEMORY_KEY_MAX = 120;
+
 export const memoryInputSchema = z.object({
   teammateId: z.string().uuid().nullable().default(null),
   kind: memoryKindSchema.default("fact"),
-  content: z.string().trim().min(3).max(8000),
-  key: z.string().trim().min(1).max(120).nullable().default(null),
+  content: z.string().trim().min(MEMORY_CONTENT_MIN).max(MEMORY_CONTENT_MAX),
+  key: z.string().trim().min(1).max(MEMORY_KEY_MAX).nullable().default(null),
   pinned: z.boolean().default(false),
   expiresAt: z.string().datetime({ offset: true }).nullable().default(null),
 });

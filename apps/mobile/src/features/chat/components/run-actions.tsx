@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Crypto from "expo-crypto";
 import {
+  Brain,
   Check,
   Copy,
   Ellipsis,
@@ -29,6 +30,7 @@ import { haptics } from "@/lib/haptics";
 import { phoneDayClock } from "@/lib/phone-clock";
 import { queryKeys } from "@/lib/query";
 import { readAloud, readingNow, stopReading, useReading } from "@/features/chat/read-aloud";
+import { RunMemorySheet } from "@/features/memory/components/run-memory-sheet";
 import { space, useColors } from "@/theme";
 
 type Rating = RunView["rating"];
@@ -148,6 +150,7 @@ export function RunActions({
   const [picked, setPicked] = useState<{ rating: Rating } | null>(null);
   const rating = picked ? picked.rating : run.rating;
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const usage = usageLine(run);
@@ -313,12 +316,14 @@ export function RunActions({
               />
             </>
           )}
-          {usage && (
-            <Text variant="caption" muted style={styles.usage} testID="run-usage">
-              {usage}
-            </Text>
-          )}
+          <SheetItem
+            icon={<Brain size={20} color={colors.foreground} />}
+            label="What they remembered"
+            onPress={() => close(() => setMemoryOpen(true))}
+            testID="run-memory-open"
+          />
         </Sheet>
+        <RunMemorySheet runId={run.id} open={memoryOpen} onClose={() => setMemoryOpen(false)} />
         <FeedbackSheet
           open={feedbackOpen}
           onClose={() => setFeedbackOpen(false)}
@@ -451,7 +456,6 @@ const styles = StyleSheet.create({
   sheets: { position: "absolute", width: 0, height: 0 },
   row: { flexDirection: "row", alignItems: "center", marginLeft: -space(3), minHeight: 44 },
   icon: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
-  usage: { paddingHorizontal: space(5), paddingTop: space(2), fontVariant: ["tabular-nums"] },
   retry: {
     flexDirection: "row",
     alignItems: "center",

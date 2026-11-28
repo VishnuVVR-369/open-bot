@@ -1,13 +1,14 @@
 import type { ApprovalView, TeammateSummary, Home } from "@open-bot/api";
 import { router } from "expo-router";
-import { Hand, Monitor, ShieldAlert, Sparkles } from "lucide-react-native";
-import { View, StyleSheet } from "react-native";
+import { ChevronRight, Hand, ShieldAlert, Sparkles } from "lucide-react-native";
+import { Pressable, View, StyleSheet } from "react-native";
 import { TeammateAvatar, needsYouText } from "@/features/teammates/components/teammate-avatar";
 import { ApprovalRow } from "@/features/approvals/components/approval-row";
 import { Separator } from "@/components/list-row";
 import { Section } from "@/components/section";
 import { Text } from "@/components/text";
 import { screenHref } from "@/features/computer/screens";
+import { haptics } from "@/lib/haptics";
 import { ago } from "@/lib/time";
 import { space, useColors, radius } from "@/theme";
 import { mix } from "@/theme/mix";
@@ -17,7 +18,8 @@ import { shared } from "./styles";
 
 /**
  * What needs you, each thing on its own: every approval as a row (strongest, as you can decide it
- * right here), then takeovers, then suggestions you review on the computer, which aren't counted.
+ * right here), then takeovers, then suggested instructions, which open the teammate to decide
+ * and aren't counted.
  */
 export function NeedsYou({
   home,
@@ -124,14 +126,20 @@ export function NeedsYou({
           );
         })}
         {proposals.map((proposal) => (
-          <View
+          <Pressable
             key={proposal.id}
+            onPress={() => {
+              haptics.tap();
+              router.push(`/teammates/${proposal.teammate.id}`);
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={`Suggestion: ${proposal.teammate.name} suggests new instructions`}
+            accessibilityHint="Opens their profile to accept or dismiss it"
+            android_ripple={{ color: colors.muted }}
             style={[
               styles.suggestion,
               { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
-            accessible
-            accessibilityLabel={`Suggestion: ${proposal.teammate.name} suggests new instructions. Review them in open-bot on your computer.`}
             testID="proposal"
           >
             <View style={[styles.suggestionIcon, { backgroundColor: colors.subtle }]}>
@@ -141,14 +149,12 @@ export function NeedsYou({
               <Text variant="label" numberOfLines={1} style={{ fontSize: 15 }}>
                 {proposal.teammate.name} suggests new instructions
               </Text>
-              <View style={shared.noteTag}>
-                <Monitor size={12} color={colors.mutedForeground} />
-                <Text variant="caption" muted numberOfLines={1}>
-                  Suggestion · review it on your computer
-                </Text>
-              </View>
+              <Text variant="caption" muted numberOfLines={1}>
+                Suggestion · see what would change
+              </Text>
             </View>
-          </View>
+            <ChevronRight size={18} color={colors.mutedForeground} />
+          </Pressable>
         ))}
       </View>
     </Section>
@@ -167,6 +173,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: space(4),
     paddingVertical: space(2.5),
     minHeight: 56,
+    overflow: "hidden",
   },
   suggestionIcon: {
     width: 32,

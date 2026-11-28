@@ -6,6 +6,7 @@ import { router, useLocalSearchParams } from "expo-router";
 import {
   BellOff,
   BellRing,
+  Brain,
   Cable,
   ChevronRight,
   Fingerprint,
@@ -223,6 +224,19 @@ export default function Settings() {
                 testID="test-notification"
               />
             )}
+          </Card>
+        </Section>
+
+        <Section title="Memory">
+          <Card>
+            <SettingsRow
+              icon={(color) => <Brain size={18} color={color} />}
+              title="Memory"
+              subtitle="Facts and preferences every teammate can use"
+              onPress={() => router.push("/memory")}
+              aside={<ChevronRight size={18} color={colors.mutedForeground} />}
+              testID="settings-memory"
+            />
           </Card>
         </Section>
 
