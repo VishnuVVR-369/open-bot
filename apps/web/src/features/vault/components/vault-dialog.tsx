@@ -1,9 +1,27 @@
 "use client";
 
-import { cardBrand, cardDigits } from "@open-bot/domain";
+import {
+  cardBrand,
+  cvcInput,
+  expiryInput,
+  groupCardNumber,
+  rebaseVaultForm,
+  VAULT_COPY,
+  VAULT_NAME_MAX,
+  vaultChange,
+  vaultEditorTitle,
+  vaultForm,
+  vaultFormChanged,
+  vaultFormProblem,
+  vaultSaveLabel,
+  vaultSavedTitle,
+  vaultSecretInput,
+  type VaultDraft,
+  type VaultForm,
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
-import { useEffect, useId, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useEffectEvent, useId, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { AccessPicker } from "@/components/access-picker";
 import { Button } from "@/components/ui/button";
@@ -24,20 +42,6 @@ import type { VaultItemView } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 type Kind = VaultItemView["kind"];
-
-/** "4242 4242 4242 4242", grouped as the card prints it, while you type. */
-function groupCardNumber(value: string): string {
-  const digits = cardDigits(value).replace(/\D/g, "").slice(0, 19);
-  const groups = /^3[47]/.test(digits) ? [4, 6, 5] : [4, 4, 4, 4, 3];
-  const parts: string[] = [];
-  let offset = 0;
-  for (const size of groups) {
-    if (offset >= digits.length) break;
-    parts.push(digits.slice(offset, offset + size));
-    offset += size;
-  }
-  return parts.join(" ");
-}
 
 function Field({
   label,
@@ -101,7 +105,11 @@ function SecretInput({
   );
 }
 
-/** Add a login or card to the vault, or edit one when `item` is given. */
+/**
+ * Add a login or card to the vault, or edit one when `item` is given. An edit sends only what you
+ * changed (`vault.patch`), so a change made on the phone meanwhile stays, and what you haven't
+ * touched follows the item while the dialog is open.
+ */
 export function VaultDialog({
   kind,
   item,
@@ -113,63 +121,56 @@ export function VaultDialog({
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
-  const [name, setName] = useState("");
-  const [domain, setDomain] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [number, setNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvc, setCvc] = useState("");
-  const [holder, setHolder] = useState("");
-  const [zip, setZip] = useState("");
-  const [access, setAccess] = useState<string[] | null>(null);
+  const [draft, setDraft] = useState<VaultDraft>(() => {
+    const start = vaultForm(item ?? null);
+    return { start, form: start };
+  });
   const [pending, startTransition] = useTransition();
   const queryClient = useQueryClient();
   const editing = Boolean(item);
-  const saved = editing ? "Saved. Type to replace it." : undefined;
+  const saved = editing ? VAULT_COPY.savedPlaceholder : undefined;
+  const { start, form } = draft;
+  const { name, domain, username, password, number, expiry, cvc, holder, zip } = form;
+  const set = (patch: Partial<VaultForm>) =>
+    setDraft((current) => ({ ...current, form: { ...current.form, ...patch } }));
 
   // Start from the item (or a blank one) each time the dialog opens. Secrets are never sent back.
+  const reset = useEffectEvent(() => {
+    const fresh = vaultForm(item ?? null);
+    setDraft({ start: fresh, form: fresh });
+  });
   useEffect(() => {
-    if (!open) return;
-    setName(item?.name ?? "");
-    setDomain(item?.domain ?? "");
-    setUsername(item?.kind === "login" ? item.hint : "");
-    setPassword("");
-    setNumber("");
-    setExpiry("");
-    setCvc("");
-    setHolder("");
-    setZip("");
-    setAccess(item ? item.teammateIds : null);
+    if (open) reset();
+  }, [open, item?.id]);
+  // Changed elsewhere while it's open: what you haven't touched follows it.
+  useEffect(() => {
+    if (open && item) setDraft((current) => rebaseVaultForm(current, vaultForm(item)));
   }, [open, item]);
 
   const ready =
-    name.trim() &&
-    (access === null || access.length > 0) &&
-    (kind === "login"
-      ? domain.trim() && username.trim() && (editing || password)
-      : editing || (number && expiry && cvc && holder.trim()));
+    vaultFormProblem(kind, form, editing) === null && (!editing || vaultFormChanged(start, form));
 
   function submit() {
     startTransition(async () => {
+      const change = item ? vaultChange(kind, start, form) : null;
+      if (item && !change) return setOpen(false);
       const result = await attempt(
-        api.vault.save({
-          id: item?.id ?? null,
-          kind,
-          name: name.trim(),
-          domain,
-          teammateIds: access,
-          secret:
-            kind === "login" ? { username, password } : { number, expiry, cvc, name: holder, zip },
-        }),
+        item
+          ? api.vault.patch({ itemId: item.id, ...change })
+          : api.vault.save({
+              id: null,
+              kind,
+              name: name.trim(),
+              domain,
+              teammateIds: form.teammateIds,
+              secret: vaultSecretInput(kind, form),
+            }),
       );
       if (!result.ok) {
         toast.error("Couldn't save it", { description: result.error });
         return;
       }
-      toast(editing ? "Saved" : kind === "login" ? "Login saved" : "Card saved", {
-        description: "Teammates fill it in on the computer without seeing it.",
-      });
+      toast(vaultSavedTitle(kind, editing), { description: VAULT_COPY.savedToast });
       setOpen(false);
       await queryClient.invalidateQueries({ queryKey: orpc.vault.key() });
     });
@@ -182,13 +183,9 @@ export function VaultDialog({
       <DialogTrigger asChild>{trigger}</DialogTrigger>
       <DialogContent className="sm:max-w-lg" data-testid="vault-dialog">
         <DialogHeader>
-          <DialogTitle>
-            {editing ? `Edit ${item!.name}` : kind === "login" ? "Add a login" : "Add a card"}
-          </DialogTitle>
+          <DialogTitle>{vaultEditorTitle(kind, item?.name ?? null)}</DialogTitle>
           <DialogDescription>
-            {kind === "login"
-              ? "Teammates type it in for you on this site, and only on this site. They never see the password."
-              : "Teammates fill it in at checkout, only for purchases within their budget. They never see the number."}
+            {kind === "login" ? VAULT_COPY.loginDialog : VAULT_COPY.cardDialog}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -203,18 +200,18 @@ export function VaultDialog({
             <Input
               id={`${id}-name`}
               value={name}
-              onChange={(event) => setName(event.target.value)}
+              onChange={(event) => set({ name: event.target.value })}
               placeholder={kind === "login" ? "GitHub" : "Personal Visa"}
-              maxLength={80}
+              maxLength={VAULT_NAME_MAX}
             />
           </Field>
           {kind === "login" ? (
             <>
-              <Field label="Site" htmlFor={`${id}-site`} hint="It also works on its subdomains.">
+              <Field label="Site" htmlFor={`${id}-site`} hint={VAULT_COPY.siteHint}>
                 <Input
                   id={`${id}-site`}
                   value={domain}
-                  onChange={(event) => setDomain(event.target.value)}
+                  onChange={(event) => set({ domain: event.target.value })}
                   placeholder="github.com"
                   spellCheck={false}
                   autoCapitalize="off"
@@ -225,7 +222,7 @@ export function VaultDialog({
                   <Input
                     id={`${id}-username`}
                     value={username}
-                    onChange={(event) => setUsername(event.target.value)}
+                    onChange={(event) => set({ username: event.target.value })}
                     spellCheck={false}
                     autoCapitalize="off"
                     autoComplete="off"
@@ -235,7 +232,7 @@ export function VaultDialog({
                   <SecretInput
                     id={`${id}-password`}
                     value={password}
-                    onChange={setPassword}
+                    onChange={(value) => set({ password: value })}
                     placeholder={saved}
                     autoComplete="new-password"
                   />
@@ -249,7 +246,7 @@ export function VaultDialog({
                   <Input
                     id={`${id}-number`}
                     value={number}
-                    onChange={(event) => setNumber(groupCardNumber(event.target.value))}
+                    onChange={(event) => set({ number: groupCardNumber(event.target.value) })}
                     placeholder={editing ? item!.hint : "4242 4242 4242 4242"}
                     inputMode="numeric"
                     autoComplete="off"
@@ -267,12 +264,7 @@ export function VaultDialog({
                   <Input
                     id={`${id}-expiry`}
                     value={expiry}
-                    onChange={(event) => {
-                      const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
-                      setExpiry(
-                        digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits,
-                      );
-                    }}
+                    onChange={(event) => set({ expiry: expiryInput(event.target.value) })}
                     placeholder={editing ? "Saved" : "MM/YY"}
                     inputMode="numeric"
                     autoComplete="off"
@@ -283,7 +275,7 @@ export function VaultDialog({
                   <SecretInput
                     id={`${id}-cvc`}
                     value={cvc}
-                    onChange={(value) => setCvc(value.replace(/\D/g, "").slice(0, 4))}
+                    onChange={(value) => set({ cvc: cvcInput(value) })}
                     placeholder={editing ? "Saved" : "123"}
                   />
                 </Field>
@@ -291,7 +283,7 @@ export function VaultDialog({
                   <Input
                     id={`${id}-zip`}
                     value={zip}
-                    onChange={(event) => setZip(event.target.value)}
+                    onChange={(event) => set({ zip: event.target.value })}
                     placeholder={editing ? "Saved" : "Optional"}
                     autoComplete="off"
                   />
@@ -301,15 +293,18 @@ export function VaultDialog({
                 <Input
                   id={`${id}-holder`}
                   value={holder}
-                  onChange={(event) => setHolder(event.target.value)}
-                  placeholder={editing ? "Saved. Type to replace it." : undefined}
+                  onChange={(event) => set({ holder: event.target.value })}
+                  placeholder={saved}
                   autoComplete="off"
                 />
               </Field>
             </>
           )}
           <div className="rounded-xl border bg-subtle/60 p-3.5">
-            <AccessPicker value={access} onChange={setAccess} />
+            <AccessPicker
+              value={form.teammateIds}
+              onChange={(teammateIds) => set({ teammateIds })}
+            />
           </div>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
@@ -317,7 +312,7 @@ export function VaultDialog({
             </Button>
             <Button type="submit" disabled={!ready || pending} data-testid="vault-save">
               {pending && <Loader2 className="animate-spin" />}
-              {editing ? "Save" : kind === "login" ? "Save login" : "Save card"}
+              {vaultSaveLabel(kind, editing)}
             </Button>
           </DialogFooter>
         </form>

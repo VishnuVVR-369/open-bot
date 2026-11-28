@@ -1,5 +1,12 @@
 "use client";
 
+import {
+  addVaultItemLabel,
+  deleteVaultItemQuestion,
+  VAULT_COPY,
+  VAULT_PROMISES,
+  vaultAccess,
+} from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   CreditCard,
@@ -70,21 +77,19 @@ function CardFace({ hint }: { hint: string }) {
 
 function Access({ teammateIds }: { teammateIds: string[] | null }) {
   const { data: state } = useAppState();
+  const access = vaultAccess(teammateIds, state?.teammates ?? []);
   if (teammateIds === null)
     return (
       <span className="flex items-center gap-1.5">
         <Users className="size-3.5" />
-        Every teammate
+        {access.text}
       </span>
     );
-  const teammates = teammateIds
-    .map((id) => state?.teammates.find((teammate) => teammate.id === id))
-    .filter((teammate) => teammate !== undefined);
-  if (teammates.length === 0) return <span>No current teammate</span>;
+  if (access.teammates.length === 0) return <span>{access.text}</span>;
   return (
     <span className="flex items-center gap-1.5">
       <span className="flex -space-x-1">
-        {teammates.slice(0, 4).map((teammate) => (
+        {access.teammates.slice(0, 4).map((teammate) => (
           <TeammateAvatar
             key={teammate.id}
             name={teammate.name}
@@ -95,13 +100,14 @@ function Access({ teammateIds }: { teammateIds: string[] | null }) {
           />
         ))}
       </span>
-      {teammates.length === 1 ? `Only ${teammates[0]!.name}` : `${teammates.length} teammates`}
+      {access.text}
     </span>
   );
 }
 
 function DeleteItem({ item }: { item: VaultItemView }) {
   const queryClient = useQueryClient();
+  const question = deleteVaultItemQuestion(item);
   return (
     <AlertDialog>
       <Tooltip>
@@ -116,12 +122,8 @@ function DeleteItem({ item }: { item: VaultItemView }) {
       </Tooltip>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete {item.name}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Teammates can&apos;t use it anymore.{" "}
-            {item.kind === "card" && "Past purchases stay in their history. "}
-            This can&apos;t be undone.
-          </AlertDialogDescription>
+          <AlertDialogTitle>{question.title}</AlertDialogTitle>
+          <AlertDialogDescription>{question.body}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -133,7 +135,7 @@ function DeleteItem({ item }: { item: VaultItemView }) {
               await queryClient.invalidateQueries({ queryKey: orpc.vault.key() });
             }}
           >
-            Delete
+            {question.action}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
@@ -220,7 +222,7 @@ function Section({
             trigger={
               <Button variant="outline" size="sm">
                 <Plus />
-                {kind === "login" ? "Add login" : "Add card"}
+                {addVaultItemLabel(kind)}
               </Button>
             }
           />
@@ -238,16 +240,14 @@ function Section({
             {kind === "login" ? <KeyRound className="size-4" /> : <CreditCard className="size-4" />}
           </span>
           <p className="min-w-0 flex-1 text-[13.5px] text-muted-foreground">
-            {kind === "login"
-              ? "No logins yet. Save one, and teammates sign in on that site without asking you."
-              : "No cards yet. Save one, and give a teammate a budget to buy things for you."}
+            {kind === "login" ? VAULT_COPY.noLogins : VAULT_COPY.noCards}
           </p>
           <VaultDialog
             kind={kind}
             trigger={
               <Button variant="outline" size="sm">
                 <Plus />
-                {kind === "login" ? "Add login" : "Add card"}
+                {addVaultItemLabel(kind)}
               </Button>
             }
           />
@@ -257,28 +257,12 @@ function Section({
   );
 }
 
-const PROMISES = [
-  {
-    icon: EyeOff,
-    title: "Never seen",
-    text: "Teammates type it on the computer's screen without it ever passing through them or the chat.",
-  },
-  {
-    icon: Globe,
-    title: "Only on its site",
-    text: "A login fills only when the browser shows its site, so a look-alike page can't collect it.",
-  },
-  {
-    icon: Wallet,
-    title: "Within a budget",
-    text: "A card works only for a purchase within the teammate's monthly budget, and larger ones ask you.",
-  },
-  {
-    icon: Lock,
-    title: "Encrypted",
-    text: "Stored encrypted, and never sent back to this app. Editing replaces what's saved.",
-  },
-];
+const PROMISE_ICONS: Record<(typeof VAULT_PROMISES)[number]["key"], typeof EyeOff> = {
+  "never-seen": EyeOff,
+  "own-site": Globe,
+  budget: Wallet,
+  encrypted: Lock,
+};
 
 /** Logins and cards, and how teammates use them. */
 export function VaultView() {
@@ -300,18 +284,13 @@ export function VaultView() {
 
   return (
     <div className="flex flex-col gap-10">
-      <Section
-        title="Logins"
-        description="Sign-ins teammates fill in on the right site."
-        items={logins}
-        kind="login"
-      />
+      <Section title="Logins" description={VAULT_COPY.loginsAbout} items={logins} kind="login" />
       <Section
         title="Cards"
         description={
           budgeted > 0
-            ? "For purchases within each teammate's monthly budget. Set budgets on a teammate's Spending tab."
-            : "For purchases within each teammate's monthly budget."
+            ? `${VAULT_COPY.cardsAbout} Set budgets on a teammate's Spending tab.`
+            : VAULT_COPY.cardsAbout
         }
         items={cards}
         kind="card"
@@ -320,15 +299,18 @@ export function VaultView() {
         className="grid gap-x-6 gap-y-5 border-t pt-8 sm:grid-cols-2"
         aria-label="How it stays safe"
       >
-        {PROMISES.map(({ icon: Icon, title, text }) => (
-          <div key={title} className="flex gap-3">
-            <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
-            <div className="flex flex-col gap-0.5">
-              <span className="text-[13.5px] font-medium">{title}</span>
-              <span className="text-[13px] text-muted-foreground">{text}</span>
+        {VAULT_PROMISES.map(({ key, title, text }) => {
+          const Icon = PROMISE_ICONS[key];
+          return (
+            <div key={key} className="flex gap-3">
+              <Icon className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[13.5px] font-medium">{title}</span>
+                <span className="text-[13px] text-muted-foreground">{text}</span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
         <p className="text-[12.5px] text-muted-foreground sm:col-span-2">
           A page can still show what was typed, like a card number at checkout, in the screenshots a
           teammate takes. For a sign-in that needs a code from your phone, the teammate asks you to{" "}
