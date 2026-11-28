@@ -12,6 +12,7 @@ import {
   pendingProposalViewSchema,
   proposalAcceptSchema,
   spendingViewSchema,
+  teammateProfileViewSchema,
 } from "../teammates";
 import { teammateSummarySchema } from "../views";
 
@@ -21,6 +22,8 @@ export const MAX_TEAMMATE_FILE = 2_000_000;
 export const teammatesContract = {
   /** Your teammates (not archived), oldest first, with what each is doing now. */
   list: base.output(z.array(teammateSummarySchema)),
+  /** A teammate's profile to edit, with the revision `update` takes. Not found once archived. */
+  profile: base.input(z.object({ teammateId: id })).output(teammateProfileViewSchema),
   /** What a teammate learned from your feedback, newest first. */
   lessons: base.input(z.object({ teammateId: id })).output(z.array(lessonViewSchema)),
   /** A teammate's monthly budget, what it spent, and its latest purchases. */
@@ -41,9 +44,9 @@ export const teammatesContract = {
   /**
    * Save the profile: the fields you changed, or all of them (as clients from before sent it).
    * Only what's sent is checked, so a field saved before today's rules (an older color) doesn't
-   * stop a save that leaves it as it is. `revision` is the profile as you loaded it: a change to
-   * it made since, by you elsewhere or by a teammate, fails with `STATE_CONFLICT` instead of being
-   * overwritten. Changes to the rest of the teammate (its budget, the lead) don't.
+   * stop a save that leaves it as it is. `revision` is the profile as you loaded it (`profile`):
+   * a change to it made since, by you elsewhere or by a teammate, fails with `STATE_CONFLICT`
+   * instead of being overwritten. Changes to the rest of the teammate (its budget, the lead) don't.
    */
   update: base
     .input(
@@ -93,7 +96,11 @@ export const teammatesContract = {
     ),
   /** Make this teammate the lead, who answers group chats when nobody is mentioned. */
   setLead: base.input(z.object({ teammateId: id })).output(ok),
-  /** Archive a teammate: its chats are archived, its automations paused, its work stopped. */
+  /**
+   * Archive a teammate: its chats are archived, its automations paused, its work stopped. An
+   * archived lead stops leading, and nobody is made lead in its place: a group message that
+   * mentions nobody goes to the chat's first member until you choose a lead.
+   */
   archive: base.input(z.object({ teammateId: id })).output(ok),
   /** What a teammate may spend from the vault's cards each month; see `budgetInputSchema`. */
   setBudget: base.input(budgetInputSchema).output(ok),

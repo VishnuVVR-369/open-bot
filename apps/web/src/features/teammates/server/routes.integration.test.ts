@@ -274,4 +274,71 @@ describe.skipIf(!apiTestUrl)("API reads, end to end", () => {
       answers.clear();
     }
   });
+
+  it("reads a teammate's profile to edit, with a revision only the profile changes", async () => {
+    const s = await import("@open-bot/db");
+    const db = database.db;
+    const [row] = await db.select().from(s.teammates).where(eq(s.teammates.id, ids.teammate));
+    const read = await api.teammates.profile({ teammateId: ids.teammate });
+    expect(read).toEqual({
+      teammateId: ids.teammate,
+      profile: {
+        name: row!.name,
+        role: row!.role,
+        instructions: row!.instructions,
+        color: row!.color,
+        emoji: row!.emoji,
+        autonomy: row!.autonomy,
+      },
+      revision: s.teammateRevision(row!),
+    });
+    try {
+      // Its budget, the lead and a lesson change the row, not what you edit.
+      await db
+        .update(s.teammates)
+        .set({ monthlyBudgetCents: 5000, isLead: !row!.isLead, lessonsChangedAt: new Date() })
+        .where(eq(s.teammates.id, ids.teammate));
+      expect((await api.teammates.profile({ teammateId: ids.teammate })).revision).toBe(
+        read.revision,
+      );
+      await db
+        .update(s.teammates)
+        .set({ instructions: `${row!.instructions}\nCite sources.` })
+        .where(eq(s.teammates.id, ids.teammate));
+      const changed = await api.teammates.profile({ teammateId: ids.teammate });
+      expect(changed.revision).not.toBe(read.revision);
+      expect(changed.profile.instructions).toBe(`${row!.instructions}\nCite sources.`);
+
+      // A save sends the whole profile and that revision to the worker, which checks it.
+      const path = `/internal/teammates/${ids.teammate}`;
+      answers.set(path, {
+        status: 200,
+        body: { teammateId: ids.teammate, revision: "next", workspaceSynced: true },
+      });
+      await api.teammates.update({
+        teammateId: ids.teammate,
+        profile: { ...changed.profile, role: "Editor" },
+        revision: changed.revision,
+      });
+      expect(workerBodies.findLast((body) => body.path === path)?.body).toEqual({
+        changes: { ...changed.profile, role: "Editor" },
+        expected_revision: changed.revision,
+      });
+
+      // Archived, or never there: not found.
+      await db
+        .update(s.teammates)
+        .set({ archivedAt: new Date() })
+        .where(eq(s.teammates.id, ids.teammate));
+      for (const teammateId of [ids.teammate, randomUUID()])
+        await expect(api.teammates.profile({ teammateId })).rejects.toMatchObject({
+          code: "NOT_FOUND",
+          message: "That teammate no longer exists or is archived.",
+        });
+    } finally {
+      answers.clear();
+      const { id: _id, createdAt: _created, updatedAt: _updated, ...rest } = row!;
+      await db.update(s.teammates).set(rest).where(eq(s.teammates.id, ids.teammate));
+    }
+  });
 });

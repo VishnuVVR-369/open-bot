@@ -8,6 +8,7 @@ import {
   Mail,
   MessageCircle,
   Monitor,
+  Pencil,
   ShieldAlert,
   ShieldCheck,
   SquarePen,
@@ -42,7 +43,10 @@ import { TeammateMemory } from "@/features/memory/components/teammate-memory";
 import { TaskSection } from "@/features/tasks/components/task-section";
 import { useTasks } from "@/features/tasks/hooks";
 import { teammateTasks } from "@/features/tasks/tasks";
+import { HeaderButton } from "@/features/home/components/header-actions";
 import { InstructionsProposalSection } from "@/features/teammates/components/instructions-proposal";
+import { TeammateManage } from "@/features/teammates/components/teammate-manage";
+import { useArchiving } from "@/features/teammates/archiving";
 import { ago, lastActive } from "@/lib/time";
 import { useSafeBottom } from "@/lib/use-safe-bottom";
 import { radius, space, useColors } from "@/theme";
@@ -83,7 +87,13 @@ function Action({
       {icon}
       <Text
         variant="small"
-        style={{ fontWeight: "600", color: primary ? colors.primaryForeground : colors.foreground }}
+        // Three side by side: past this a word no longer fits on a line.
+        maxFontSizeMultiplier={1.5}
+        style={{
+          fontWeight: "600",
+          textAlign: "center",
+          color: primary ? colors.primaryForeground : colors.foreground,
+        }}
       >
         {label}
       </Text>
@@ -195,6 +205,7 @@ export default function TeammateScreen() {
   const { data: tasks } = useTasks();
   const newChat = useNewDirectChat();
   const computerOffline = useComputerOffline();
+  const archiving = useArchiving(teammateId);
   const teammate = teammates.data?.find((candidate) => candidate.id === teammateId);
 
   if (teammates.isLoading) return <Loading />;
@@ -272,7 +283,24 @@ export default function TeammateScreen() {
         contentContainerStyle={[styles.content, { paddingBottom: bottom }]}
         testID="teammate-profile"
       >
-        <Stack.Screen options={{ title: "" }} />
+        <Stack.Screen
+          options={{
+            title: "",
+            headerRight: () => (
+              <HeaderButton
+                label="Edit profile"
+                disabled={archiving}
+                onPress={() => {
+                  haptics.tap();
+                  router.push(`/teammates/${teammate.id}/edit`);
+                }}
+                testID="profile-edit"
+              >
+                <Pencil size={21} color={archiving ? colors.mutedForeground : colors.foreground} />
+              </HeaderButton>
+            ),
+          }}
+        />
         <View style={styles.hero}>
           {/* Who they are, compact: the face beside the name, so what to do comes right after. */}
           <View style={styles.identity}>
@@ -401,6 +429,8 @@ export default function TeammateScreen() {
             </Card>
           </Section>
         )}
+
+        <TeammateManage teammate={teammate} team={allTeammates} />
       </ScrollView>
     </View>
   );
@@ -438,6 +468,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: space(1),
+    // Room around the label, so a large font wraps it inside the button instead of over the icon.
+    paddingHorizontal: space(1),
+    paddingVertical: space(2.5),
     overflow: "hidden",
   },
   about: { padding: space(4), gap: space(1) },

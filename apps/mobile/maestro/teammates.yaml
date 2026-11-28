@@ -1,0 +1,134 @@
+appId: dev.openbot.mobile.dev
+name: Edit a teammate's job and back, discard an edit, duplicate the teammate and archive the copy
+# Run against a signed-in development app, with the id of a teammate to edit and duplicate:
+#   maestro test -e TEAMMATE_ID=<teammate id> maestro/teammates.yaml
+# Find the id with `select id, name from teammates where archived_at is null;` in the database.
+# The flow changes the teammate's job and then gives it back, and archives the copy it made, so the
+# team ends as it started. The copy is named "Maestro copy": no other teammate may have that name.
+# A tap puts the cursor where it lands, so the flow taps the job's field at its right end, after
+# the job, and erases back from there: the job must fit in the field.
+---
+- runFlow:
+    file: flows/open-link.yaml
+    env:
+      LINK: openbot://teammates/${TEAMMATE_ID}
+- extendedWaitUntil:
+    visible:
+      id: teammate-profile
+    timeout: 20000
+
+# Open the editor, and keep the job, as typed and as a pattern.
+- tapOn:
+    id: profile-edit
+- extendedWaitUntil:
+    visible:
+      id: teammate-role-input
+    timeout: 15000
+- copyTextFrom:
+    id: teammate-role-input
+- runScript: title-pattern.js
+
+# Change the job and leave without saving: Discard goes back to the profile, job unchanged.
+- tapOn:
+    id: teammate-role-input
+    point: 97%,50%
+- eraseText: 120
+- inputText: Not saved
+- hideKeyboard
+- back
+- tapOn: Discard
+- extendedWaitUntil:
+    visible:
+      id: teammate-profile
+    timeout: 10000
+- assertVisible:
+    text: ${output.titlePattern}
+
+# Change the job and save: the profile shows it.
+- tapOn:
+    id: profile-edit
+- extendedWaitUntil:
+    visible:
+      id: teammate-role-input
+    timeout: 15000
+- tapOn:
+    id: teammate-role-input
+    point: 97%,50%
+- eraseText: 120
+- inputText: ${output.title} (Maestro)
+- hideKeyboard
+- tapOn:
+    id: teammate-save
+- extendedWaitUntil:
+    visible:
+      text: ${output.titlePattern} \(Maestro\)
+    timeout: 15000
+- assertVisible:
+    id: teammate-profile
+
+# Give the job back.
+- tapOn:
+    id: profile-edit
+- extendedWaitUntil:
+    visible:
+      id: teammate-role-input
+    timeout: 15000
+- tapOn:
+    id: teammate-role-input
+    point: 97%,50%
+- eraseText: 120
+- inputText: ${output.title}
+- hideKeyboard
+- tapOn:
+    id: teammate-save
+- extendedWaitUntil:
+    visible:
+      text: ${output.titlePattern}
+    timeout: 15000
+
+# Duplicate the teammate: the copy opens, with the same job.
+- scrollUntilVisible:
+    element:
+      id: teammate-duplicate-open
+    timeout: 15000
+- tapOn:
+    id: teammate-duplicate-open
+- extendedWaitUntil:
+    visible:
+      id: duplicate-name-input
+    timeout: 10000
+- tapOn:
+    id: duplicate-name-input
+    point: 97%,50%
+- eraseText: 60
+- inputText: Maestro copy
+- hideKeyboard
+- tapOn:
+    id: duplicate-confirm
+- extendedWaitUntil:
+    visible:
+      text: Maestro copy
+    timeout: 30000
+- assertVisible:
+    id: teammate-profile
+- assertVisible:
+    text: ${output.titlePattern}
+
+# Archive the copy: after asking, Home opens, and the copy isn't on it.
+- scrollUntilVisible:
+    element:
+      id: teammate-archive
+    timeout: 15000
+- tapOn:
+    id: teammate-archive
+- extendedWaitUntil:
+    visible: Archive Maestro copy\?
+    timeout: 5000
+- tapOn: Archive
+- extendedWaitUntil:
+    visible:
+      id: home
+    timeout: 20000
+- extendedWaitUntil:
+    notVisible: Maestro copy
+    timeout: 10000

@@ -4,7 +4,7 @@ import { copyName } from "@open-bot/domain";
 import { useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,34 +42,47 @@ export function DuplicateTeammateDialog({
   const [name, setName] = useState("");
   const [copyMemory, setCopyMemory] = useState(true);
   const [pending, startTransition] = useTransition();
+  // One copy per ask: asking again after an answer that never came names the same id, so the
+  // server answers with the copy the first ask made (under the first ask's name) instead of a
+  // second one. Opening the dialog again, or a refusal, which made nothing, starts a new ask.
+  const sent = useRef<{ copyId: string; name: string } | null>(null);
   const router = useRouter();
   const queryClient = useQueryClient();
 
   useEffect(() => {
     if (!open) return;
+    sent.current = null;
     setName(copyName(teammate.name, state?.teammates.map((b) => b.name) ?? []));
     setCopyMemory(true);
     // Only when the dialog opens, so typing isn't undone by a state refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, teammate.name]);
+  }, [open, teammate.id, teammate.name]);
 
   function submit() {
     startTransition(async () => {
+      const ask = (sent.current ??= { copyId: crypto.randomUUID(), name: name.trim() });
       const result = await attempt(
-        api.teammates.duplicate({ teammateId: teammate.id, name, copyMemory }),
+        api.teammates.duplicate({
+          teammateId: teammate.id,
+          name,
+          copyMemory,
+          copyId: ask.copyId,
+        }),
       );
       if (!result.ok) {
+        if (result.refused) sent.current = null;
         toast.error("Couldn't duplicate the teammate", { description: result.error });
         return;
       }
+      sent.current = null;
       await queryClient.invalidateQueries({ queryKey: orpc.app.state.key() });
       setOpen(false);
       if (result.data.memoryCopied) {
-        toast(`${name.trim()} is ready`, {
+        toast(`${ask.name} is ready`, {
           description: `Set up like ${teammate.name}. Their automations start off.`,
         });
       } else {
-        toast.warning(`${name.trim()} is ready, without ${teammate.name}'s memory`, {
+        toast.warning(`${ask.name} is ready, without ${teammate.name}'s memory`, {
           description: "The computer couldn't copy it. You can paste it into their Memory tab.",
         });
       }

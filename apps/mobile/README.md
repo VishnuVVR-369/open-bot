@@ -100,6 +100,8 @@ Pass the id of a repeating schedule that is on (`select id, title from schedules
 It finds rows by id, since titles repeat, and checks that the newest run in the history is the one it just started.
 `maestro/memory.yaml` adds a shared memory, finds it by searching, edits it, restores its first revision from History and forgets it, then dismisses a teammate's suggested instructions from Home.
 Ask a teammate to suggest a change to its own instructions first, so Home lists it; run it with `maestro test maestro/memory.yaml`.
+`maestro/teammates.yaml` changes a teammate's job and discards it, changes it and saves, gives the job back, then duplicates the teammate as "Maestro copy" and archives the copy, so the team ends as it started.
+Pass the teammate's id (`select id, name from teammates where archived_at is null;` finds it): `maestro test -e TEAMMATE_ID=<id> maestro/teammates.yaml`.
 These flows need an on-screen keyboard, such as Gboard: with a keyboardless test input method (agent-device installs one), `hideKeyboard` presses Back instead, and an editor asks to discard what was typed.
 Switch back with `adb shell ime set com.google.android.inputmethod.latin/com.android.inputmethod.latin.LatinIME`.
 To check sharing, send a share with `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'https://example.com'" dev.openbot.mobile.dev`.

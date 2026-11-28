@@ -1,0 +1,199 @@
+import type { TeammateProfileView, TeammateSummary } from "@open-bot/api";
+import { AUTONOMY_OPTIONS, teammateProfileSchema, type TeammateProfile } from "@open-bot/domain";
+
+/**
+ * Editing a teammate's profile on the phone: the form, what changed in it, and how it follows the
+ * profile as it changes elsewhere (on the web, by a teammate, or by accepting its suggested
+ * instructions) without losing what you typed or silently replacing what someone else wrote.
+ */
+
+export type ProfileForm = TeammateProfile;
+export type ProfileField = keyof ProfileForm;
+
+export const PROFILE_FIELDS: readonly ProfileField[] = [
+  "name",
+  "role",
+  "instructions",
+  "color",
+  "emoji",
+  "autonomy",
+];
+
+/** What each field is called where the editor tells you about it. */
+export const FIELD_LABELS: Record<ProfileField, string> = {
+  name: "name",
+  role: "job",
+  instructions: "responsibilities",
+  color: "color",
+  emoji: "emoji",
+  autonomy: "setting for when they ask you first",
+};
+
+/** The longest name and job, as the shared profile rules have them. */
+export const NAME_MAX = 40;
+export const ROLE_MAX = 80;
+
+/** The form, the profile it started from, and that profile's revision, which a save sends back. */
+export interface ProfileDraft {
+  start: ProfileForm;
+  revision: string;
+  form: ProfileForm;
+  /**
+   * Fields you changed that were also changed elsewhere since you began: saving replaces what was
+   * written there with yours, so the editor says so.
+   */
+  clashes: ProfileField[];
+}
+
+// The server trims a name and a job, so spaces around them aren't a change.
+const trimmed = (field: ProfileField) => field === "name" || field === "role";
+const same = (field: ProfileField, a: ProfileForm, b: ProfileForm) =>
+  trimmed(field) ? a[field].trim() === b[field].trim() : a[field] === b[field];
+
+export function profileDraft(
+  view: Pick<TeammateProfileView, "profile" | "revision">,
+): ProfileDraft {
+  return { start: view.profile, revision: view.revision, form: view.profile, clashes: [] };
+}
+
+/** Each field the form changed from where it started. */
+export function changedFields(draft: Pick<ProfileDraft, "start" | "form">): ProfileField[] {
+  return PROFILE_FIELDS.filter((field) => !same(field, draft.start, draft.form));
+}
+
+export const profileChanged = (draft: Pick<ProfileDraft, "start" | "form">) =>
+  changedFields(draft).length > 0;
+
+/**
+ * A fresher copy of the profile: what you haven't touched follows it, and what you changed stays
+ * yours. A field you changed that was also changed there, to something else, is a clash, kept
+ * until you save, give it up, or change it back.
+ */
+export function rebaseProfile(
+  draft: ProfileDraft,
+  fresh: Pick<TeammateProfileView, "profile" | "revision">,
+): ProfileDraft {
+  if (fresh.revision === draft.revision) return draft;
+  const changed = changedFields(draft);
+  const theirs = fresh.profile;
+  const form = { ...theirs };
+  for (const field of changed) (form as Record<ProfileField, string>)[field] = draft.form[field];
+  const clashes = changed.filter(
+    (field) =>
+      // Still yours to save over theirs: it clashed before, or it changed there just now.
+      !same(field, theirs, draft.form) &&
+      (draft.clashes.includes(field) || !same(field, theirs, draft.start)),
+  );
+  return { start: theirs, revision: fresh.revision, form, clashes };
+}
+
+/** Gives up your change to a field that clashed, for what was saved elsewhere. */
+export function takeTheirs(draft: ProfileDraft, field: ProfileField): ProfileDraft {
+  return {
+    ...draft,
+    form: { ...draft.form, [field]: draft.start[field] },
+    clashes: draft.clashes.filter((entry) => entry !== field),
+  };
+}
+
+/** Sets fields in the form; a clash on a field changed back to what's saved goes away. */
+export function editProfile(draft: ProfileDraft, patch: Partial<ProfileForm>): ProfileDraft {
+  const form = { ...draft.form, ...patch };
+  return {
+    ...draft,
+    form,
+    clashes: draft.clashes.filter((field) => !same(field, draft.start, form)),
+  };
+}
+
+/** The fields you changed, as the server trims them: all a save sends. */
+function changes(draft: Pick<ProfileDraft, "start" | "form">): Partial<ProfileForm> {
+  const { form } = draft;
+  const trimmedForm = { ...form, name: form.name.trim(), role: form.role.trim() };
+  return Object.fromEntries(
+    changedFields(draft).map((field) => [field, trimmedForm[field]]),
+  ) as Partial<ProfileForm>;
+}
+
+/**
+ * Why the form can't be saved, in the shared profile rules' words, or null when it can. Only what
+ * you changed is checked: a field left as it was saved (a color from before today's palette, say)
+ * is neither sent nor judged, so it never blocks a save.
+ */
+export function profileProblem(draft: Pick<ProfileDraft, "start" | "form">): string | null {
+  const parsed = teammateProfileSchema.partial().safeParse(changes(draft));
+  return parsed.success ? null : (parsed.error.issues[0]?.message ?? "Check the profile.");
+}
+
+/**
+ * What `teammates.update` takes: the fields you changed, as the server trims them, and the
+ * revision they're based on, which the server holds every other field to.
+ */
+export function profileUpdate(teammateId: string, draft: ProfileDraft) {
+  return { teammateId, profile: changes(draft), revision: draft.revision };
+}
+
+/** The profile as a save left it: where it started, with what was sent on top. */
+export function savedProfile(
+  draft: Pick<ProfileDraft, "start">,
+  sent: { teammateId: string; profile: Partial<ProfileForm> },
+  revision: string,
+): TeammateProfileView {
+  return { teammateId: sent.teammateId, profile: { ...draft.start, ...sent.profile }, revision };
+}
+
+/** "name and job", in the editor's words. */
+function listFields(fields: readonly ProfileField[]): string {
+  const labels = fields.map((field) => FIELD_LABELS[field]);
+  if (labels.length <= 1) return labels[0] ?? "";
+  return `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+}
+
+/** What a field was saved as elsewhere, when it's short enough to say. */
+function savedValue(field: ProfileField, saved: ProfileForm): string | null {
+  if (field === "name" || field === "role") return `“${saved[field].trim()}”`;
+  if (field === "autonomy")
+    return AUTONOMY_OPTIONS.find((option) => option.value === saved.autonomy)?.label ?? null;
+  return null;
+}
+
+/**
+ * What the editor says about clashing fields: what they were changed to elsewhere, when that's
+ * short, and that saving replaces it with yours.
+ */
+export function clashText(draft: Pick<ProfileDraft, "start" | "clashes">): string | null {
+  const { clashes, start } = draft;
+  if (clashes.length === 0) return null;
+  if (clashes.length > 1)
+    return `The ${listFields(clashes)} were also changed elsewhere while you were editing. Saving replaces them with yours.`;
+  const field = clashes[0]!;
+  const value = savedValue(field, start);
+  const to = value ? `, to ${value},` : "";
+  const verb = field === "instructions" ? "were" : "was";
+  return `The ${FIELD_LABELS[field]} ${verb} also changed elsewhere${to} while you were editing. Saving replaces ${field === "instructions" ? "them" : "it"} with yours.`;
+}
+
+/**
+ * What the editor says after a save was refused because the profile changed meanwhile and the
+ * form has followed it: what you changed is still here, on top of what's there now.
+ */
+export const REBASED_TEXT =
+  "This profile changed elsewhere since you opened it. Your changes are still here, on top of the latest version. Look them over and save again.";
+
+/** The confirmation before archiving a teammate: what stops, what stays, and the lead. */
+export function archiveText(teammate: Pick<TeammateSummary, "name" | "isLead">): string {
+  const { name } = teammate;
+  const lead = teammate.isLead
+    ? ` ${name} is the lead, so nobody will lead until you choose another teammate: group messages that don't mention anyone go to the chat's first member.`
+    : "";
+  return `${name} stops what they're doing, their automations turn off, and their chats are archived. Their workspace stays on the computer.${lead}`;
+}
+
+/** What making a teammate the lead changes, said before it does. */
+export function leadText(
+  teammate: Pick<TeammateSummary, "name">,
+  lead: Pick<TeammateSummary, "name"> | undefined,
+): string {
+  const instead = lead ? `, instead of ${lead.name}` : "";
+  return `${teammate.name} will answer group messages that don't mention anyone, and hand work to others${instead}.`;
+}

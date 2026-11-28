@@ -9,6 +9,7 @@ import {
   dismissProposal,
   duplicateTeammate,
   getSpending,
+  getTeammateProfile,
   importTeammate,
   listLessons,
   pendingProposalFor,
@@ -25,6 +26,7 @@ export function teammateRoutes() {
   return {
     teammates: {
       list: os.teammates.list.handler(() => listTeammates()),
+      profile: os.teammates.profile.handler(({ input }) => getTeammateProfile(input.teammateId)),
       lessons: os.teammates.lessons.handler(({ input }) => listLessons(input.teammateId)),
       spending: os.teammates.spending.handler(async ({ input }) => {
         const spending = await getSpending(input.teammateId);

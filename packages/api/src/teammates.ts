@@ -1,4 +1,4 @@
-import { purchaseStatusSchema } from "@open-bot/domain";
+import { autonomySchema, purchaseStatusSchema } from "@open-bot/domain";
 import { z } from "zod";
 import { id } from "./base";
 
@@ -16,6 +16,24 @@ export const lessonViewSchema = z.object({
   chatId: z.string().nullable(),
 });
 export type LessonView = z.infer<typeof lessonViewSchema>;
+
+/**
+ * A teammate's profile as you edit it, and its revision to send back with `teammates.update`. The
+ * revision covers the profile only: a budget or a lesson changed meanwhile doesn't refuse the save.
+ */
+export const teammateProfileViewSchema = z.object({
+  teammateId: z.string(),
+  profile: z.object({
+    name: z.string(),
+    role: z.string(),
+    instructions: z.string(),
+    color: z.string(),
+    emoji: z.string(),
+    autonomy: autonomySchema,
+  }),
+  revision: z.string(),
+});
+export type TeammateProfileView = z.infer<typeof teammateProfileViewSchema>;
 
 /** A teammate's suggested rewrite of its instructions. */
 export const proposalViewSchema = z.object({

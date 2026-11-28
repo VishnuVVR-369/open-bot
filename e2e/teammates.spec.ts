@@ -1,5 +1,15 @@
+import pg from "pg";
 import { expect, test } from "./fixtures";
-import { teammateIdOf, createTeammate, testLabel, testSlug, uniqueName, worker } from "./helpers";
+import {
+  apiFor,
+  e2eStack,
+  teammateIdOf,
+  createTeammate,
+  testLabel,
+  testSlug,
+  uniqueName,
+  worker,
+} from "./helpers";
 
 test("create, edit and archive a teammate", async ({ page }) => {
   const name = uniqueName("Tess");
@@ -23,6 +33,31 @@ test("create, edit and archive a teammate", async ({ page }) => {
   await page.getByRole("button", { name: `Archive ${name}` }).click();
   await expect(page).toHaveURL("/");
   await expect(page.getByRole("navigation", { name: "Main" }).getByText(name)).toHaveCount(0);
+});
+
+test("a change besides the profile doesn't refuse a profile edit", async ({ page }) => {
+  const name = uniqueName("Rae");
+  await createTeammate(page, name, "qa assistant");
+  const teammateId = await teammateIdOf(page, name);
+  await page.goto(`/teammates/${teammateId}`);
+  await page.getByLabel("Job").fill("release manager");
+
+  // The budget and lessons change behind the open form, with no event to refresh it: only the
+  // profile counts as a change made meanwhile, so the form's save still goes through.
+  const pool = new pg.Pool({ connectionString: e2eStack().databaseUrl });
+  try {
+    await pool.query(
+      "update teammates set monthly_budget_cents = 500, lessons_changed_at = now() where id = $1",
+      [teammateId],
+    );
+  } finally {
+    await pool.end();
+  }
+
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByTestId("save-bar")).toContainText("Saved");
+  await page.reload();
+  await expect(page.getByLabel("Job")).toHaveValue("release manager");
 });
 
 test("create a group chat", async ({ page }) => {
@@ -84,6 +119,44 @@ test("duplicate a teammate with their skills and memory", async ({ page }) => {
   await expect(page.getByTestId("skill").filter({ hasText: `/${skill}` })).toContainText(
     `Only ${name} 2`,
   );
+});
+
+test("a duplicate whose answer is lost makes one copy, and opening the dialog again makes another", async ({
+  page,
+}) => {
+  const name = uniqueName("Nell");
+  await createTeammate(page, name, "copy editor");
+  const id = await teammateIdOf(page, name);
+  const copies = async () =>
+    (await apiFor(page).teammates.list()).filter((entry) => entry.name.startsWith(`${name} `));
+  await page.goto(`/teammates/${id}`);
+  await page.getByTestId("duplicate-teammate").click();
+  await expect(page.getByTestId("duplicate-name")).toHaveValue(`${name} 2`);
+  // The copy is made, but its answer never arrives.
+  let lost = 0;
+  await page.route("**/api/rpc/teammates/duplicate", async (route) => {
+    await route.fetch();
+    lost++;
+    await route.abort("connectionreset");
+  });
+  await page.getByTestId("duplicate-confirm").click();
+  await expect(page.getByText("Couldn't duplicate the teammate")).toBeVisible();
+  expect(lost).toBe(1);
+  await page.unroute("**/api/rpc/teammates/duplicate");
+
+  // Asked again from the same dialog: the server answers with the copy it made.
+  await page.getByTestId("duplicate-confirm").click();
+  await page.waitForURL(/\/chats\//);
+  await expect(page.getByText(`${name} 2 is ready`)).toBeVisible();
+  expect((await copies()).map((entry) => entry.name)).toEqual([`${name} 2`]);
+
+  // A new ask, opened again: a second copy under its own id, not the first one again.
+  await page.goto(`/teammates/${id}`);
+  await page.getByTestId("duplicate-teammate").click();
+  await expect(page.getByTestId("duplicate-name")).toHaveValue(`${name} 3`);
+  await page.getByTestId("duplicate-confirm").click();
+  await page.waitForURL(/\/chats\//);
+  expect((await copies()).map((entry) => entry.name).sort()).toEqual([`${name} 2`, `${name} 3`]);
 });
 
 test("start from a template with starter automations", async ({ page }) => {

@@ -1,14 +1,19 @@
 import "server-only";
-import type { ApiInputs, ApiOutputs, PendingProposalView } from "@open-bot/api";
+import type {
+  ApiInputs,
+  ApiOutputs,
+  PendingProposalView,
+  TeammateProfileView,
+} from "@open-bot/api";
 import {
   approvalRules,
   teammates,
   chats,
-  configurationRevision,
   instructionProposals,
   lessons,
   purchases,
   runs,
+  teammateRevision,
   vaultItems,
 } from "@open-bot/db";
 import {
@@ -168,13 +173,28 @@ export async function getTeammatePage(teammateId: string) {
   return {
     teammate,
     // What the form sends back with a save, so a save over a newer change is refused.
-    revision: configurationRevision(teammate),
+    revision: teammateRevision(teammate),
     chats: teammateChats.map((chat) => ({
       ...chat,
       lastActivityAt: chat.lastActivityAt.toISOString(),
     })),
     proposal,
     rules,
+  };
+}
+
+/** A teammate's profile to edit on the phone, with the revision a save sends back. */
+export async function getTeammateProfile(teammateId: string): Promise<TeammateProfileView> {
+  const [teammate] = await db
+    .select()
+    .from(teammates)
+    .where(and(eq(teammates.id, teammateId), isNull(teammates.archivedAt)));
+  if (!teammate) throw new ApiError("NOT_FOUND", "That teammate no longer exists or is archived.");
+  const { name, role, instructions, color, emoji, autonomy } = teammate;
+  return {
+    teammateId,
+    profile: { name, role, instructions, color, emoji, autonomy },
+    revision: teammateRevision(teammate),
   };
 }
 
